@@ -207,7 +207,7 @@ pub fn scan() -> ScanResult {
     for (platform, source) in sources {
         match source() {
             Ok(Some(mut found)) => {
-                found.retain(|g| g.install_dir.as_deref().map_or(true, |d| dirs.insert(dir_key(d))));
+                found.retain(|g| g.install_dir.as_deref().is_none_or(|d| dirs.insert(dir_key(d))));
                 reports.push(SourceReport { platform, installed: true, count: found.len(), error: None });
                 games.extend(found);
             }

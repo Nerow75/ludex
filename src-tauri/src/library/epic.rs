@@ -28,10 +28,10 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         }
         let Ok(text) = fs::read_to_string(&path) else { continue };
         let Ok(item) = serde_json::from_str::<Value>(&text) else { continue };
-        if let Some(game) = parse_item(&item) {
-            if seen.insert(game.platform_id.clone()) {
-                games.push(game);
-            }
+        if let Some(game) = parse_item(&item)
+            && seen.insert(game.platform_id.clone())
+        {
+            games.push(game);
         }
     }
     Ok(Some(games))
@@ -51,10 +51,10 @@ fn parse_item(item: &Value) -> Option<Game> {
         return None;
     }
     // Ignore les applications qui ne sont pas des jeux (Unreal Engine, etc.).
-    if let Some(categories) = item.get("AppCategories").and_then(Value::as_array) {
-        if !categories.iter().any(|c| c.as_str() == Some("games")) {
-            return None;
-        }
+    if let Some(categories) = item.get("AppCategories").and_then(Value::as_array)
+        && !categories.iter().any(|c| c.as_str() == Some("games"))
+    {
+        return None;
     }
     let install = s("InstallLocation");
     if !install.is_empty() && !Path::new(install).exists() {

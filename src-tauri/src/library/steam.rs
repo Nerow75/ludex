@@ -64,20 +64,20 @@ fn steam_root() -> Option<PathBuf> {
     {
         use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
         use winreg::RegKey;
-        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(r"Software\Valve\Steam") {
-            if let Ok(path) = key.get_value::<String, _>("SteamPath") {
-                let p = PathBuf::from(path.replace('/', "\\"));
-                if p.exists() {
-                    return Some(p);
-                }
+        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(r"Software\Valve\Steam")
+            && let Ok(path) = key.get_value::<String, _>("SteamPath")
+        {
+            let p = PathBuf::from(path.replace('/', "\\"));
+            if p.exists() {
+                return Some(p);
             }
         }
-        if let Ok(key) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SOFTWARE\WOW6432Node\Valve\Steam") {
-            if let Ok(path) = key.get_value::<String, _>("InstallPath") {
-                let p = PathBuf::from(path);
-                if p.exists() {
-                    return Some(p);
-                }
+        if let Ok(key) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SOFTWARE\WOW6432Node\Valve\Steam")
+            && let Ok(path) = key.get_value::<String, _>("InstallPath")
+        {
+            let p = PathBuf::from(path);
+            if p.exists() {
+                return Some(p);
             }
         }
     }
@@ -111,10 +111,10 @@ fn account_ids(loginusers: &vdf::Vdf) -> Vec<u64> {
 fn localconfig_path(root: &Path) -> Option<PathBuf> {
     let userdata = root.join("userdata");
     let file = |id: &str| userdata.join(id).join("config").join("localconfig.vdf");
-    if let Ok(text) = fs::read_to_string(root.join("config").join("loginusers.vdf")) {
-        if let Some(path) = account_ids(&vdf::parse(&text)).into_iter().map(|id| file(&id.to_string())).find(|p| p.is_file()) {
-            return Some(path);
-        }
+    if let Ok(text) = fs::read_to_string(root.join("config").join("loginusers.vdf"))
+        && let Some(path) = account_ids(&vdf::parse(&text)).into_iter().map(|id| file(&id.to_string())).find(|p| p.is_file())
+    {
+        return Some(path);
     }
     fs::read_dir(&userdata)
         .ok()?
