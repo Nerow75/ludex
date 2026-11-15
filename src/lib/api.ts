@@ -19,6 +19,14 @@ export interface GameDetails {
   description: string | null;
 }
 
+/** Succès débloqués sur le total, lus dans le cache local de Steam. */
+export interface Achievements {
+  unlocked: number;
+  total: number;
+  /** Date du dernier succès débloqué (secondes Unix). */
+  lastUnlocked: number | null;
+}
+
 export interface Game {
   id: string;
   title: string;
@@ -38,6 +46,8 @@ export interface Game {
   playtimeMinutes: number | null;
   /** Chiffre du launcher (Steam, GOG Galaxy) ou sessions mesurées par Ludex : jamais additionnés. */
   playtimeSource: PlaytimeSource | null;
+  /** `null` : pas de succès, ou progression inconnue (Steam seulement pour l'instant). */
+  achievements: Achievements | null;
   /** Application plutôt qu'un jeu (masquée par défaut). */
   isTool: boolean;
   favorite: boolean;

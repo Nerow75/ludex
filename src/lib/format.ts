@@ -22,6 +22,7 @@ export function relativeTime(ts: number | null): string {
 
 const hoursFine = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const hoursRound = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+const integer = new Intl.NumberFormat("fr-FR");
 
 /** « 45 min », « 2,5 h », « 12 h », « 1 240 h ». `null` : aucun chiffre connu. */
 export function formatPlaytime(minutes: number | null): string {
@@ -30,6 +31,11 @@ export function formatPlaytime(minutes: number | null): string {
   if (minutes < 60) return `${Math.round(minutes)} min`;
   const hours = minutes / 60;
   return `${(hours < 10 ? hoursFine : hoursRound).format(hours)} h`;
+}
+
+/** « 34 / 52 », « 1 328 / 1 328 ». */
+export function formatAchievements(unlocked: number, total: number): string {
+  return `${integer.format(unlocked)} / ${integer.format(total)}`;
 }
 
 export function formatSize(bytes: number | null): string {

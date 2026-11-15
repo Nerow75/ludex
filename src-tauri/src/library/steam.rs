@@ -1,7 +1,7 @@
 //! Steam : bibliothèques listées dans `steamapps/libraryfolders.vdf`,
 //! un `appmanifest_<appid>.acf` par jeu installé.
 
-use super::{art_url, vdf, Game, LocalArt, Launch, Platform};
+use super::{achievements, art_url, vdf, Game, LocalArt, Launch, Platform};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -127,6 +127,11 @@ fn localconfig_path(root: &Path) -> Option<PathBuf> {
         .map(|(_, p)| p)
 }
 
+/// Numéro de compte (steamid3) du dossier `userdata/<compte>/config/localconfig.vdf`.
+fn account_of(localconfig: &Path) -> Option<u64> {
+    localconfig.parent()?.parent()?.file_name()?.to_str()?.parse().ok()
+}
+
 /// Temps de jeu d'une application dans `localconfig.vdf`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AppTimes {
@@ -151,9 +156,9 @@ fn parse_playtimes(doc: &vdf::Vdf) -> HashMap<String, AppTimes> {
         .collect()
 }
 
-/// Temps de jeu du compte Steam de ce PC, `None` si le fichier est introuvable ou illisible.
-fn playtimes(root: &Path) -> Option<HashMap<String, AppTimes>> {
-    let text = fs::read_to_string(localconfig_path(root)?).ok()?;
+/// Temps de jeu du compte Steam de ce PC, `None` si le fichier est illisible.
+fn playtimes(localconfig: &Path) -> Option<HashMap<String, AppTimes>> {
+    let text = fs::read_to_string(localconfig).ok()?;
     Some(parse_playtimes(&vdf::parse(&text)))
 }
 
@@ -185,7 +190,11 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let mut games = Vec::new();
     let mut seen = HashSet::new();
     let art_cache = root.join("appcache").join("librarycache");
-    let times = playtimes(&root);
+    let localconfig = localconfig_path(&root);
+    let times = localconfig.as_deref().and_then(playtimes);
+    // Même compte pour les succès : ses fichiers sont nommés par son steamid3.
+    let account = localconfig.as_deref().and_then(account_of);
+    let stats_dir = root.join("appcache").join("stats");
 
     for library in library_paths(&root) {
         let steamapps = library.join("steamapps");
@@ -231,6 +240,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
                 let t = times.get(appid).copied().unwrap_or(AppTimes { minutes: 0, last_played: None });
                 game.set_launcher_playtime(t.minutes, t.last_played);
             }
+            game.achievements = account.and_then(|a| achievements::read(&stats_dir, a, appid));
             game.is_tool = is_tool(appid, title);
             game.steam_appid = appid.parse().ok();
             games.push(game);
@@ -241,7 +251,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{account_ids, is_tool, local_art, localconfig_path, parse_playtimes, playtimes, AppTimes};
+    use super::{account_ids, account_of, is_tool, local_art, localconfig_path, parse_playtimes, playtimes, AppTimes};
     use crate::library::vdf;
     use std::fs;
 
@@ -308,8 +318,10 @@ mod tests {
         // loginusers.vdf désigne le compte, même si un autre dossier est plus récent.
         fs::create_dir_all(root.join("config")).unwrap();
         fs::write(root.join("config").join("loginusers.vdf"), r#""users" { "76561198013136374" { "MostRecent" "1" } }"#).unwrap();
-        assert!(localconfig_path(&root).unwrap().starts_with(root.join("userdata").join("52870646")));
-        assert_eq!(playtimes(&root).unwrap().get("10").map(|t| t.minutes), Some(15));
+        let path = localconfig_path(&root).unwrap();
+        assert!(path.starts_with(root.join("userdata").join("52870646")));
+        assert_eq!(account_of(&path), Some(52_870_646));
+        assert_eq!(playtimes(&path).unwrap().get("10").map(|t| t.minutes), Some(15));
 
         // Compte désigné sans dossier : repli sur les dossiers existants.
         fs::write(root.join("config").join("loginusers.vdf"), r#""users" { "76561197960265729" { "MostRecent" "1" } }"#).unwrap();
@@ -343,6 +355,21 @@ mod tests {
 
         assert!(local_art(&cache, "30").cover.is_none());
         let _ = fs::remove_dir_all(&cache);
+    }
+
+    /// Coût des succès dans le scan de ce PC : `cargo test achievements_this_pc -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn achievements_this_pc() {
+        let start = std::time::Instant::now();
+        let games = super::scan().unwrap().unwrap_or_default();
+        println!("Scan Steam complet : {:?} ({} jeux)", start.elapsed(), games.len());
+        let root = super::steam_root().unwrap();
+        let account = localconfig_path(&root).as_deref().and_then(account_of).unwrap();
+        let stats = root.join("appcache").join("stats");
+        let start = std::time::Instant::now();
+        let found = games.iter().filter_map(|g| crate::library::achievements::read(&stats, account, &g.platform_id)).count();
+        println!("Dont succès : {:?} ({found} jeux avec succès, compte {account})", start.elapsed());
     }
 
     #[test]

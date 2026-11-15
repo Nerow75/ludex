@@ -1,10 +1,12 @@
 //! Détection des jeux installés, launcher par launcher.
 //! Chaque source lit uniquement des fichiers locaux : aucune connexion à un compte n'est nécessaire.
 
+mod achievements;
 mod battlenet;
 mod ea;
 mod epic;
 mod gog;
+mod kvbin;
 mod local;
 pub use local::exe_icon;
 mod riot;
@@ -79,6 +81,8 @@ pub struct Game {
     pub playtime_minutes: Option<u64>,
     /// Provenance du temps de jeu : jamais additionnée, l'une ou l'autre.
     pub playtime_source: Option<PlaytimeSource>,
+    /// Succès débloqués sur le total (Steam seulement). `None` : pas de succès ou inconnu.
+    pub achievements: Option<Achievements>,
     /// Le launcher compte lui-même le temps de jeu (Steam, GOG Galaxy) : Ludex ne le mesure pas,
     /// pour ne jamais compter deux fois une session.
     #[serde(skip)]
@@ -108,6 +112,16 @@ pub enum PlaytimeSource {
     Launcher,
     /// Sessions mesurées par Ludex après un lancement depuis Ludex.
     Ludex,
+}
+
+/// Progression des succès d'un jeu, lue chez le launcher.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Achievements {
+    pub unlocked: u32,
+    pub total: u32,
+    /// Date du dernier succès débloqué (secondes Unix), si le launcher la garde.
+    pub last_unlocked: Option<u64>,
 }
 
 /// Fichiers image locaux d'un jeu. Jamais envoyés au front : il ne voit qu'une URL `ludex`.
@@ -171,6 +185,7 @@ impl Game {
             size_on_disk: None,
             playtime_minutes: None,
             playtime_source: None,
+            achievements: None,
             launcher_tracks_playtime: false,
             is_tool: false,
             favorite: false,
@@ -313,6 +328,16 @@ mod tests {
         println!("Les plus joués :");
         for g in most_played.iter().take(5) {
             println!("  {}  ·  {}", g.title, hours(g));
+        }
+        let steam: Vec<_> = result.games.iter().filter(|g| g.platform == super::Platform::Steam).collect();
+        let with: Vec<_> = steam.iter().filter_map(|g| Some((g, g.achievements?))).collect();
+        println!("Succès : {} jeux Steam sur {}", with.len(), steam.len());
+        for (g, a) in &with {
+            let last = a.last_unlocked.map_or("aucun".to_string(), |t| format!("{t}"));
+            println!("  {}  ·  {} / {}  ·  dernier {last}", g.title, a.unlocked, a.total);
+        }
+        for g in steam.iter().filter(|g| g.achievements.is_none()) {
+            println!("  sans succès : {}", g.title);
         }
     }
 }

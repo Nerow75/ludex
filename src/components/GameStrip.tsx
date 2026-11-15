@@ -1,5 +1,5 @@
 import { PLATFORM_LABEL, type Game } from "../lib/api";
-import { formatDate, formatPlaytime, formatSize, relativeTime, releaseYear } from "../lib/format";
+import { formatAchievements, formatDate, formatPlaytime, formatSize, relativeTime, releaseYear } from "../lib/format";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FolderIcon, PlayIcon, StarIcon } from "./Icons";
 
@@ -39,6 +39,11 @@ function detailsLine(game: Game): { line: string; title: string } | null {
   return line ? { line, title } : null;
 }
 
+/** Dernier succès débloqué, au survol de la stat « Succès ». */
+function lastAchievement(lastUnlocked: number | null): string {
+  return lastUnlocked ? `Dernier succès débloqué ${relativeTime(lastUnlocked)}` : "Aucun succès débloqué";
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onClose }: Props) {
   const details = detailsLine(game);
@@ -59,6 +64,11 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         {description && <p className="strip__desc" title={description}>{description}</p>}
         <dl className="stats">
           <div title={playtimeOrigin(game)}><dt>Temps de jeu</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
+          {game.achievements && (
+            <div title={lastAchievement(game.achievements.lastUnlocked)}>
+              <dt>Succès</dt><dd>{formatAchievements(game.achievements.unlocked, game.achievements.total)}</dd>
+            </div>
+          )}
           <div><dt>Dernière session</dt><dd>{relativeTime(game.lastPlayed)}</dd></div>
           <div><dt>Taille</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
           <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
