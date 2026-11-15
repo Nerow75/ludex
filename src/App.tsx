@@ -7,6 +7,7 @@ import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
 import { RefreshIcon, SearchIcon } from "./components/Icons";
+import { EmptyState, LibrarySkeleton } from "./components/States";
 
 interface Toast {
   title: string;
@@ -44,17 +45,29 @@ export default function App() {
     (query ? results[0] : results.find((g) => g.id === recent[0]?.id) ?? results[0]) ??
     null;
 
-  const refresh = useCallback(async () => {
+  const showToast = useCallback((t: Toast, ms = 3600) => {
+    setToast(t);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), ms);
+  }, []);
+
+  /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
+  const refresh = useCallback(async (manual = false) => {
     setScanning(true);
     setScanError(null);
     try {
-      setScan(await scanLibrary());
+      const result = await scanLibrary();
+      setScan(result);
+      if (manual) {
+        const n = result.games.filter((g) => !g.hidden).length;
+        showToast({ title: "Bibliothèque à jour", detail: `${n} jeu${n > 1 ? "x" : ""} détecté${n > 1 ? "s" : ""}` });
+      }
     } catch (e) {
       setScanError(String(e));
     } finally {
       setScanning(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => void refresh(), [refresh]);
 
@@ -76,12 +89,6 @@ export default function App() {
     const target = scrollRef.current?.querySelector(open ? ".strip" : ".card.is-sel");
     target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected?.id, open]);
-
-  const showToast = useCallback((t: Toast, ms = 3600) => {
-    setToast(t);
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), ms);
-  }, []);
 
   /** Met à jour un jeu dans le scan courant sans rescanner. */
   const patchGame = useCallback((id: string, patch: Partial<Game>) => {
@@ -146,12 +153,58 @@ export default function App() {
     }
   }, [showToast]);
 
+  const focusCard = (id: string | undefined) =>
+    requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
+
+  // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
+  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh });
+  live.current = { results, selected, open, query, play, toggleFavorite, refresh };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      const s = live.current;
+      const target = e.target as HTMLElement;
+      const inInput = target instanceof HTMLInputElement;
+      const onGame = target === document.body || target.matches(".card__hit, .tile__hit");
+      const ctrl = e.ctrlKey || e.metaKey;
+      const key = e.key;
+
+      if ((ctrl && key.toLowerCase() === "k") || (key === "/" && !inInput)) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
+      } else if (key === "F5") {
+        e.preventDefault(); // sinon la WebView recharge la page
+        s.refresh(true);
+      } else if (ctrl && key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (s.selected) s.toggleFavorite(s.selected);
+      } else if (inInput) {
+        if (key === "ArrowDown" && s.selected) {
+          e.preventDefault();
+          setSelectedId(s.selected.id);
+          focusCard(s.selected.id);
+        }
+      } else if (key === "Escape") {
+        if (s.open) setOpen(false);
+        else if (s.query) setQuery("");
+      } else if (key.length === 1 && key !== " " && !ctrl && !e.altKey) {
+        // Taper n'importe où commence une recherche : le caractère arrive dans le champ.
+        searchRef.current?.focus();
+      } else if (onGame && key === "Enter") {
+        e.preventDefault();
+        if (s.selected) s.play(s.selected);
+      } else if (onGame && key === " ") {
+        e.preventDefault();
+        setOpen((o) => !o);
+      } else if (onGame && key.startsWith("Arrow") && s.results.length) {
+        e.preventDefault();
+        const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
+        const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
+        const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
+        const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols } as Record<string, number>)[key] ?? 0;
+        const next = s.results[Math.min(s.results.length - 1, Math.max(0, i + step))];
+        setSelectedId(next.id);
+        focusCard(next.id);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -170,6 +223,7 @@ export default function App() {
   };
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
+  const emptyLibrary = scan !== null && games.every((g) => g.isTool);
   const meta = useCallback((g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : relativeTime(g.lastPlayed)), [sort]);
   const count = (f: Filter) => selectGames(games, f, sort, "").length;
   const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || scan?.sources.some((s) => s.platform === f && s.installed));
@@ -212,7 +266,7 @@ export default function App() {
             type="button"
             aria-label="Rescanner la bibliothèque"
             title="Rescanner la bibliothèque"
-            onClick={refresh}
+            onClick={() => refresh(true)}
             disabled={scanning}
             className={scanning ? "is-spinning" : ""}
           >
@@ -221,7 +275,13 @@ export default function App() {
         </div>
       </header>
       <p className="hint" aria-live="polite">
-        {query && selected ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></> : "Tape le nom d'un jeu, Entrée pour le lancer"}
+        {!scan
+          ? "Recherche de tes jeux dans Steam, Epic Games et Riot…"
+          : query && selected
+            ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></>
+            : query
+              ? "Aucun jeu ne correspond"
+              : "Tape n'importe où pour chercher un jeu"}
       </p>
 
       <main className="scroll" ref={scrollRef}>
@@ -230,11 +290,26 @@ export default function App() {
           <p key={s.platform} className="notice notice--error">{PLATFORM_LABEL[s.platform]} : {s.error}</p>
         ))}
 
-        {!scan && !scanError && <div className="loading">Recherche de tes jeux…</div>}
+        {!scan && !scanError && <LibrarySkeleton />}
 
-        {scan && !query && filter === "all" && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
+        {scan && emptyLibrary && (
+          <EmptyState
+            title="Aucun jeu trouvé sur ce PC"
+            action={<button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>}
+          >
+            Ludex lit les jeux installés par Steam, Epic Games et Riot, sans connexion à tes comptes.
+            Installe un jeu avec l'un d'eux, puis relance un scan.
+            <span className="empty__sources">
+              {scan.sources.map((s) => (
+                <span key={s.platform}>{PLATFORM_LABEL[s.platform]} : {s.installed ? `${s.count} jeu${s.count > 1 ? "x" : ""}` : "non détecté"}</span>
+              ))}
+            </span>
+          </EmptyState>
+        )}
 
-        {scan && (
+        {scan && !emptyLibrary && !query && filter === "all" && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
+
+        {scan && !emptyLibrary && (
           <section aria-labelledby="lib-title">
             <div className="bar">
               <h2 id="lib-title">{query ? "Résultats" : "Bibliothèque"}<span>{results.length}</span></h2>
@@ -251,6 +326,7 @@ export default function App() {
                 ))}
               </div>
             </div>
+            {results.length === 0 && <NoResults filter={filter} query={query} onClear={() => setQuery("")} />}
             <LibraryGrid
               games={results}
               selectedId={selected?.id ?? null}
@@ -274,6 +350,15 @@ export default function App() {
           </section>
         )}
       </main>
+
+      <footer className="keys" aria-hidden>
+        <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> naviguer</span>
+        <span><kbd>Entrée</kbd> jouer</span>
+        <span><kbd>Espace</kbd> fiche</span>
+        <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
+        <span><kbd>F5</kbd> rescanner</span>
+        <span><kbd>Échap</kbd> fermer</span>
+      </footer>
 
       <div className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`} role="status" aria-live="polite">
         {toast && (
@@ -300,4 +385,25 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+function NoResults({ filter, query, onClear }: { filter: Filter; query: string; onClear: () => void }) {
+  if (query) {
+    return (
+      <EmptyState
+        icon="search"
+        title={`Aucun jeu ne correspond à « ${query} »`}
+        action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
+      >
+        La recherche porte sur le titre{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre.
+      </EmptyState>
+    );
+  }
+  if (filter === "favorites") {
+    return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné.</EmptyState>;
+  }
+  if (filter === "hidden") {
+    return <EmptyState title="Aucun jeu masqué">Les applis qui ne sont pas des jeux, et ce que tu masques toi-même, arrivent ici et restent restaurables.</EmptyState>;
+  }
+  return <EmptyState title={`Aucun jeu ${FILTER_LABEL[filter]}`}>Aucun jeu installé via ce launcher n'a été trouvé.</EmptyState>;
 }
