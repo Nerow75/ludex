@@ -48,7 +48,7 @@ fn build(full_name: &str, root: &Path, registry_name: Option<String>) -> Option<
     if splash.is_some() {
         game.hero_url = Some(art_url(&game, "hero"));
     }
-    game.local_art = LocalArt { cover: None, hero: splash, logo: None };
+    game.local_art = LocalArt { hero: splash, ..LocalArt::default() };
     Some(game)
 }
 
