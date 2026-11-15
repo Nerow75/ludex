@@ -144,6 +144,16 @@ impl LocalArt {
             _ => None,
         }
     }
+
+    /// Emplacement d'une image (`cover`, `hero`, `logo`), pour y poser un fichier.
+    pub fn slot(&mut self, kind: &str) -> Option<&mut Option<PathBuf>> {
+        match kind {
+            "cover" => Some(&mut self.cover),
+            "hero" => Some(&mut self.hero),
+            "logo" => Some(&mut self.logo),
+            _ => None,
+        }
+    }
 }
 
 /// Origine du protocole `ludex` dans la WebView (Windows : `http://<schéma>.localhost`).
@@ -195,6 +205,16 @@ impl Game {
             local_art: LocalArt::default(),
             steam_appid: None,
             details: None,
+        }
+    }
+
+    /// Adresse donnée au front pour une image (`cover`, `hero`, `logo`).
+    pub fn image_url(&mut self, kind: &str) -> Option<&mut Option<String>> {
+        match kind {
+            "cover" => Some(&mut self.cover_url),
+            "hero" => Some(&mut self.hero_url),
+            "logo" => Some(&mut self.logo_url),
+            _ => None,
         }
     }
 

@@ -1,5 +1,6 @@
 mod art;
 mod history;
+mod images;
 mod library;
 mod metadata;
 mod session;
@@ -9,7 +10,7 @@ use library::{Game, Launch, PlaytimeSource, ScanResult};
 use serde::Serialize;
 use session::{Phase, Tracker};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use store::UserData;
 use tauri::http::{header, Response, StatusCode};
@@ -33,9 +34,13 @@ struct AppState {
     meta: Mutex<metadata::MetaCache>,
     /// Une lecture de fiches tourne déjà.
     meta_busy: AtomicBool,
+    /// Images distantes gardées sur disque (`images.rs`).
+    images: Mutex<images::ImageCache>,
+    /// Un téléchargement d'images tourne déjà.
+    images_busy: AtomicBool,
 }
 
-/// Événement `game-art` : jaquette trouvée pour un jeu après le scan.
+/// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ArtEvent {
@@ -46,6 +51,12 @@ struct ArtEvent {
 }
 
 const ART_EVENT: &str = "game-art";
+
+impl ArtEvent {
+    fn of(g: &Game) -> Self {
+        ArtEvent { id: g.id.clone(), cover_url: g.cover_url.clone(), hero_url: g.hero_url.clone(), logo_url: g.logo_url.clone() }
+    }
+}
 
 /// Cherche en arrière-plan les jaquettes manquantes, puis met à jour l'état et le front jeu par jeu.
 fn resolve_art(app: tauri::AppHandle) {
@@ -67,7 +78,11 @@ fn resolve_art(app: tauri::AppHandle) {
             if let Ok(mut games) = lock(&state.games) {
                 for g in games.iter_mut().filter(|g| g.title == title) {
                     if fresh.apply(g) {
-                        events.push(ArtEvent { id: g.id.clone(), cover_url: g.cover_url.clone(), hero_url: g.hero_url.clone(), logo_url: g.logo_url.clone() });
+                        // Images de ce jeu déjà en cache (jaquette retrouvée lors d'un scan précédent).
+                        if let Ok(images) = lock(&state.images) {
+                            images.apply(g);
+                        }
+                        events.push(ArtEvent::of(g));
                     }
                 }
             }
@@ -79,8 +94,113 @@ fn resolve_art(app: tauri::AppHandle) {
             }
         });
         state.art_busy.store(false, Ordering::SeqCst);
-        // Les jeux retrouvés ont maintenant un appid : leur fiche peut être demandée.
+        // Les jaquettes trouvées vont en cache, et les jeux retrouvés ont maintenant un appid :
+        // leur fiche peut être demandée.
+        resolve_images(app.clone());
         resolve_details(app.clone());
+    });
+}
+
+/// Images distantes à télécharger. Les jeux sont copiés avant de verrouiller le cache : jamais le
+/// cache des images puis les jeux (ordre inverse de `resolve_art`).
+fn images_to_fetch(state: &AppState) -> Vec<images::Job> {
+    let Ok(games) = lock(&state.games).map(|g| g.clone()) else { return Vec::new() };
+    lock(&state.images).map(|cache| cache.to_download(&games)).unwrap_or_default()
+}
+
+/// Note la présence des jeux scannés, puis purge les images des jeux partis depuis longtemps.
+fn tidy_images(state: &AppState) {
+    let games = lock(&state.games).map(|g| g.clone()).unwrap_or_default();
+    if let Ok(mut cache) = lock(&state.images) {
+        cache.touch(&games);
+        cache.purge();
+        if let Err(e) = cache.save() {
+            eprintln!("Index des images non enregistré : {e}");
+        }
+    }
+}
+
+/// Image téléchargée : notée dans l'index, posée sur le jeu, puis signalée au front.
+fn publish_image(app: &tauri::AppHandle, state: &AppState, job: &images::Job, file: PathBuf) {
+    if let Ok(mut cache) = lock(&state.images) {
+        cache.record(job);
+        if let Err(e) = cache.save() {
+            eprintln!("Index des images non enregistré : {e}");
+        }
+    }
+    let event = lock(&state.games).ok().and_then(|mut games| {
+        let g = games.iter_mut().find(|g| g.id == job.game_id)?;
+        images::use_file(g, job, file).then(|| ArtEvent::of(g))
+    });
+    if let Some(e) = event {
+        let _ = app.emit(ART_EVENT, e);
+    }
+}
+
+/// Télécharge et range une image. Renvoie faux sur une erreur réseau.
+fn download_image(app: &tauri::AppHandle, state: &AppState, agent: &ureq::Agent, root: &std::path::Path, job: images::Job) -> bool {
+    match images::fetch(agent, &job.url) {
+        images::Fetch::Image(bytes, ext) => match images::write(root, &job, &bytes, ext) {
+            Ok(file) => publish_image(app, state, &job, file),
+            Err(e) => eprintln!("Image non enregistrée ({}) : {e}", job.url),
+        },
+        images::Fetch::Missing => {
+            if let Ok(mut cache) = lock(&state.images) {
+                cache.note_missing(&job.url);
+            }
+        }
+        images::Fetch::Failed(e) => {
+            eprintln!("Image non téléchargée ({}) : {e}", job.url);
+            return false;
+        }
+    }
+    true
+}
+
+/// Télécharge un lot d'images, quelques-unes à la fois. Renvoie faux si le réseau a lâché
+/// (plusieurs échecs de suite) : le reste attend le prochain scan.
+fn download_images(app: &tauri::AppHandle, state: &AppState, jobs: Vec<images::Job>) -> bool {
+    let Ok(root) = lock(&state.images).map(|c| c.root().to_path_buf()) else { return false };
+    let queue = Mutex::new(jobs.into_iter());
+    let failures = AtomicUsize::new(0);
+    let agent = images::agent();
+    std::thread::scope(|s| {
+        for _ in 0..images::WORKERS {
+            s.spawn(|| {
+                while failures.load(Ordering::SeqCst) < images::MAX_FAILURES {
+                    let Some(job) = queue.lock().ok().and_then(|mut q| q.next()) else { break };
+                    if download_image(app, state, &agent, &root, job) {
+                        failures.store(0, Ordering::SeqCst);
+                    } else {
+                        failures.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+            });
+        }
+    });
+    if let Ok(cache) = lock(&state.images) {
+        let _ = cache.save();
+    }
+    failures.load(Ordering::SeqCst) < images::MAX_FAILURES
+}
+
+/// Range en arrière-plan les images distantes des jeux sur disque, puis met à jour l'état et le
+/// front image par image. Recommence si des jaquettes sont apparues entre-temps (`art.rs`).
+fn resolve_images(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if state.images_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        tidy_images(&state);
+        for _ in 0..3 {
+            let jobs = images_to_fetch(&state);
+            if jobs.is_empty() || !download_images(&app, &state, jobs) {
+                break;
+            }
+        }
+        state.images_busy.store(false, Ordering::SeqCst);
     });
 }
 
@@ -204,14 +324,18 @@ async fn scan_library(app: tauri::AppHandle, state: State<'_, AppState>) -> Resu
         let data = lock(&state.data)?;
         let art = lock(&state.art)?;
         let meta = lock(&state.meta)?;
+        let images = lock(&state.images)?;
         result.games.iter_mut().for_each(|g| {
             data.apply(g);
             art.apply(g);
             meta.apply(g);
+            // En dernier : les images distantes (launcher ou `art.rs`) déjà sur disque.
+            images.apply(g);
         });
     }
     *lock(&state.games)? = result.games.clone();
     resolve_art(app.clone());
+    resolve_images(app.clone());
     resolve_details(app);
     Ok(result)
 }
@@ -285,9 +409,30 @@ fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) ->
     Ok(now)
 }
 
-/// Sert une image locale d'un jeu connu. L'URL n'est jamais lue comme un chemin :
-/// `/<plateforme>/<id plateforme>/<type>` désigne un jeu de l'état, qui fournit le fichier.
-fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str) -> Response<Vec<u8>> {
+/// Version d'un fichier pour l'en-tête `ETag` : taille et date de modification.
+fn etag(file: &std::path::Path) -> Option<String> {
+    let meta = std::fs::metadata(file).ok()?;
+    let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis();
+    Some(format!("\"{:x}-{modified:x}\"", meta.len()))
+}
+
+/// Contenu et type d'une image : icône extraite de l'exécutable, sinon fichier dont le type est
+/// lu dans sa signature (l'extension en dernier recours).
+fn read_art(file: &std::path::Path, kind: &str) -> Option<(Vec<u8>, &'static str)> {
+    if kind == "icon" {
+        return library::exe_icon(file);
+    }
+    let bytes = std::fs::read(file).ok()?;
+    let ext = file.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
+    let mime = images::mime(images::sniff(&bytes).unwrap_or(ext.as_str()));
+    Some((bytes, mime))
+}
+
+/// Sert une image locale d'un jeu connu (cache du launcher ou cache de Ludex). L'URL n'est jamais
+/// lue comme un chemin : `/<plateforme>/<id plateforme>/<type>` désigne un jeu de l'état, qui
+/// fournit le fichier. `no-cache` + `ETag` : la WebView revalide (réponse 304 sans lecture du
+/// fichier) et voit tout de suite une image remplacée sous la même URL.
+fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_match: Option<&str>) -> Response<Vec<u8>> {
     let not_found = || Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap();
     let mut parts = uri_path.trim_start_matches('/').splitn(3, '/');
     let (Some(platform), Some(platform_id), Some(kind)) = (parts.next(), parts.next(), parts.next()) else {
@@ -300,26 +445,20 @@ fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str) -> Response<
         Err(_) => None,
     };
     let Some(file) = file else { return not_found() };
-    let (bytes, mime) = if kind == "icon" {
-        // Icône extraite de l'exécutable du jeu (chemin tiré de l'état, jamais de l'URL).
-        let Some(icon) = library::exe_icon(&file) else { return not_found() };
-        icon
-    } else {
-        let Ok(bytes) = std::fs::read(&file) else { return not_found() };
-        let mime = match file.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
-            Some("png") => "image/png",
-            Some("webp") => "image/webp",
-            _ => "image/jpeg",
-        };
-        (bytes, mime)
-    };
-    Response::builder()
-        .header(header::CONTENT_TYPE, mime)
+    let tag = etag(&file);
+    let builder = Response::builder()
         // Lecture des pixels (couleur du jeu) depuis un canvas.
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        .header(header::CACHE_CONTROL, "max-age=86400")
-        .body(bytes)
-        .unwrap_or_else(|_| not_found())
+        .header(header::CACHE_CONTROL, "no-cache");
+    let builder = match &tag {
+        Some(tag) => builder.header(header::ETAG, tag),
+        None => builder,
+    };
+    if tag.is_some() && tag.as_deref() == if_none_match {
+        return builder.status(StatusCode::NOT_MODIFIED).body(Vec::new()).unwrap_or_else(|_| not_found());
+    }
+    let Some((bytes, mime)) = read_art(&file, kind) else { return not_found() };
+    builder.header(header::CONTENT_TYPE, mime).body(bytes).unwrap_or_else(|_| not_found())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -329,7 +468,8 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
-            tauri::async_runtime::spawn_blocking(move || responder.respond(serve_art(&app, &path)));
+            let if_none_match = request.headers().get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()).map(String::from);
+            tauri::async_runtime::spawn_blocking(move || responder.respond(serve_art(&app, &path, if_none_match.as_deref())));
         })
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -342,9 +482,11 @@ pub fn run() {
                 tracker: Tracker::spawn(history::Journal::open(&dir), move |update| on_session_update(&handle, update)),
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
+                images: Mutex::new(images::ImageCache::load(dir.join("images"))),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
+                images_busy: AtomicBool::new(false),
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
