@@ -38,6 +38,15 @@ export function formatAchievements(unlocked: number, total: number): string {
   return `${integer.format(unlocked)} / ${integer.format(total)}`;
 }
 
+/** Durée d'une session : « 45 min », « 1 h 20 », « 3 h ». */
+export function formatDuration(secs: number): string {
+  const minutes = Math.round(secs / 60);
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
+
 export function formatSize(bytes: number | null): string {
   if (!bytes) return "Inconnue";
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;

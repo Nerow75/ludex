@@ -1,4 +1,5 @@
 mod art;
+mod history;
 mod library;
 mod metadata;
 mod session;
@@ -184,6 +185,12 @@ fn game_sessions(state: State<'_, AppState>) -> Vec<SessionEvent> {
         .collect()
 }
 
+/// Sessions terminées d'un jeu (historique), la plus récente d'abord.
+#[tauri::command]
+fn game_history(state: State<'_, AppState>, id: String) -> Vec<history::PastSession> {
+    state.tracker.history(&id)
+}
+
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
     m.lock().map_err(|_| "État interne indisponible".to_string())
 }
@@ -332,13 +339,15 @@ pub fn run() {
                 games: Mutex::default(),
                 data: Mutex::new(UserData::load(&data_path)),
                 data_path,
-                tracker: Tracker::spawn(move |update| on_session_update(&handle, update)),
+                tracker: Tracker::spawn(history::Journal::open(&dir), move |update| on_session_update(&handle, update)),
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
             });
+            // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
+            app.state::<AppState>().tracker.resume();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -347,7 +356,8 @@ pub fn run() {
             open_install_dir,
             set_favorite,
             set_hidden,
-            game_sessions
+            game_sessions,
+            game_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

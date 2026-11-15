@@ -98,6 +98,18 @@ export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidde
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });
 /** Sessions en cours, pour retrouver l'état « En jeu » au chargement. */
 export const gameSessions = () => invoke<SessionEvent[]>("game_sessions");
+/** Session terminée, mesurée par Ludex (parties lancées depuis Ludex, une minute au moins). */
+export interface PastSession {
+  gameId: string;
+  /** Début (secondes Unix). */
+  start: number;
+  /** Durée de jeu, en secondes. */
+  secs: number;
+  /** Steam ou GOG Galaxy : le temps de jeu de référence reste celui du launcher. */
+  launcher: boolean;
+}
+/** Historique d'un jeu, la session la plus récente d'abord. */
+export const gameHistory = (id: string) => invoke<PastSession[]>("game_history", { id });
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
 export interface ArtEvent {
   id: string;
