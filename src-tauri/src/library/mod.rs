@@ -208,7 +208,7 @@ impl Game {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceReport {
     pub platform: Platform,
@@ -218,7 +218,7 @@ pub struct SourceReport {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub games: Vec<Game>,
@@ -228,7 +228,29 @@ pub struct ScanResult {
 /// `Ok(None)` : launcher absent. `Ok(Some(..))` : launcher présent, liste (éventuellement vide).
 type SourceFn = fn() -> Result<Option<Vec<Game>>, String>;
 
+/// Dossiers où les launchers déclarent leurs jeux, surveillés pour rescanner tout seul.
+/// Les sources lues dans le registre (GOG, Ubisoft, Rockstar, Xbox) n'y sont pas.
+pub struct WatchedDirs {
+    /// `steamapps` de chaque bibliothèque Steam : un `appmanifest_<appid>.acf` par jeu.
+    pub steamapps: Vec<PathBuf>,
+    /// Manifestes Epic (`*.item`), même absent.
+    pub epic: PathBuf,
+    /// Dossier Riot (`RiotClientInstalls.json`, `Metadata`), même absent.
+    pub riot: PathBuf,
+    /// Dossiers dont chaque sous-dossier est un jeu (« Jeux », « Games », « Jeux Epic »…).
+    pub libraries: Vec<PathBuf>,
+}
+
+pub fn watched_dirs() -> WatchedDirs {
+    WatchedDirs { steamapps: steam::steamapps_dirs(), epic: epic::manifests_dir(), riot: riot::root_dir(), libraries: local::library_dirs() }
+}
+
+pub use epic::item_installed;
+pub use steam::manifest_installed;
+
 pub fn scan() -> ScanResult {
+    // Un jeu peut avoir été installé depuis le dernier scan : les disques sont relus.
+    local::forget_candidates();
     // Ordre = priorité : un jeu vu par deux launchers (même dossier) reste au premier.
     // « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
     let sources: [(Platform, SourceFn); 10] = [

@@ -185,6 +185,26 @@ fn same_path(a: &Path, b: &Path) -> bool {
     a.to_string_lossy().to_lowercase().trim_end_matches('\\') == b.to_string_lossy().to_lowercase().trim_end_matches('\\')
 }
 
+/// `StateFlags` bit 4 = complètement installé (un jeu en téléchargement a déjà son manifeste).
+fn is_installed(app: &vdf::Vdf) -> bool {
+    let flags: u32 = app.str("StateFlags").and_then(|f| f.parse().ok()).unwrap_or(0);
+    flags & 4 != 0
+}
+
+/// Le manifeste `appmanifest_*.acf` décrit-il un jeu installé ? `None` : illisible (en cours d'écriture).
+pub fn manifest_installed(text: &str) -> Option<bool> {
+    let doc = vdf::parse(text);
+    let app = doc.get("AppState")?;
+    app.str("StateFlags")?;
+    Some(is_installed(app))
+}
+
+/// Dossiers `steamapps` de toutes les bibliothèques Steam (là où Steam écrit ses manifestes).
+pub fn steamapps_dirs() -> Vec<PathBuf> {
+    let Some(root) = steam_root() else { return Vec::new() };
+    library_paths(&root).into_iter().map(|l| l.join("steamapps")).filter(|d| d.is_dir()).collect()
+}
+
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let Some(root) = steam_root() else { return Ok(None) };
     let mut games = Vec::new();
@@ -209,9 +229,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             let Some(app) = doc.get("AppState") else { continue };
             let (Some(appid), Some(title)) = (app.str("appid"), app.str("name")) else { continue };
 
-            // StateFlags bit 4 = complètement installé.
-            let flags: u32 = app.str("StateFlags").and_then(|f| f.parse().ok()).unwrap_or(0);
-            if flags & 4 == 0
+            if !is_installed(app)
                 || EXCLUDED_APPIDS.contains(&appid)
                 || EXCLUDED_PREFIXES.iter().any(|p| title.starts_with(p))
                 || !seen.insert(appid.to_string())
@@ -370,6 +388,16 @@ mod tests {
         let start = std::time::Instant::now();
         let found = games.iter().filter_map(|g| crate::library::achievements::read(&stats, account, &g.platform_id)).count();
         println!("Dont succès : {:?} ({found} jeux avec succès, compte {account})", start.elapsed());
+    }
+
+    #[test]
+    fn reads_installed_state_of_a_manifest() {
+        let manifest = |flags: &str| format!(r#""AppState" {{ "appid" "10" "name" "Hades" "StateFlags" "{flags}" }}"#);
+        assert_eq!(super::manifest_installed(&manifest("4")), Some(true));
+        assert_eq!(super::manifest_installed(&manifest("6")), Some(true)); // mise à jour en attente
+        assert_eq!(super::manifest_installed(&manifest("1026")), Some(false)); // téléchargement
+        assert_eq!(super::manifest_installed(r#""AppState" { "appid" "10" "#), None); // en cours d'écriture
+        assert_eq!(super::manifest_installed(""), None);
     }
 
     #[test]
