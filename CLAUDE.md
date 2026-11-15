@@ -18,23 +18,26 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 ## Architecture
 
 - `src-tauri/src/library/` : une source par launcher (`steam.rs`, `epic.rs`, `riot.rs`), lecture de fichiers locaux uniquement, aucune connexion à un compte. `vdf.rs` parse le format Valve. `mod.rs` définit `Game`, `Launch`, `ScanResult` et agrège les sources (`Ok(None)` = launcher absent).
-- `src-tauri/src/lib.rs` : commandes Tauri `scan_library`, `launch_game`, `open_install_dir`. Les jeux scannés sont gardés dans `AppState`.
+- `src-tauri/src/lib.rs` : commandes Tauri `scan_library`, `launch_game` (renvoie l'heure du lancement), `open_install_dir`, `set_favorite`, `set_hidden`. Jeux scannés et préférences gardés dans `AppState`.
+- `src-tauri/src/store.rs` : préférences (favoris, masqués, outils ré-affichés, dernier lancement Ludex) dans `user-data.json` du dossier de données de l'app (`%APPDATA%/com.ludex.app`).
+- Steam fournit `LastPlayed` et `SizeOnDisk`, Epic `InstallSize`. Les outils (Wallpaper Engine, `* Editor`, `* Dedicated Server`…) sont `is_tool` : masqués par défaut, jamais exclus.
 - **Sécurité** : le front n'envoie qu'un id de jeu. La commande de lancement et le dossier sont reconstruits côté Rust depuis l'état. Ne jamais exposer de commande qui prend un chemin ou une URI arbitraire venant du front.
 - `src/lib/api.ts` : types et appels `invoke`. `src/lib/color.ts` : couleur d'ambiance extraite de la jaquette (fallback : hash du titre).
-- `src/components/` : Cover, Hero, CommandPalette (Ctrl+K), Icons.
-- `src/App.tsx` : écran unique (rail de navigation, hero du jeu sélectionné, filtres par plateforme, grille de jaquettes).
+- `src/lib/library.ts` : filtres, tri, récents, préférences d'affichage (localStorage). `src/lib/format.ts` : dates relatives, tailles, recherche.
+- `src/components/` : GameCard, LibraryGrid (colonnes mesurées, insère la fiche sous la rangée), GameStrip (fiche dépliable), ResumeRow, Art et Logo, Cover, States, Icons.
+- `src/App.tsx` : écran unique « Focus » : grand champ de recherche, Reprendre, filtres et tri, grille, barre de raccourcis (taper n'importe où, flèches, Entrée, Espace, Échap, Ctrl+D, Ctrl+K, F5).
 
 ## Design system
 
 - Tokens dans `src/styles/tokens.css` (préfixe `--lx-*`), styles dans `src/styles/app.css`.
 - Palette validée : base monochrome (#0B0B0B, #1A1A1A, #242424, #333333, blanc) + accent turquoise #14B8A6. Thème clair via `[data-theme="light"]`. D'autres thèmes viendront plus tard : toujours passer par les tokens, jamais de couleur en dur.
-- `--lx-ambient` : couleur dérivée du jeu sélectionné, utilisée par le hero et le bouton Jouer.
+- `--lx-ambient` : couleur dérivée du jeu sélectionné, utilisée par le voile du haut, les boutons Jouer et le contour de sélection.
 
 ## État actuel
 
 - Testé sur le PC de l'utilisateur : Steam 69 jeux, Riot 2, Epic absent (Epic testé seulement en unitaire).
-- Problèmes connus : Wallpaper Engine apparaît (appli Steam, pas un jeu). Amis et Succès sont des onglets désactivés. Pas de CSP (`null` dans tauri.conf.json).
-- Prochaine étape : refonte UI/UX.
+- Refonte UI « Focus » faite (branche `refonte-ui-focus`). Audit et maquettes : `maquettes/refonte-ui.html` (non versionné).
+- Problèmes connus : jeux Steam récents (MECCHA CHAMELEON, NBA 2K26, LEGO Batman…) sans jaquette sur l'URL classique, jaquette générée à la place (piste : cache local `Steam/appcache/librarycache`). Pas de CSP. Amis et Succès pas commencés.
 
 ## Conventions
 
