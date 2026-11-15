@@ -25,8 +25,6 @@ kbd {
 
 .top { display: grid; grid-template-columns: 180px minmax(0, 1fr) 180px; align-items: center; gap: 16px; padding: 20px 40px 8px; }
 .brand { display: flex; align-items: center; gap: 8px; font: 600 18px/1 var(--lx-font-body); }
-.logo { width: 24px; height: 24px; border-radius: 7px; background: var(--lx-accent); position: relative; flex: none; }
-.logo::after { content: ""; position: absolute; right: 5px; top: 5px; width: 7px; height: 7px; border-radius: 2px; background: var(--lx-bg); }
 .search {
   justify-self: center; width: min(640px, 100%); display: flex; align-items: center; gap: 12px; height: 56px;
   padding: 0 16px 0 20px; border-radius: var(--lx-radius-l); border: 1px solid var(--lx-border); color: var(--lx-text-3);

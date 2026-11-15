@@ -17,6 +17,15 @@ export const RefreshIcon = () => (
 export const SearchIcon = () => (
   <svg {...base}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
 );
+/** Marque Ludex : une touche de clavier avec le triangle « Jouer » (source : assets/logo/ludex-mark.svg). */
+export const LudexMark = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
+    <rect x="2" y="2" width="60" height="60" rx="14" fill="var(--lx-accent-deep)" />
+    <rect x="7" y="5" width="50" height="46" rx="10" fill="var(--lx-accent)" />
+    <path d="M37 11.5v17l14-8.5z" fill="var(--lx-on-accent)" stroke="var(--lx-on-accent)" strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>
+);
+
 /** Triangle plein : un glyphe, pas une icône au trait. */
 export const PlayIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M4 2.5v11l9-5.5z" /></svg>

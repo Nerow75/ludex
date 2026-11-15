@@ -11,6 +11,7 @@
   --lx-text-2: #D9D9D9;
   --lx-text-3: #8A8A8A;
   --lx-accent: #14B8A6;
+  --lx-accent-deep: #0E8F81; /* flanc de la touche du logo */
   --lx-on-accent: #0B0B0B;
   --lx-accent-text: #2DD4BF;
   --lx-accent-soft: #99F6E4;
@@ -42,6 +43,7 @@
   --lx-text-2: #333333;
   --lx-text-3: #6B6B6B;
   --lx-accent: #14B8A6;
+  --lx-accent-deep: #0E8F81;
   --lx-on-accent: #0B0B0B;
   --lx-accent-text: #0F766E;
   --lx-accent-soft: #CCFBF1;

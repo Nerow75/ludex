@@ -6,7 +6,7 @@ import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
-import { RefreshIcon, SearchIcon } from "./components/Icons";
+import { LudexMark, RefreshIcon, SearchIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 
 interface Toast {
@@ -241,7 +241,7 @@ export default function App() {
     <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
 
       <header className="top">
-        <span className="brand"><span className="logo" aria-hidden />Ludex</span>
+        <span className="brand"><LudexMark />Ludex</span>
         <label className="search">
           <SearchIcon />
           <input

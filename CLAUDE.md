@@ -30,6 +30,7 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 ## Design system
 
 - Tokens dans `src/styles/tokens.css` (préfixe `--lx-*`), styles dans `src/styles/app.css`.
+- Logo : une touche de clavier turquoise avec le triangle « Jouer » (`assets/logo/ludex-mark.svg`, version avec le nom `ludex-lockup.svg`, composant `LudexMark`). Icônes de l'app régénérées par `npx tauri icon assets/logo/ludex-mark.svg` (supprimer ensuite `icons/android` et `icons/ios`).
 - Palette validée : base monochrome (#0B0B0B, #1A1A1A, #242424, #333333, blanc) + accent turquoise #14B8A6. Thème clair via `[data-theme="light"]`. D'autres thèmes viendront plus tard : toujours passer par les tokens, jamais de couleur en dur.
 - `--lx-ambient` : couleur dérivée du jeu sélectionné, réservée au contour de sélection. Bouton Jouer en blanc cassé (`--lx-text` sur `--lx-bg`).
 - Passe unslop appliquée : grille de 4px, icônes 18px trait 1.5, graisses 400 à 600, pas de majuscules espacées, chiffres tabulaires, rayons s/m/l = 8/10/12, une seule courbe `--lx-ease`, survol sans déplacement (contour ou voile qui s'éclaircit), léger `scale` au clic.
