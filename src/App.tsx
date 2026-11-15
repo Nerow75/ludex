@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { launchGame, PLATFORM_LABEL, scanLibrary, type Game, type ScanResult } from "./lib/api";
+import { launchGame, openInstallDir, PLATFORM_LABEL, scanLibrary, setFavorite, setHidden, type Game, type ScanResult } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { cleanTitle, norm, relativeTime } from "./lib/format";
-import { GameCard } from "./components/GameCard";
+import { GameStrip } from "./components/GameStrip";
+import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
 import { RefreshIcon, SearchIcon } from "./components/Icons";
 
-interface Toast { title: string; detail: string; error?: boolean }
+interface Toast {
+  title: string;
+  detail?: string;
+  error?: boolean;
+  spin?: boolean;
+  action?: { label: string; run: () => void };
+}
 
 const byLastPlayed = (a: Game, b: Game) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr");
 
@@ -15,11 +22,13 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   const toastTimer = useRef<number>(undefined);
   const searchRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLElement>(null);
 
   // Les applis masquées (Wallpaper Engine…) restent dans le scan mais sortent de la bibliothèque.
   const library = useMemo(() => (scan?.games ?? []).filter((g) => !g.hidden).sort(byLastPlayed), [scan]);
@@ -28,7 +37,7 @@ export default function App() {
     return q ? library.filter((g) => norm(cleanTitle(g.title)).includes(q)) : library;
   }, [library, query]);
   const recent = useMemo(() => library.filter((g) => g.lastPlayed).slice(0, 4), [library]);
-  const selected = library.find((g) => g.id === selectedId) ?? (query ? results[0] : library[0]) ?? null;
+  const selected = results.find((g) => g.id === selectedId) ?? (query ? results[0] : library[0]) ?? null;
 
   const refresh = useCallback(async () => {
     setScanning(true);
@@ -57,6 +66,12 @@ export default function App() {
     };
   }, [selected?.id]);
 
+  // Garde la fiche dépliée (ou la jaquette sélectionnée) visible.
+  useEffect(() => {
+    const target = scrollRef.current?.querySelector(open ? ".strip" : ".card.is-sel");
+    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selected?.id, open]);
+
   const showToast = useCallback((t: Toast, ms = 3600) => {
     setToast(t);
     window.clearTimeout(toastTimer.current);
@@ -70,7 +85,7 @@ export default function App() {
 
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);
-    showToast({ title: `Lancement de ${game.title}`, detail: `via ${PLATFORM_LABEL[game.platform]} · ${game.launchLabel}` });
+    showToast({ spin: true, title: `Lancement de ${game.title}`, detail: `via ${PLATFORM_LABEL[game.platform]} · ${game.launchLabel}` });
     try {
       patchGame(game.id, { lastPlayed: await launchGame(game.id) });
     } catch (e) {
@@ -78,7 +93,53 @@ export default function App() {
     }
   }, [patchGame, showToast]);
 
-  const select = useCallback((game: Game) => setSelectedId(game.id), []);
+  // Cliquer le jeu déjà ouvert replie sa fiche.
+  const current = useRef({ id: selected?.id, open });
+  current.current = { id: selected?.id, open };
+  const select = useCallback((game: Game) => {
+    const { id, open } = current.current;
+    setSelectedId(game.id);
+    setOpen(!(open && id === game.id));
+  }, []);
+
+  const toggleFavorite = useCallback(async (game: Game) => {
+    const value = !game.favorite;
+    patchGame(game.id, { favorite: value });
+    try {
+      await setFavorite(game.id, value);
+    } catch (e) {
+      patchGame(game.id, { favorite: !value });
+      showToast({ title: "Favori non enregistré", detail: String(e), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
+
+  const toggleHidden = useCallback(async (game: Game) => {
+    const value = !game.hidden;
+    patchGame(game.id, { hidden: value });
+    try {
+      await setHidden(game.id, value);
+      if (value) {
+        setOpen(false);
+        showToast({
+          title: `${game.title} est masqué`,
+          action: { label: "Annuler", run: () => toggleHidden({ ...game, hidden: true }) },
+        }, 6000);
+      } else {
+        showToast({ title: `${game.title} est de retour dans la bibliothèque` });
+      }
+    } catch (e) {
+      patchGame(game.id, { hidden: !value });
+      showToast({ title: "Changement non enregistré", detail: String(e), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
+
+  const openFolder = useCallback(async (game: Game) => {
+    try {
+      await openInstallDir(game.id);
+    } catch (e) {
+      showToast({ title: "Dossier introuvable", detail: String(e), error: true }, 5000);
+    }
+  }, [showToast]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -93,9 +154,9 @@ export default function App() {
   }, []);
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && results[0]) {
+    if (e.key === "Enter" && selected) {
       e.preventDefault();
-      play(query ? results[0] : selected ?? results[0]);
+      play(selected);
     } else if (e.key === "Escape") {
       e.preventDefault();
       if (query) setQuery("");
@@ -104,7 +165,7 @@ export default function App() {
   };
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
-  const topResult = query ? results[0] : null;
+  const meta = useCallback((g: Game) => relativeTime(g.lastPlayed), []);
 
   return (
     <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
@@ -120,6 +181,7 @@ export default function App() {
             onChange={(e) => {
               setQuery(e.target.value);
               setSelectedId(null);
+              setOpen(false);
             }}
             onKeyDown={onSearchKey}
             placeholder="Lancer un jeu…"
@@ -143,10 +205,10 @@ export default function App() {
         </div>
       </header>
       <p className="hint" aria-live="polite">
-        {topResult ? <><kbd>Entrée</kbd> lance <b>{topResult.title}</b></> : "Tape le nom d'un jeu, Entrée pour le lancer"}
+        {query && selected ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></> : "Tape le nom d'un jeu, Entrée pour le lancer"}
       </p>
 
-      <main className="scroll">
+      <main className="scroll" ref={scrollRef}>
         {scanError && <p className="notice notice--error">Le scan a échoué : {scanError}</p>}
         {errors.map((s) => (
           <p key={s.platform} className="notice notice--error">{PLATFORM_LABEL[s.platform]} : {s.error}</p>
@@ -161,11 +223,26 @@ export default function App() {
             <div className="bar">
               <h2 id="lib-title">{query ? "Résultats" : "Bibliothèque"}<span>{results.length}</span></h2>
             </div>
-            <div className="grid">
-              {results.map((g) => (
-                <GameCard key={g.id} game={g} selected={g.id === selected?.id} meta={relativeTime(g.lastPlayed)} onSelect={select} onPlay={play} />
-              ))}
-            </div>
+            <LibraryGrid
+              games={results}
+              selectedId={selected?.id ?? null}
+              open={open}
+              meta={meta}
+              onSelect={select}
+              onPlay={play}
+              renderStrip={(g, notch) => (
+                <GameStrip
+                  key={`strip-${g.id}`}
+                  game={g}
+                  notch={notch}
+                  onPlay={play}
+                  onFavorite={toggleFavorite}
+                  onHide={toggleHidden}
+                  onOpenFolder={openFolder}
+                  onClose={() => setOpen(false)}
+                />
+              )}
+            />
           </section>
         )}
       </main>
@@ -173,11 +250,23 @@ export default function App() {
       <div className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`} role="status" aria-live="polite">
         {toast && (
           <>
-            {!toast.error && <span className="toast__spin" aria-hidden />}
+            {toast.spin && <span className="toast__spin" aria-hidden />}
             <div>
               <b>{toast.title}</b>
-              <code>{toast.detail}</code>
+              {toast.detail && <code>{toast.detail}</code>}
             </div>
+            {toast.action && (
+              <button
+                type="button"
+                className="toast__action"
+                onClick={() => {
+                  toast.action!.run();
+                  setToast(null);
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
           </>
         )}
       </div>
