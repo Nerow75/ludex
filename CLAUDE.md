@@ -18,10 +18,10 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 ## Architecture
 
 - `src-tauri/src/library/` : une source par launcher (`steam.rs`, `epic.rs`, `riot.rs`), lecture de fichiers locaux uniquement, aucune connexion à un compte. `vdf.rs` parse le format Valve. `mod.rs` définit `Game`, `Launch`, `ScanResult` et agrège les sources (`Ok(None)` = launcher absent).
-- `src-tauri/src/lib.rs` : commandes Tauri `scan_library`, `launch_game` (renvoie l'heure du lancement), `open_install_dir`, `set_favorite`, `set_hidden`. Jeux scannés et préférences gardés dans `AppState`.
+- `src-tauri/src/lib.rs` : commandes Tauri `scan_library`, `launch_game` (renvoie l'heure du lancement), `open_install_dir`, `set_favorite`, `set_hidden`. Jeux scannés et préférences gardés dans `AppState`. Protocole `ludex` (`http://ludex.localhost/<plateforme>/<id>/<cover|hero|logo>` sous Windows) : sert les images locales d'un jeu de l'état (`Game.local_art`, jamais sérialisé).
 - `src-tauri/src/store.rs` : préférences (favoris, masqués, outils ré-affichés, dernier lancement Ludex) dans `user-data.json` du dossier de données de l'app (`%APPDATA%/com.ludex.app`).
-- Steam fournit `LastPlayed` et `SizeOnDisk`, Epic `InstallSize`. Les outils (Wallpaper Engine, `* Editor`, `* Dedicated Server`…) sont `is_tool` : masqués par défaut, jamais exclus.
-- **Sécurité** : le front n'envoie qu'un id de jeu. La commande de lancement et le dossier sont reconstruits côté Rust depuis l'état. Ne jamais exposer de commande qui prend un chemin ou une URI arbitraire venant du front.
+- Steam fournit `LastPlayed` et `SizeOnDisk`, Epic `InstallSize`. Images Steam : d'abord `appcache/librarycache/<appid>/` (à plat ou dans des sous-dossiers hachés, jaquette `library_600x900` ou `library_capsule`), sinon le CDN. Les outils (Wallpaper Engine, `* Editor`, `* Dedicated Server`…) sont `is_tool` : masqués par défaut, jamais exclus.
+- **Sécurité** : le front n'envoie qu'un id de jeu. La commande de lancement et le dossier sont reconstruits côté Rust depuis l'état. Ne jamais exposer de commande qui prend un chemin ou une URI arbitraire venant du front. CSP stricte dans `tauri.conf.json` (`csp` et `devCsp`, appliquée seulement en build : `npx tauri build --no-bundle` pour la tester) ; toute nouvelle origine d'image va dans `img-src`. Le front n'a que `core:default` comme permission.
 - `src/lib/api.ts` : types et appels `invoke`. `src/lib/color.ts` : couleur d'ambiance extraite de la jaquette (fallback : hash du titre).
 - `src/lib/library.ts` : filtres, tri, récents, préférences d'affichage (localStorage). `src/lib/format.ts` : dates relatives, tailles, recherche.
 - `src/components/` : GameCard, LibraryGrid (colonnes mesurées, insère la fiche sous la rangée), GameStrip (fiche dépliable), ResumeRow, Art et Logo, Cover, States, Icons.
@@ -38,7 +38,8 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 
 - Testé sur le PC de l'utilisateur : Steam 69 jeux, Riot 2, Epic absent (Epic testé seulement en unitaire).
 - Refonte UI « Focus » faite (branche `refonte-ui-focus`). Audit et maquettes : `maquettes/refonte-ui.html` (non versionné).
-- Problèmes connus : jeux Steam récents (MECCHA CHAMELEON, NBA 2K26, LEGO Batman…) sans jaquette sur l'URL classique, jaquette générée à la place (piste : cache local `Steam/appcache/librarycache`). Pas de CSP. Amis et Succès pas commencés.
+- Problèmes connus : jeux Riot sans images (jaquette générée). Amis et Succès pas commencés.
+- Idées et tâches : projet Ludex du tableau « Tâches NRW » (https://claude.ai/artifact/LLukjvgWpKWsVhMMez4a8t).
 
 ## Conventions
 
