@@ -33,7 +33,7 @@ interface EmptyProps {
 export function EmptyState({ icon = "gamepad", title, children, action }: EmptyProps) {
   return (
     <div className="empty" role="status">
-      <span className="empty__icon">{icon === "search" ? <SearchIcon size={28} /> : <GamepadIcon />}</span>
+      <span className="empty__icon">{icon === "search" ? <SearchIcon /> : <GamepadIcon />}</span>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
       {action}

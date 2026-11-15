@@ -243,7 +243,7 @@ export default function App() {
       <header className="top">
         <span className="brand"><span className="logo" aria-hidden />Ludex</span>
         <label className="search">
-          <SearchIcon size={20} />
+          <SearchIcon />
           <input
             ref={searchRef}
             value={query}
@@ -253,7 +253,7 @@ export default function App() {
               setOpen(false);
             }}
             onKeyDown={onSearchKey}
-            placeholder="Lancer un jeu…"
+            placeholder="Rechercher un jeu"
             aria-label="Rechercher un jeu"
             spellCheck={false}
             autoComplete="off"
@@ -275,7 +275,7 @@ export default function App() {
       </header>
       <p className="hint" aria-live="polite">
         {!scan
-          ? "Recherche de tes jeux dans Steam, Epic Games et Riot…"
+          ? "Recherche de tes jeux dans Steam, Epic Games et Riot"
           : query && selected
             ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></>
             : query
@@ -394,15 +394,15 @@ function NoResults({ filter, query, onClear }: { filter: Filter; query: string; 
         title={`Aucun jeu ne correspond à « ${query} »`}
         action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
       >
-        La recherche porte sur le titre{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre.
+        La recherche porte sur le titre{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
       </EmptyState>
     );
   }
   if (filter === "favorites") {
-    return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné.</EmptyState>;
+    return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné</EmptyState>;
   }
   if (filter === "hidden") {
-    return <EmptyState title="Aucun jeu masqué">Les applis qui ne sont pas des jeux, et ce que tu masques toi-même, arrivent ici et restent restaurables.</EmptyState>;
+    return <EmptyState title="Aucun jeu masqué">Les applis qui ne sont pas des jeux, et ce que tu masques toi-même, arrivent ici et restent restaurables</EmptyState>;
   }
-  return <EmptyState title={`Aucun jeu ${FILTER_LABEL[filter]}`}>Aucun jeu installé via ce launcher n'a été trouvé.</EmptyState>;
+  return <EmptyState title={`Aucun jeu ${FILTER_LABEL[filter]}`}>Aucun jeu installé via ce launcher n'a été trouvé</EmptyState>;
 }

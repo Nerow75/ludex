@@ -22,6 +22,6 @@ export function relativeTime(ts: number | null): string {
 
 export function formatSize(bytes: number | null): string {
   if (!bytes) return "Inconnue";
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(bytes >= 1e11 ? 0 : 1).replace(".", ",")} Go`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;
   return `${Math.max(1, Math.round(bytes / 1e6))} Mo`;
 }

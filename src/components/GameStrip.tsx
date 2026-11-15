@@ -37,7 +37,7 @@ export function GameStrip({ game, notch, onPlay, onFavorite, onHide, onOpenFolde
             className="btn-icon"
             aria-pressed={game.favorite}
             aria-label={game.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-            title={game.favorite ? "Retirer des favoris (F)" : "Ajouter aux favoris (F)"}
+            title={game.favorite ? "Retirer des favoris (Ctrl+D)" : "Ajouter aux favoris (Ctrl+D)"}
             onClick={() => onFavorite(game)}
           >
             <StarIcon filled={game.favorite} />

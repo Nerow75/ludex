@@ -25,7 +25,7 @@ export const GameCard = memo(function GameCard({ game, selected, meta, onSelect,
           onDoubleClick={() => onPlay(game)}
         >
           <Cover game={game} />
-          {game.favorite && <span className="card__fav" aria-label="Favori"><StarIcon filled size={13} /></span>}
+          {game.favorite && <span className="card__fav" aria-label="Favori"><StarIcon filled badge /></span>}
           {game.platform !== "steam" && <span className="card__plat">{PLATFORM_LABEL[game.platform]}</span>}
         </button>
         <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${game.title}`} onClick={() => onPlay(game)}>

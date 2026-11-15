@@ -22,7 +22,6 @@
   /* Couleur du jeu sélectionné, remplacée à la volée : contour de sélection uniquement. */
   --lx-ambient: #D8B35A;
 
-  --lx-font-display: "Bricolage Grotesque Variable", "Segoe UI", system-ui, sans-serif;
   --lx-font-body: "Geist Variable", "Segoe UI", system-ui, sans-serif;
   --lx-font-mono: "Geist Mono Variable", Consolas, ui-monospace, monospace;
 
