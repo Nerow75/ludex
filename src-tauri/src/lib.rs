@@ -5,6 +5,7 @@ mod library;
 mod metadata;
 mod session;
 mod store;
+mod update;
 mod watch;
 
 use library::{Game, Launch, PlaytimeSource, ScanResult};
@@ -545,6 +546,9 @@ fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_matc
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Aucune permission du plugin côté front : tout passe par `update.rs`.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::PendingUpdate::default())
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
@@ -573,6 +577,7 @@ pub fn run() {
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
+            update::spawn_check(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -591,7 +596,9 @@ pub fn run() {
             set_favorite,
             set_hidden,
             game_sessions,
-            game_history
+            game_history,
+            update::available_update,
+            update::install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,55 @@
+# Release de Ludex : construit l'installeur NSIS, signe la mise à jour et publie la release
+# GitHub avec `latest.json` (lu par le plugin updater). Déclenché par un tag `v*` (ex. v0.2.0)
+# qui doit correspondre à la version de `src-tauri/tauri.conf.json`.
+# Secrets du dépôt : TAURI_SIGNING_PRIVATE_KEY (contenu de la clé privée) et, seulement si la
+# clé a un mot de passe, TAURI_SIGNING_PRIVATE_KEY_PASSWORD (absent = mot de passe vide, CI=true).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifie que le tag correspond à la version
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            Write-Error "Tag ${{ github.ref_name }} mais tauri.conf.json est en $version"
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Ludex __VERSION__"
+          releaseBody: "Télécharge l'installeur `-setup.exe` ci-dessous et lance-le. Les versions déjà installées se mettent à jour toutes seules."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true

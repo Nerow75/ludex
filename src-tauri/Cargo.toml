@@ -26,6 +26,7 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 sysinfo = { version = "0.40.3", default-features = false, features = ["system"] }
 ureq = "2"
 notify = "8.2.2"
+tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
 pelite = "0.10"

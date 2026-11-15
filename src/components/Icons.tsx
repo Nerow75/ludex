@@ -14,6 +14,9 @@ const base = {
 export const RefreshIcon = () => (
   <svg {...base}><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
 );
+export const DownloadIcon = () => (
+  <svg {...base}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14" /></svg>
+);
 export const SearchIcon = () => (
   <svg {...base}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
 );

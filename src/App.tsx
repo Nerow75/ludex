@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  availableUpdate,
   gameSessions,
+  installUpdate,
   launchGame,
   onGameArt,
   onGameDetails,
   onGameSession,
   onLibraryChanged,
+  onUpdateAvailable,
   openInstallDir,
   PLATFORM_LABEL,
   PLATFORMS,
@@ -16,6 +19,7 @@ import {
   type LibraryEvent,
   type ScanResult,
   type SessionEvent,
+  type UpdateInfo,
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
@@ -24,7 +28,7 @@ import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
-import { LudexMark, RefreshIcon, SearchIcon } from "./components/Icons";
+import { DownloadIcon, LudexMark, RefreshIcon, SearchIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 
 interface Toast {
@@ -169,6 +173,41 @@ export default function App() {
     const unlisten = onGameDetails(({ id, details }) => patchGame(id, { details }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
+
+  // Mise à jour de Ludex : toast à l'arrivée, puis bouton dans la barre du haut tant qu'elle attend.
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const runUpdate = useCallback(async (info: UpdateInfo) => {
+    setUpdating(true);
+    showToast({ spin: true, title: `Mise à jour vers Ludex ${info.version}`, detail: "Téléchargement, puis Ludex se relance" }, 10 * 60_000);
+    try {
+      await installUpdate(); // sous Windows, Ludex se ferme ici
+    } catch (e) {
+      showToast({ title: "Mise à jour impossible", detail: String(e), error: true }, 6000);
+    } finally {
+      setUpdating(false);
+    }
+  }, [showToast]);
+  useEffect(() => {
+    let alive = true;
+    const announce = (info: UpdateInfo) => {
+      if (!alive) return;
+      setUpdate(info);
+      showToast({
+        title: `Ludex ${info.version} est disponible`,
+        detail: `Version actuelle : ${info.currentVersion}`,
+        action: { label: "Installer et relancer", run: () => runUpdate(info) },
+      }, 12_000);
+    };
+    const unlisten = onUpdateAvailable(announce);
+    availableUpdate()
+      .then((info) => alive && info && setUpdate(info))
+      .catch(() => {}); // sans mise à jour connue, rien à afficher
+    return () => {
+      alive = false;
+      unlisten.then((stop) => stop()).catch(() => {});
+    };
+  }, [runUpdate, showToast]);
 
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);
@@ -404,6 +443,18 @@ export default function App() {
           {query ? <kbd>Entrée</kbd> : <><kbd>Ctrl</kbd><kbd>K</kbd></>}
         </label>
         <div className="top__tools">
+          {update && (
+            <button
+              type="button"
+              className="top__update"
+              aria-label={`Installer Ludex ${update.version} et relancer`}
+              title={`Ludex ${update.version} est disponible : installer et relancer`}
+              onClick={() => runUpdate(update)}
+              disabled={updating}
+            >
+              <DownloadIcon />
+            </button>
+          )}
           <button
             type="button"
             aria-label="Rescanner la bibliothèque"
@@ -529,8 +580,10 @@ export default function App() {
                 type="button"
                 className="toast__action"
                 onClick={() => {
-                  toast.action!.run();
+                  // Fermé avant l'action : un toast ouvert par l'action reste affiché.
+                  const run = toast.action!.run;
                   setToast(null);
+                  run();
                 }}
               >
                 {toast.action.label}
