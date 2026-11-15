@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { gameHistory, PLATFORM_LABEL, type Game, type PastSession } from "../lib/api";
-import { formatAchievements, formatDate, formatDuration, formatPlaytime, formatSize, relativeTime, releaseYear } from "../lib/format";
+import {
+  formatAchievements,
+  formatDate,
+  formatDuration,
+  formatPlaytime,
+  formatSize,
+  installNote,
+  relativeTime,
+  releaseYear,
+} from "../lib/format";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FolderIcon, PlayIcon, StarIcon } from "./Icons";
 
@@ -78,6 +87,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
   const details = detailsLine(game);
   const description = game.details?.description;
   const lastSession = lastSessionText(game, useLastSession(game.id, playing));
+  const install = installNote(game.installState, PLATFORM_LABEL[game.platform]);
   return (
     <section className="strip" aria-label={`Fiche de ${game.title}`} style={{ ["--notch" as string]: `${notch}px` }}>
       <div className="strip__art">
@@ -105,6 +115,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         </dl>
         <div className="strip__acts">
           <button type="button" className="btn-play" onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>
+          {install && <span className="live is-pending">{install}</span>}
           <button
             type="button"
             className="btn-icon"

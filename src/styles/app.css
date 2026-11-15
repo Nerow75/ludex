@@ -186,6 +186,10 @@ kbd {
 .live { display: inline-flex; align-items: center; gap: 4px; color: var(--lx-accent-text); font-weight: 500; }
 .live::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lx-accent); }
 .tile small .live { color: inherit; }
+/* Mise à jour ou téléchargement en attente chez le launcher : même mention, couleur d'avertissement. */
+.live.is-pending { color: var(--lx-warning); }
+.live.is-pending::before { background: currentColor; }
+.strip__acts .live { font-size: 12px; }
 
 /* ---------- Boutons ---------- */
 .btn-play {

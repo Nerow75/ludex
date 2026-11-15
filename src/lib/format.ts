@@ -1,3 +1,5 @@
+import type { InstallState } from "./api";
+
 /** Comparaison sans accents ni casse, pour la recherche. */
 export const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -57,6 +59,32 @@ export function formatSize(bytes: number | null): string {
 export const releaseYear = (ts: number | null): number | null => (ts ? new Date(ts * 1000).getFullYear() : null);
 
 const fullDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+const percent = (progress: number | null) => (progress === null ? "" : ` ${progress} %`);
+
+/** Mention courte de la carte : « Mise à jour requise », « Téléchargement 42 % »… `null` si le jeu est prêt. */
+export function installBadge(state: InstallState): string | null {
+  switch (state.kind) {
+    case "ready": return null;
+    case "update_required": return "Mise à jour requise";
+    case "queued": return "En file d'attente";
+    case "updating": return `Téléchargement${percent(state.progress)}`;
+    case "paused": return `En pause${percent(state.progress)}`;
+    case "incomplete": return "Installation incomplète";
+  }
+}
+
+/** Mention de la fiche, près du bouton Jouer : ce que fera le launcher. `null` si le jeu est prêt. */
+export function installNote(state: InstallState, launcher: string): string | null {
+  switch (state.kind) {
+    case "ready": return null;
+    case "update_required": return `Mise à jour requise : ${launcher} la fera au lancement`;
+    case "queued": return `Mise à jour en file d'attente chez ${launcher}`;
+    case "updating": return state.progress === null ? "Téléchargement en cours" : `Téléchargement ${state.progress} %`;
+    case "paused": return `Mise à jour en pause${percent(state.progress)} : ${launcher} la reprendra au lancement`;
+    case "incomplete": return `Installation incomplète : ${launcher} la terminera au lancement`;
+  }
+}
 
 /** « 10 décembre 2020 ». */
 export const formatDate = (ts: number) => fullDate.format(new Date(ts * 1000));

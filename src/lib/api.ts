@@ -27,6 +27,18 @@ export interface Achievements {
   lastUnlocked: number | null;
 }
 
+/**
+ * État de l'installation chez le launcher (Steam, Epic). Le jeu reste lançable :
+ * le launcher termine la mise à jour au lancement. `progress` en %, `null` si inconnue.
+ */
+export type InstallState =
+  | { kind: "ready" }
+  | { kind: "update_required" }
+  | { kind: "queued" }
+  | { kind: "updating"; progress: number | null }
+  | { kind: "paused"; progress: number | null }
+  | { kind: "incomplete" };
+
 export interface Game {
   id: string;
   title: string;
@@ -48,6 +60,8 @@ export interface Game {
   playtimeSource: PlaytimeSource | null;
   /** `null` : pas de succès, ou progression inconnue (Steam seulement pour l'instant). */
   achievements: Achievements | null;
+  /** Mise à jour ou téléchargement en attente, `ready` sinon. */
+  installState: InstallState;
   /** Application plutôt qu'un jeu (masquée par défaut). */
   isTool: boolean;
   favorite: boolean;

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { PLATFORM_LABEL, type Game } from "../lib/api";
+import { installBadge } from "../lib/format";
 import { Cover } from "./Cover";
 import { PlayIcon, StarIcon } from "./Icons";
 
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export const GameCard = memo(function GameCard({ game, selected, meta, playing, onSelect, onPlay }: Props) {
+  const badge = installBadge(game.installState);
   return (
     <div className={`card ${selected ? "is-sel" : ""}`} data-game={game.id}>
       <div className="card__art">
@@ -22,7 +24,7 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
           type="button"
           className="card__hit"
           aria-pressed={selected}
-          aria-label={playing ? `${game.title}, en jeu` : game.title}
+          aria-label={playing ? `${game.title}, en jeu` : badge ? `${game.title}, ${badge.toLowerCase()}` : game.title}
           onClick={() => onSelect(game)}
           onDoubleClick={() => onPlay(game)}
         >
@@ -36,7 +38,9 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
       </div>
       <div className="card__text" onClick={() => onSelect(game)} onDoubleClick={() => onPlay(game)}>
         <span className="card__title">{game.title}</span>
-        <span className="card__meta">{playing ? <span className="live">En jeu</span> : meta}</span>
+        <span className="card__meta">
+          {playing ? <span className="live">En jeu</span> : badge ? <span className="live is-pending">{badge}</span> : meta}
+        </span>
       </div>
     </div>
   );

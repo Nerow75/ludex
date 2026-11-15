@@ -83,6 +83,8 @@ pub struct Game {
     pub playtime_source: Option<PlaytimeSource>,
     /// Succès débloqués sur le total (Steam seulement). `None` : pas de succès ou inconnu.
     pub achievements: Option<Achievements>,
+    /// Mise à jour ou téléchargement en attente chez le launcher (Steam, Epic), `Ready` sinon.
+    pub install_state: InstallState,
     /// Le launcher compte lui-même le temps de jeu (Steam, GOG Galaxy) : Ludex ne le mesure pas,
     /// pour ne jamais compter deux fois une session.
     #[serde(skip)]
@@ -112,6 +114,26 @@ pub enum PlaytimeSource {
     Launcher,
     /// Sessions mesurées par Ludex après un lancement depuis Ludex.
     Ludex,
+}
+
+/// État de l'installation chez le launcher. Le jeu reste lançable dans tous les cas :
+/// le launcher termine lui-même la mise à jour ou la réparation au lancement.
+/// Sérialisé `{ "kind": "updating", "progress": 42 }`, progression en % si connue.
+#[derive(Clone, Copy, Debug, Default, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum InstallState {
+    #[default]
+    Ready,
+    /// Mise à jour disponible, pas encore lancée.
+    UpdateRequired,
+    /// Mise à jour lancée, en attente dans la file de téléchargement.
+    Queued,
+    /// Téléchargement, installation ou vérification des fichiers en cours.
+    Updating { progress: Option<u8> },
+    /// Mise à jour mise en pause.
+    Paused { progress: Option<u8> },
+    /// Fichiers manquants ou à vérifier, installation interrompue.
+    Incomplete,
 }
 
 /// Progression des succès d'un jeu, lue chez le launcher.
@@ -186,6 +208,7 @@ impl Game {
             playtime_minutes: None,
             playtime_source: None,
             achievements: None,
+            install_state: InstallState::Ready,
             launcher_tracks_playtime: false,
             is_tool: false,
             favorite: false,
@@ -303,6 +326,16 @@ mod tests {
     }
 
     #[test]
+    fn serializes_install_state_for_the_front() {
+        use super::InstallState;
+        let json = |s: InstallState| serde_json::to_string(&s).unwrap();
+        assert_eq!(json(InstallState::Ready), r#"{"kind":"ready"}"#);
+        assert_eq!(json(InstallState::UpdateRequired), r#"{"kind":"update_required"}"#);
+        assert_eq!(json(InstallState::Updating { progress: Some(42) }), r#"{"kind":"updating","progress":42}"#);
+        assert_eq!(json(InstallState::Paused { progress: None }), r#"{"kind":"paused","progress":null}"#);
+    }
+
+    #[test]
     fn nested_folders_overlap() {
         assert!(super::is_inside(r"d:\jeux ssd\gta v\grand theft auto v", r"d:\jeux ssd\gta v"));
         assert!(!super::is_inside(r"d:\jeux ssd\gta v2", r"d:\jeux ssd\gta v"));
@@ -338,6 +371,11 @@ mod tests {
         }
         for g in steam.iter().filter(|g| g.achievements.is_none()) {
             println!("  sans succès : {}", g.title);
+        }
+        let pending: Vec<_> = result.games.iter().filter(|g| g.install_state != super::InstallState::Ready).collect();
+        println!("État d'installation : {} jeux pas prêts sur {}", pending.len(), result.games.len());
+        for g in pending {
+            println!("  [{:?}] {}  ·  {:?}", g.platform, g.title, g.install_state);
         }
     }
 }
