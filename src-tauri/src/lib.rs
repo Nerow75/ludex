@@ -1,5 +1,6 @@
 mod art;
 mod library;
+mod metadata;
 mod session;
 mod store;
 
@@ -27,6 +28,10 @@ struct AppState {
     data_dir: PathBuf,
     /// Une recherche de jaquettes tourne déjà.
     art_busy: AtomicBool,
+    /// Fiches (genres, studio, sortie…) lues sur la boutique Steam pour les jeux qui ont un appid.
+    meta: Mutex<metadata::MetaCache>,
+    /// Une lecture de fiches tourne déjà.
+    meta_busy: AtomicBool,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan.
@@ -73,6 +78,63 @@ fn resolve_art(app: tauri::AppHandle) {
             }
         });
         state.art_busy.store(false, Ordering::SeqCst);
+        // Les jeux retrouvés ont maintenant un appid : leur fiche peut être demandée.
+        resolve_details(app.clone());
+    });
+}
+
+/// Événement `game-details` : fiche reçue pour un jeu après le scan.
+#[derive(Clone, Serialize)]
+struct DetailsEvent {
+    id: String,
+    details: metadata::Details,
+}
+
+const DETAILS_EVENT: &str = "game-details";
+
+/// Reporte les fiches d'un cache à jour sur les jeux de l'état, garde ce cache et prévient le front.
+fn publish_details(app: &tauri::AppHandle, state: &AppState, fresh: &metadata::MetaCache) {
+    let mut events = Vec::new();
+    if let Ok(mut games) = lock(&state.games) {
+        for g in games.iter_mut() {
+            if fresh.apply(g)
+                && let Some(details) = &g.details
+            {
+                events.push(DetailsEvent { id: g.id.clone(), details: details.clone() });
+            }
+        }
+    }
+    if let Ok(mut cache) = lock(&state.meta) {
+        *cache = fresh.clone();
+    }
+    for e in events {
+        let _ = app.emit(DETAILS_EVENT, e);
+    }
+}
+
+/// Appids sans fiche ou dont la fiche a plus de 30 jours, avec une copie du cache à compléter.
+fn details_to_fetch(state: &AppState) -> Option<(metadata::MetaCache, Vec<u32>)> {
+    let (cache, games) = (lock(&state.meta).ok()?, lock(&state.games).ok()?);
+    let appids = cache.to_fetch(&games);
+    (!appids.is_empty()).then(|| (cache.clone(), appids))
+}
+
+/// Demande en arrière-plan les fiches manquantes, puis met à jour l'état et le front lot par lot.
+/// Recommence si des appids sont apparus entre-temps (jaquettes trouvées pendant la lecture).
+fn resolve_details(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if details_to_fetch(&state).is_none() || state.meta_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        for _ in 0..3 {
+            let Some((mut cache, appids)) = details_to_fetch(&state) else { break };
+            if !cache.fetch(appids, |fresh| publish_details(&app, &state, fresh)) {
+                break;
+            }
+        }
+        state.meta_busy.store(false, Ordering::SeqCst);
     });
 }
 
@@ -134,13 +196,16 @@ async fn scan_library(app: tauri::AppHandle, state: State<'_, AppState>) -> Resu
     {
         let data = lock(&state.data)?;
         let art = lock(&state.art)?;
+        let meta = lock(&state.meta)?;
         result.games.iter_mut().for_each(|g| {
             data.apply(g);
             art.apply(g);
+            meta.apply(g);
         });
     }
     *lock(&state.games)? = result.games.clone();
-    resolve_art(app);
+    resolve_art(app.clone());
+    resolve_details(app);
     Ok(result)
 }
 
@@ -269,8 +334,10 @@ pub fn run() {
                 data_path,
                 tracker: Tracker::spawn(move |update| on_session_update(&handle, update)),
                 art: Mutex::new(art::ArtCache::load(&dir)),
+                meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
+                meta_busy: AtomicBool::new(false),
             });
             Ok(())
         })

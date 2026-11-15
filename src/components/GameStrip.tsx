@@ -1,5 +1,5 @@
 import { PLATFORM_LABEL, type Game } from "../lib/api";
-import { formatPlaytime, formatSize, relativeTime } from "../lib/format";
+import { formatDate, formatPlaytime, formatSize, relativeTime, releaseYear } from "../lib/format";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FolderIcon, PlayIcon, StarIcon } from "./Icons";
 
@@ -23,8 +23,26 @@ function playtimeOrigin(game: Game): string {
   return "Ludex mesurera les parties lancées depuis Ludex";
 }
 
+/** « Action, RPG · CD PROJEKT RED · 2020 » et le détail complet au survol. */
+function detailsLine(game: Game): { line: string; title: string } | null {
+  const d = game.details;
+  if (!d) return null;
+  const year = releaseYear(d.releaseDate);
+  const line = [d.genres.join(", "), d.developers[0], year].filter(Boolean).join(" · ");
+  const title = [
+    d.developers.length > 0 && `Développement : ${d.developers.join(", ")}`,
+    d.publishers.length > 0 && `Édition : ${d.publishers.join(", ")}`,
+    d.releaseDate && `Sortie : ${formatDate(d.releaseDate)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return line ? { line, title } : null;
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onClose }: Props) {
+  const details = detailsLine(game);
+  const description = game.details?.description;
   return (
     <section className="strip" aria-label={`Fiche de ${game.title}`} style={{ ["--notch" as string]: `${notch}px` }}>
       <div className="strip__art">
@@ -37,6 +55,8 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           {playing && <span className="live">En jeu</span>}
         </div>
         <h2>{game.title}</h2>
+        {details && <p className="strip__meta" title={details.title}>{details.line}</p>}
+        {description && <p className="strip__desc" title={description}>{description}</p>}
         <dl className="stats">
           <div title={playtimeOrigin(game)}><dt>Temps de jeu</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
           <div><dt>Dernière session</dt><dd>{relativeTime(game.lastPlayed)}</dd></div>

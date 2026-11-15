@@ -177,7 +177,9 @@ pub fn needs_art(game: &Game) -> bool {
     game.cover_url.is_none() && game.platform != Platform::Steam
 }
 
+/// Images du CDN Steam, et appid retenu pour la fiche du jeu (`metadata.rs`).
 fn set_urls(game: &mut Game, appid: u32, cover: Option<&str>, hero: Option<&str>) {
+    game.steam_appid.get_or_insert(appid);
     let cdn = |file: &str| format!("{CDN}/{appid}/{file}");
     let asset = |file: &str| format!("{ASSETS}/{appid}/{file}");
     game.cover_url = Some(cover.map_or_else(|| cdn("library_600x900_2x.jpg"), asset));
@@ -315,6 +317,7 @@ mod tests {
         let mut frostpunk = game("Frostpunk");
         assert!(cache.apply(&mut frostpunk));
         assert!(frostpunk.cover_url.unwrap().ends_with("/323190/library_600x900_2x.jpg"));
+        assert_eq!(frostpunk.steam_appid, Some(323190));
         cache.titles.insert(
             "escapefromtarkov".into(),
             Entry { appid: Some(3932890), checked: now(), cover: Some("df4e/library_capsule_2x.jpg".into()), hero: None },

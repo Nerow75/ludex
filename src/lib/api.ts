@@ -8,6 +8,17 @@ export type SessionPhase = "detecting" | "running" | "ended";
 
 export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "other"];
 
+/** Fiche lue sur la boutique Steam pour les jeux dont on connaît l'appid. */
+export interface GameDetails {
+  /** Du plus voté au moins voté, trois au plus. */
+  genres: string[];
+  developers: string[];
+  publishers: string[];
+  /** Première sortie (secondes Unix). */
+  releaseDate: number | null;
+  description: string | null;
+}
+
 export interface Game {
   id: string;
   title: string;
@@ -32,6 +43,8 @@ export interface Game {
   favorite: boolean;
   hidden: boolean;
   launchLabel: string;
+  /** Genres, studio, éditeur, sortie et description ; `null` tant qu'inconnus. */
+  details: GameDetails | null;
 }
 
 export interface SourceReport {
@@ -84,5 +97,12 @@ export interface ArtEvent {
 }
 export const onGameArt = (handler: (event: ArtEvent) => void): Promise<UnlistenFn> =>
   listen<ArtEvent>("game-art", (e) => handler(e.payload));
+/** Fiche reçue après le scan (boutique Steam, en arrière-plan). */
+export interface DetailsEvent {
+  id: string;
+  details: GameDetails;
+}
+export const onGameDetails = (handler: (event: DetailsEvent) => void): Promise<UnlistenFn> =>
+  listen<DetailsEvent>("game-details", (e) => handler(e.payload));
 export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
   listen<SessionEvent>("game-session", (e) => handler(e.payload));
