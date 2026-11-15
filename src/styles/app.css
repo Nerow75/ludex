@@ -149,7 +149,7 @@ kbd {
 }
 
 /* ---------- Grille ---------- */
-.grid { --card-min: 140px; --gap-x: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); gap: 24px var(--gap-x); }
+.grid { --card-min: 140px; --gap-x: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); gap: 24px var(--gap-x); }
 .card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .card__art { position: relative; }
 .card__hit { display: block; width: 100%; padding: 0; border: 0; background: none; border-radius: var(--lx-radius-s); }
@@ -241,8 +241,8 @@ kbd {
 }
 .toast__action:hover { background: var(--lx-surface); }
 .toast__spin {
-  width: 22px; height: 22px; flex: none; border-radius: 50%;
-  border: 2.5px solid var(--lx-border); border-top-color: var(--lx-accent); animation: spin .8s linear infinite;
+  width: 20px; height: 20px; flex: none; border-radius: 50%;
+  border: 2px solid var(--lx-border); border-top-color: var(--lx-accent); animation: spin .8s linear infinite;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
