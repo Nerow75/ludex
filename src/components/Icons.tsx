@@ -46,6 +46,19 @@ export const EyeOffIcon = () => (
     <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.6 9.6 0 0 1 12 5c5 0 8.5 4.5 9.5 7a13 13 0 0 1-2.6 3.7M6.2 6.6C4.3 7.9 3 9.8 2.5 12c1 2.5 4.5 7 9.5 7 1.6 0 3-.4 4.3-1.1" />
   </svg>
 );
+export const PlusIcon = () => (
+  <svg {...base}><path d="M12 5v14M5 12h14" /></svg>
+);
+/** Fichier exécutable : « Changer l'exécutable ». */
+export const FileIcon = () => (
+  <svg {...base}><path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v15A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7z" /><path d="M14 3v4h4M10 12l-2 2 2 2M14 12l2 2-2 2" /></svg>
+);
+export const PencilIcon = () => (
+  <svg {...base}><path d="M15.5 5.5l3 3M4 20l1-4L16.2 4.8a2.1 2.1 0 0 1 3 3L8 19z" /></svg>
+);
+export const TrashIcon = () => (
+  <svg {...base}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" /></svg>
+);
 export const CloseIcon = () => (
   <svg {...base}><path d="M6 6l12 12M18 6 6 18" /></svg>
 );

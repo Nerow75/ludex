@@ -1,7 +1,8 @@
 //! Préférences de l'utilisateur, gardées dans un fichier JSON du dossier de données de l'app :
 //! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex et temps de jeu
-//! mesuré par Ludex.
+//! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur.
 
+use crate::library::manual::{self, Custom, ManualGame};
 use crate::library::{Game, PlaytimeSource};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -21,6 +22,12 @@ pub struct UserData {
     pub launched: BTreeMap<String, u64>,
     /// Temps de jeu mesuré par Ludex, en secondes, pour les jeux dont le launcher ne compte rien.
     pub playtime: BTreeMap<String, u64>,
+    /// Jeux ajoutés à la main (« Autres »).
+    pub manual: Vec<ManualGame>,
+    /// Exécutable choisi à la place de celui détecté, par id (jeux « Autres » détectés).
+    pub exes: BTreeMap<String, PathBuf>,
+    /// Titre choisi par l'utilisateur, par id (jeux détectés ; un jeu manuel garde le sien).
+    pub titles: BTreeMap<String, String>,
 }
 
 impl UserData {
@@ -73,6 +80,51 @@ impl UserData {
             let total = self.playtime.entry(id.to_string()).or_insert(0);
             *total = total.saturating_add(secs);
         }
+    }
+
+    /// Ajoute un jeu à la main et renvoie son id. Le même exécutable ajouté de nouveau (jeu
+    /// écarté parce que son fichier avait disparu) reprend son entrée et son id.
+    pub fn add_manual(&mut self, exe: PathBuf, title: String) -> String {
+        let id = manual::manual_id(&exe);
+        self.manual.retain(|m| m.id != id);
+        self.manual.push(ManualGame { id: id.clone(), exe, title, args: Vec::new() });
+        id
+    }
+
+    /// Retire un jeu ajouté à la main. Son temps de jeu et sa date de lancement restent : ajouté
+    /// de nouveau depuis le même exécutable, il les retrouve.
+    pub fn remove_manual(&mut self, id: &str) -> bool {
+        let before = self.manual.len();
+        self.manual.retain(|m| m.id != id);
+        self.favorites.remove(id);
+        self.hidden.remove(id);
+        self.manual.len() != before
+    }
+
+    /// Nouvel exécutable : remplace celui d'un jeu manuel, ou celui détecté pour un jeu « Autres ».
+    pub fn set_exe(&mut self, id: &str, exe: PathBuf) {
+        match self.manual.iter_mut().find(|m| m.id == id) {
+            Some(m) => m.exe = exe,
+            None => drop(self.exes.insert(id.to_string(), exe)),
+        }
+    }
+
+    /// Nouveau titre. `None` : retour au titre d'origine (détecté, ou deviné depuis l'exécutable
+    /// pour un jeu manuel).
+    pub fn rename(&mut self, id: &str, title: Option<String>) {
+        if let Some(m) = self.manual.iter_mut().find(|m| m.id == id) {
+            m.title = title.unwrap_or_else(|| manual::guess_title(&m.exe));
+            return;
+        }
+        match title {
+            Some(t) => drop(self.titles.insert(id.to_string(), t)),
+            None => drop(self.titles.remove(id)),
+        }
+    }
+
+    /// Jeux manuels et corrections de l'utilisateur, appliqués à une bibliothèque scannée.
+    pub fn customize(&self, games: &mut Vec<Game>) {
+        manual::customize(games, &Custom { manual: &self.manual, exes: &self.exes, titles: &self.titles });
     }
 
     /// Reporte les préférences sur un jeu détecté.
@@ -185,6 +237,47 @@ mod tests {
     fn old_files_without_playtime_still_load() {
         let data: UserData = serde_json::from_str(r#"{"favorites":["steam:730"],"launched":{"steam:730":1}}"#).unwrap();
         assert!(data.playtime.is_empty() && data.favorites.contains("steam:730"));
+    }
+
+    #[test]
+    fn manual_games_and_corrections_round_trip() {
+        let path = std::env::temp_dir().join(format!("ludex-test-manual-{}.json", std::process::id()));
+        let mut data = UserData::default();
+        let exe = PathBuf::from(r"D:\Emu\Dolphin\Dolphin.exe");
+        let id = data.add_manual(exe.clone(), "Dolphin".into());
+        // Même exécutable de nouveau : même id, pas de doublon.
+        assert_eq!(data.add_manual(exe.clone(), "Dolphin 2".into()), id);
+        assert_eq!(data.manual.len(), 1);
+        data.set_favorite(&id, true);
+        data.add_playtime(&id, 600);
+        data.set_exe(&id, PathBuf::from(r"D:\Emu\Dolphin\DolphinQt.exe"));
+        data.set_exe("other:e-jeux-frostpunk", PathBuf::from(r"E:\Jeux\Frostpunk\bin\Frostpunk.exe"));
+        data.rename(&id, Some("Wii".into()));
+        data.rename("other:e-jeux-ck", Some("Crusader Kings III".into()));
+        data.save(&path).unwrap();
+
+        let mut loaded = UserData::load(&path);
+        assert_eq!(loaded.manual[0].id, id); // l'id ne suit pas l'exécutable
+        assert_eq!(loaded.manual[0].exe, PathBuf::from(r"D:\Emu\Dolphin\DolphinQt.exe"));
+        assert_eq!(loaded.manual[0].title, "Wii");
+        assert!(loaded.exes.contains_key("other:e-jeux-frostpunk") && !loaded.exes.contains_key(&id));
+        assert_eq!(loaded.titles.get("other:e-jeux-ck").map(String::as_str), Some("Crusader Kings III"));
+
+        loaded.rename("other:e-jeux-ck", None);
+        assert!(loaded.titles.is_empty());
+        assert!(loaded.remove_manual(&id));
+        assert!(!loaded.remove_manual(&id));
+        assert!(loaded.manual.is_empty() && !loaded.favorites.contains(&id));
+        assert_eq!(loaded.playtime.get(&id), Some(&600)); // gardé pour un nouvel ajout
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn files_without_manual_games_still_load() {
+        let data: UserData = serde_json::from_str(r#"{"favorites":[],"playtime":{"epic:Sugar":60}}"#).unwrap();
+        assert!(data.manual.is_empty() && data.exes.is_empty() && data.titles.is_empty());
+        let one: UserData = serde_json::from_str(r#"{"manual":[{"id":"other:manual-1","exe":"D:\\a.exe","title":"A"}]}"#).unwrap();
+        assert!(one.manual[0].args.is_empty());
     }
 
     #[test]

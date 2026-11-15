@@ -8,16 +8,17 @@ mod store;
 mod update;
 mod watch;
 
-use library::{Game, Launch, PlaytimeSource, ScanResult};
+use library::{manual, Game, Launch, Platform, PlaytimeSource, ScanResult};
 use serde::Serialize;
 use session::{Phase, Tracker};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 use store::UserData;
 use tauri::http::{header, Response, StatusCode};
 use tauri::{Emitter, Manager, Runtime, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 /// Derniers jeux détectés et préférences de l'utilisateur. Le front ne transmet qu'un identifiant :
@@ -334,6 +335,8 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
         let art = lock(&state.art)?;
         let meta = lock(&state.meta)?;
         let images = lock(&state.images)?;
+        // D'abord les jeux ajoutés à la main et les corrections : le titre choisi sert aux jaquettes.
+        data.customize(&mut result.games);
         result.games.iter_mut().for_each(|g| {
             data.apply(g);
             art.apply(g);
@@ -461,6 +464,158 @@ fn open_install_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: Strin
         .map_err(|e| format!("Impossible d'ouvrir {dir} : {e}"))
 }
 
+/// Jeu ajouté ou modifié, avec la bibliothèque relue : le front n'a pas à rescanner.
+#[derive(Serialize)]
+struct LibraryUpdate {
+    id: String,
+    title: String,
+    scan: ScanResult,
+}
+
+/// Titre reçu du front au-delà de cette taille (octets) : refusé avant tout traitement.
+const MAX_TITLE_INPUT: usize = 1024;
+
+/// Tâche bloquante (sélecteur de fichier, scan) hors du fil de l'interface.
+async fn blocking<T: Send + 'static>(task: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(task).await.map_err(|e| format!("Opération interrompue : {e}"))?
+}
+
+/// Attend la fin d'un scan en cours (automatique ou demandé) : jamais deux à la fois.
+fn wait_scan(state: &AppState) -> MutexGuard<'_, ()> {
+    state.scan_lock.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Sélecteur de fichier natif, limité aux exécutables, au-dessus de la fenêtre de Ludex. Le chemin
+/// choisi reste côté Rust : le front ne le voit ni ne le transmet. `None` : annulé.
+fn pick_exe(window: &tauri::WebviewWindow, title: &str, start: Option<&Path>) -> Option<PathBuf> {
+    let mut dialog = window.dialog().file().set_title(title).add_filter("Exécutable", &["exe"]).set_parent(window);
+    if let Some(dir) = start.filter(|d| d.is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog.blocking_pick_file()?.into_path().ok()
+}
+
+/// Un exécutable déjà lancé par un autre jeu de la bibliothèque ne crée pas de doublon.
+fn check_unused(games: &[Game], exe: &Path, except: Option<&str>) -> Result<(), String> {
+    match manual::same_exe(games, exe, except) {
+        Some(g) => Err(format!("« {} » lance déjà cet exécutable : il est déjà dans la bibliothèque.", g.title)),
+        None => Ok(()),
+    }
+}
+
+/// Modifie et enregistre les préférences, puis rescanne (le scan applique les corrections).
+fn save_and_rescan<R>(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    scanning: MutexGuard<'_, ()>,
+    change: impl FnOnce(&mut UserData) -> R,
+) -> Result<(R, ScanResult), String> {
+    let out = {
+        let mut data = lock(&state.data)?;
+        let out = change(&mut data);
+        data.save(&state.data_path)?;
+        out
+    };
+    let (scan, _) = rescan(app, state, scanning)?;
+    Ok((out, scan))
+}
+
+/// Réponse d'un ajout ou d'une modification : le jeu doit être dans la bibliothèque relue.
+fn updated(id: String, scan: ScanResult) -> Result<LibraryUpdate, String> {
+    let title = scan
+        .games
+        .iter()
+        .find(|g| g.id == id)
+        .map(|g| g.title.clone())
+        .ok_or("Le jeu n'apparaît pas dans la bibliothèque : son exécutable a-t-il disparu ?")?;
+    Ok(LibraryUpdate { id, title, scan })
+}
+
+/// Ajoute un jeu à la main : sélecteur de fichier, validation, titre deviné (nom du produit, sinon
+/// dossier), enregistrement puis rescan. `None` : sélection annulée.
+#[tauri::command]
+async fn add_game(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Option<LibraryUpdate>, String> {
+    blocking(move || {
+        let Some(picked) = pick_exe(&window, "Ajouter un jeu", None) else { return Ok(None) };
+        let exe = manual::check_exe(&picked)?;
+        let state = app.state::<AppState>();
+        let scanning = wait_scan(&state);
+        {
+            let games = lock(&state.games)?;
+            check_unused(&games, &exe, None)?;
+            if let Some(g) = manual::folder_owner(&games, &exe) {
+                return Err(format!(
+                    "Cet exécutable est dans le dossier de « {} », déjà dans la bibliothèque. Pour le lancer avec, ouvre sa fiche et choisis « Changer l'exécutable ».",
+                    g.title
+                ));
+            }
+        }
+        let title = manual::guess_title(&exe);
+        let (id, scan) = save_and_rescan(&app, &state, scanning, move |data| data.add_manual(exe, title))?;
+        updated(id, scan).map(Some)
+    })
+    .await
+}
+
+/// Remplace l'exécutable d'un jeu « Autres » (détecté ou ajouté à la main). Le sélecteur s'ouvre
+/// dans le dossier du jeu ; pour un jeu détecté, l'exécutable doit y rester (suivi des sessions).
+#[tauri::command]
+async fn change_executable(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String) -> Result<Option<LibraryUpdate>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        if game.platform != Platform::Other {
+            return Err(format!("{} est lancé par son launcher : son exécutable ne se change pas dans Ludex.", game.title));
+        }
+        let start = game.install_dir.as_deref().map(Path::new);
+        let Some(picked) = pick_exe(&window, &format!("Exécutable de {}", game.title), start) else { return Ok(None) };
+        let exe = manual::check_exe(&picked)?;
+        if !game.manual {
+            let dir = game.install_dir.as_deref().ok_or("Dossier du jeu inconnu.")?;
+            if !manual::is_in_dir(&exe, dir) {
+                return Err(format!("Choisis un exécutable dans le dossier du jeu : {dir}"));
+            }
+        }
+        let scanning = wait_scan(&state);
+        check_unused(&lock(&state.games)?, &exe, Some(&id))?;
+        let ((), scan) = save_and_rescan(&app, &state, scanning, |data| data.set_exe(&id, exe))?;
+        updated(id, scan).map(Some)
+    })
+    .await
+}
+
+/// Renomme un jeu (le titre sert aussi à chercher sa jaquette). Titre vide : titre d'origine.
+#[tauri::command]
+async fn rename_game(app: tauri::AppHandle, id: String, title: String) -> Result<LibraryUpdate, String> {
+    if title.len() > MAX_TITLE_INPUT {
+        return Err(format!("Titre trop long : {} caractères au plus.", manual::MAX_TITLE));
+    }
+    blocking(move || {
+        let state = app.state::<AppState>();
+        find_game(&state, &id)?;
+        let title = manual::clean_title(&title);
+        let scanning = wait_scan(&state);
+        let ((), scan) = save_and_rescan(&app, &state, scanning, |data| data.rename(&id, title))?;
+        updated(id, scan)
+    })
+    .await
+}
+
+/// Retire un jeu ajouté à la main. Les jeux détectés ne se retirent pas : ils se masquent.
+#[tauri::command]
+async fn remove_game(app: tauri::AppHandle, id: String) -> Result<ScanResult, String> {
+    if !manual::is_manual(&id) {
+        return Err("Seuls les jeux ajoutés à la main se retirent. Les autres se masquent.".into());
+    }
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let scanning = wait_scan(&state);
+        let (removed, scan) = save_and_rescan(&app, &state, scanning, |data| data.remove_manual(&id))?;
+        if removed { Ok(scan) } else { Err("Ce jeu n'est plus dans la bibliothèque. Relance un scan.".into()) }
+    })
+    .await
+}
+
 /// Lance le jeu et renvoie l'heure du lancement (secondes Unix).
 #[tauri::command]
 fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<u64, String> {
@@ -549,6 +704,8 @@ pub fn run() {
         // Aucune permission du plugin côté front : tout passe par `update.rs`.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::PendingUpdate::default())
+        // Sélecteur de fichier, utilisé seulement depuis Rust : aucune permission `dialog` côté front.
+        .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
@@ -598,7 +755,11 @@ pub fn run() {
             game_sessions,
             game_history,
             update::available_update,
-            update::install_update
+            update::install_update,
+            add_game,
+            change_executable,
+            rename_game,
+            remove_game
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

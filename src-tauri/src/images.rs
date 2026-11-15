@@ -43,7 +43,7 @@ fn now() -> u64 {
 }
 
 /// FNV-1a 64 bits : stable d'une version de Rust à l'autre, contrairement au hasher par défaut.
-fn fnv(text: &str) -> u64 {
+pub(crate) fn fnv(text: &str) -> u64 {
     text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
