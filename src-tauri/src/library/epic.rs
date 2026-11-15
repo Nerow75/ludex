@@ -1,7 +1,7 @@
 //! Epic Games : un fichier JSON `.item` par jeu installé dans
 //! `ProgramData\Epic\EpicGamesLauncher\Data\Manifests`.
 
-use super::{program_data, Game, Launch, Platform};
+use super::{program_data, Game, InstallState, Launch, Platform};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
@@ -39,10 +39,11 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
 
 fn parse_item(item: &Value) -> Option<Game> {
     let s = |key: &str| item.get(key).and_then(Value::as_str).unwrap_or("");
+    let flag = |key: &str| item.get(key).and_then(Value::as_bool) == Some(true);
 
     let app_name = s("AppName");
     let title = s("DisplayName");
-    if app_name.is_empty() || title.is_empty() || item.get("bIsIncompleteInstall").and_then(Value::as_bool) == Some(true) {
+    if app_name.is_empty() || title.is_empty() {
         return None;
     }
     // DLC : leur jeu principal porte un autre AppName.
@@ -60,6 +61,12 @@ fn parse_item(item: &Value) -> Option<Game> {
     if !install.is_empty() && !Path::new(install).exists() {
         return None;
     }
+    // `bIsIncompleteInstall` : installation ou mise à jour interrompue. Gardé seulement si
+    // l'exécutable est déjà là (mise à jour), une première installation n'étant pas jouable.
+    let incomplete = flag("bIsIncompleteInstall");
+    if incomplete && (install.is_empty() || !Path::new(install).join(s("LaunchExecutable")).is_file()) {
+        return None;
+    }
 
     let (namespace, catalog_id) = (s("CatalogNamespace"), s("CatalogItemId"));
     let uri = if namespace.is_empty() || catalog_id.is_empty() {
@@ -71,6 +78,11 @@ fn parse_item(item: &Value) -> Option<Game> {
     let mut game = Game::new(Platform::Epic, app_name, title, Launch::Uri(uri));
     game.install_dir = (!install.is_empty()).then(|| install.to_string());
     game.size_on_disk = item.get("InstallSize").and_then(Value::as_u64).filter(|&n| n > 0);
+    // `bNeedsValidation` : Epic vérifiera les fichiers avant le prochain lancement. Les mises à jour
+    // disponibles ne sont pas dans le manifeste (le launcher les demande au serveur).
+    if incomplete || flag("bNeedsValidation") {
+        game.install_state = InstallState::Incomplete;
+    }
     Some(game)
 }
 
@@ -89,8 +101,33 @@ mod tests {
         assert_eq!(game.id, "epic:Sugar");
         assert_eq!(game.launch_label, "com.epicgames.launcher://apps/ns%3Aitem%3ASugar?action=launch&silent=true");
 
+        assert_eq!(game.install_state, InstallState::Ready);
+
         let mut dlc = base.clone();
         dlc["AppName"] = "SugarDLC".into();
         assert!(parse_item(&dlc).is_none());
+    }
+
+    #[test]
+    fn reads_incomplete_and_validation_states() {
+        let dir = std::env::temp_dir().join(format!("ludex-epic-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("Binaries")).unwrap();
+        fs::write(dir.join("Binaries").join("Game.exe"), b"x").unwrap();
+        let item = |incomplete: bool, validation: bool, exe: &str| {
+            serde_json::json!({
+                "AppName": "Fortnite", "DisplayName": "Fortnite", "AppCategories": ["games"],
+                "InstallLocation": dir.to_string_lossy(), "LaunchExecutable": exe,
+                "bIsIncompleteInstall": incomplete, "bNeedsValidation": validation
+            })
+        };
+        let state = |v: &Value| parse_item(v).map(|g| g.install_state);
+        assert_eq!(state(&item(false, false, "Binaries/Game.exe")), Some(InstallState::Ready));
+        assert_eq!(state(&item(false, true, "Binaries/Game.exe")), Some(InstallState::Incomplete));
+        // Mise à jour interrompue : l'exécutable est là, le jeu reste listé.
+        assert_eq!(state(&item(true, false, "Binaries/Game.exe")), Some(InstallState::Incomplete));
+        // Première installation en cours : pas encore d'exécutable, écartée.
+        assert_eq!(state(&item(true, false, "Binaries/Absent.exe")), None);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

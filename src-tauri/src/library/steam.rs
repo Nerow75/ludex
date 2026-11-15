@@ -1,10 +1,79 @@
 //! Steam : bibliothèques listées dans `steamapps/libraryfolders.vdf`,
 //! un `appmanifest_<appid>.acf` par jeu installé.
 
-use super::{achievements, art_url, vdf, Game, LocalArt, Launch, Platform};
+use super::{achievements, art_url, vdf, Game, InstallState, LocalArt, Launch, Platform};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Bits de `StateFlags` (`EAppState` du client Steam). Valve ne les documente pas : valeurs reprises
+/// de SteamKit et de la crate `game-scanner`, où les bits 13 à 15 n'existent pas.
+/// 1 désinstallé, 2 mise à jour requise, 4 entièrement installé, 8 chiffré, 16 verrouillé,
+/// 32 fichiers manquants, 64 en cours d'exécution, 128 fichiers corrompus, 256 mise à jour en cours,
+/// 512 mise à jour en pause, 1024 mise à jour lancée (créée, éventuellement en file d'attente),
+/// 2048 désinstallation, 4096 sauvegarde, 65536 reconfiguration, 131072 vérification,
+/// 262144 ajout de fichiers, 524288 préallocation, 1048576 téléchargement, 2097152 mise en place,
+/// 4194304 validation finale, 8388608 arrêt de la mise à jour.
+/// Relevé sur un vrai PC : 4 (prêt) et 6 (mise à jour requise) seulement.
+mod flags {
+    pub const UNINSTALLED: u32 = 1;
+    pub const UPDATE_REQUIRED: u32 = 2;
+    pub const FULLY_INSTALLED: u32 = 4;
+    pub const FILES_MISSING: u32 = 32;
+    pub const FILES_CORRUPT: u32 = 128;
+    pub const UPDATE_RUNNING: u32 = 256;
+    pub const UPDATE_PAUSED: u32 = 512;
+    pub const UPDATE_STARTED: u32 = 1024;
+    pub const UNINSTALLING: u32 = 2048;
+    pub const RECONFIGURING: u32 = 65_536;
+    pub const VALIDATING: u32 = 131_072;
+    pub const ADDING_FILES: u32 = 262_144;
+    pub const PREALLOCATING: u32 = 524_288;
+    pub const DOWNLOADING: u32 = 1_048_576;
+    pub const STAGING: u32 = 2_097_152;
+    pub const COMMITTING: u32 = 4_194_304;
+
+    /// Steam travaille sur les fichiers du jeu.
+    pub const WORKING: u32 =
+        UPDATE_RUNNING | RECONFIGURING | VALIDATING | ADDING_FILES | PREALLOCATING | DOWNLOADING | STAGING | COMMITTING;
+    /// Une mise à jour existe : lancée, en file, en pause ou en cours.
+    pub const JOB: u32 = UPDATE_STARTED | UPDATE_PAUSED | WORKING;
+}
+
+/// Jeu à lister : entièrement installé, ou déjà installé une fois (`buildid` connu) et en cours
+/// de mise à jour, Steam pouvant retirer le bit « installé » pendant ce temps. Une première
+/// installation en cours (`buildid` 0) n'est pas encore jouable : écartée.
+fn listed(flags: u32, app: &vdf::Vdf) -> bool {
+    if flags & (flags::UNINSTALLED | flags::UNINSTALLING) != 0 {
+        return false;
+    }
+    flags & flags::FULLY_INSTALLED != 0 || (flags & flags::JOB != 0 && number(app, "buildid").is_some())
+}
+
+/// Progression du téléchargement en % (`BytesDownloaded` sur `BytesToDownload`), `None` si rien à télécharger.
+fn download_progress(app: &vdf::Vdf) -> Option<u8> {
+    let total = number(app, "BytesToDownload")?;
+    let done = number(app, "BytesDownloaded").unwrap_or(0).min(total);
+    u8::try_from(done * 100 / total).ok()
+}
+
+/// État lu dans `StateFlags`, du plus actif au plus passif. `TargetBuildID` et `ScheduledAutoUpdate`
+/// ne sont pas lus : sur le PC relevé, toute mise à jour en attente porte déjà le bit 2.
+fn install_state(flags: u32, app: &vdf::Vdf) -> InstallState {
+    if flags & flags::UPDATE_PAUSED != 0 {
+        InstallState::Paused { progress: download_progress(app) }
+    } else if flags & flags::WORKING != 0 {
+        InstallState::Updating { progress: download_progress(app) }
+    } else if flags & flags::UPDATE_STARTED != 0 {
+        InstallState::Queued
+    } else if flags & (flags::FILES_MISSING | flags::FILES_CORRUPT) != 0 {
+        InstallState::Incomplete
+    } else if flags & flags::UPDATE_REQUIRED != 0 {
+        InstallState::UpdateRequired
+    } else {
+        InstallState::Ready
+    }
+}
 
 /// Outils Steam qui ne sont pas des jeux.
 const EXCLUDED_APPIDS: &[&str] = &["228980", "1070560", "1391110", "1628350", "1826330", "250820"];
@@ -209,9 +278,8 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             let Some(app) = doc.get("AppState") else { continue };
             let (Some(appid), Some(title)) = (app.str("appid"), app.str("name")) else { continue };
 
-            // StateFlags bit 4 = complètement installé.
             let flags: u32 = app.str("StateFlags").and_then(|f| f.parse().ok()).unwrap_or(0);
-            if flags & 4 == 0
+            if !listed(flags, app)
                 || EXCLUDED_APPIDS.contains(&appid)
                 || EXCLUDED_PREFIXES.iter().any(|p| title.starts_with(p))
                 || !seen.insert(appid.to_string())
@@ -233,6 +301,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             game.local_art = art;
             game.last_played = number(app, "LastPlayed");
             game.size_on_disk = number(app, "SizeOnDisk");
+            game.install_state = install_state(flags, app);
             // Steam compte toutes les sessions, même lancées hors de Ludex : son chiffre fait foi.
             // Une application absente de localconfig.vdf n'a jamais été lancée.
             game.launcher_tracks_playtime = true;
@@ -251,7 +320,9 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{account_ids, account_of, is_tool, local_art, localconfig_path, parse_playtimes, playtimes, AppTimes};
+    use super::{
+        account_ids, account_of, install_state, is_tool, listed, local_art, localconfig_path, parse_playtimes, playtimes, AppTimes,
+    };
     use crate::library::vdf;
     use std::fs;
 
@@ -370,6 +441,47 @@ mod tests {
         let start = std::time::Instant::now();
         let found = games.iter().filter_map(|g| crate::library::achievements::read(&stats, account, &g.platform_id)).count();
         println!("Dont succès : {:?} ({found} jeux avec succès, compte {account})", start.elapsed());
+    }
+
+    /// Manifeste réduit aux champs lus pour l'état d'installation.
+    fn manifest(flags: u32, buildid: u64, to_download: u64, downloaded: u64) -> (u32, vdf::Vdf) {
+        let text = format!(
+            r#""AppState" {{ "appid" "730" "StateFlags" "{flags}" "buildid" "{buildid}" "TargetBuildID" "26393695"
+                "BytesToDownload" "{to_download}" "BytesDownloaded" "{downloaded}" "UpdateResult" "0" }}"#
+        );
+        (flags, vdf::parse(&text).get("AppState").unwrap().clone())
+    }
+
+    #[test]
+    fn reads_install_state_from_flags() {
+        use crate::library::InstallState::*;
+        let state = |(flags, app): (u32, vdf::Vdf)| install_state(flags, &app);
+        // Valeurs relevées sur un vrai PC : 4 prêt, 6 mise à jour requise (taille connue, rien téléchargé).
+        assert_eq!(state(manifest(4, 26334290, 0, 0)), Ready);
+        assert_eq!(state(manifest(6, 26334290, 96837264, 0)), UpdateRequired);
+        // Mise à jour lancée en file (1024), téléchargement (1048576 + 256), pause (512).
+        assert_eq!(state(manifest(1030, 26334290, 96837264, 0)), Queued);
+        assert_eq!(state(manifest(4 | 2 | 1024 | 256 | 1_048_576, 26334290, 200, 84)), Updating { progress: Some(42) });
+        assert_eq!(state(manifest(2 | 1024 | 2_097_152, 26334290, 0, 0)), Updating { progress: None });
+        assert_eq!(state(manifest(4 | 2 | 1024 | 512, 26334290, 1000, 999)), Paused { progress: Some(99) });
+        // Plus téléchargé qu'annoncé : 100 % au plus.
+        assert_eq!(state(manifest(2 | 256, 1, 10, 50)), Updating { progress: Some(100) });
+        assert_eq!(state(manifest(4 | 32, 26334290, 0, 0)), Incomplete);
+        assert_eq!(state(manifest(4 | 128, 26334290, 0, 0)), Incomplete);
+    }
+
+    #[test]
+    fn lists_installed_or_updating_games_only() {
+        let listed = |(flags, app): (u32, vdf::Vdf)| listed(flags, &app);
+        assert!(listed(manifest(4, 26334290, 0, 0)));
+        assert!(listed(manifest(6, 26334290, 96837264, 0)));
+        // Mise à jour sans le bit « installé » : jeu déjà installé une fois, gardé.
+        assert!(listed(manifest(2 | 1024 | 1_048_576, 26334290, 100, 10)));
+        // Première installation en cours (buildid 0) : pas encore jouable.
+        assert!(!listed(manifest(1026, 0, 100, 10)));
+        assert!(!listed(manifest(2, 26334290, 0, 0)));
+        assert!(!listed(manifest(4 | 2048, 26334290, 0, 0)));
+        assert!(!listed(manifest(1, 26334290, 0, 0)));
     }
 
     #[test]
