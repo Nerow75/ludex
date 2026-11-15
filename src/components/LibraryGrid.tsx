@@ -3,7 +3,7 @@ import type { Game } from "../lib/api";
 import { GameCard } from "./GameCard";
 
 const CARD_MIN = 140;
-const GAP_X = 14;
+const GAP_X = 16;
 
 /** Nombre de colonnes réel de la grille : même calcul que `repeat(auto-fill, minmax(140px, 1fr))`. */
 function useColumns() {

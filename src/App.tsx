@@ -239,7 +239,6 @@ export default function App() {
 
   return (
     <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
-      <div className="wash" aria-hidden />
 
       <header className="top">
         <span className="brand"><span className="logo" aria-hidden />Ludex</span>

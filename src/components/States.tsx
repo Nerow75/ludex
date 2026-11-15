@@ -9,7 +9,7 @@ export function LibrarySkeleton() {
       <div className="resume__grid">
         {Array.from({ length: 4 }, (_, i) => <div key={i} className="sk sk--tile" />)}
       </div>
-      <div className="sk sk--line" style={{ width: 160, margin: "28px 0 16px" }} />
+      <div className="sk sk--line" style={{ width: 160, margin: "24px 0 16px" }} />
       <div className="grid">
         {Array.from({ length: 16 }, (_, i) => (
           <div key={i} className="card">

@@ -1,5 +1,6 @@
 /* Ludex · design system
-   Base monochrome (90 %), couleur du jeu sélectionné (8 %), turquoise Ludex (2 %).
+   Base monochrome, turquoise Ludex pour le focus et l'action secondaire,
+   couleur du jeu sélectionné réservée au contour de sélection.
    Thème sombre par défaut ; [data-theme="light"] sur <html> pour le clair. */
 :root {
   --lx-bg: #0B0B0B;
@@ -18,9 +19,8 @@
   --lx-danger: #FF7A7A;
   --lx-overlay: rgba(6, 6, 6, 0.6);
 
-  /* Couleur ambiante : remplacée à la volée par celle du jeu sélectionné. */
+  /* Couleur du jeu sélectionné, remplacée à la volée : contour de sélection uniquement. */
   --lx-ambient: #D8B35A;
-  --lx-on-ambient: #0B0B0B;
 
   --lx-font-display: "Bricolage Grotesque Variable", "Segoe UI", system-ui, sans-serif;
   --lx-font-body: "Geist Variable", "Segoe UI", system-ui, sans-serif;
