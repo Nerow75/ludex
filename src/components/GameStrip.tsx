@@ -1,5 +1,5 @@
 import { PLATFORM_LABEL, type Game } from "../lib/api";
-import { formatPlaytime, formatSize, relativeTime } from "../lib/format";
+import { formatAchievements, formatPlaytime, formatSize, relativeTime } from "../lib/format";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FolderIcon, PlayIcon, StarIcon } from "./Icons";
 
@@ -23,6 +23,11 @@ function playtimeOrigin(game: Game): string {
   return "Ludex mesurera les parties lancées depuis Ludex";
 }
 
+/** Dernier succès débloqué, au survol de la stat « Succès ». */
+function lastAchievement(lastUnlocked: number | null): string {
+  return lastUnlocked ? `Dernier succès débloqué ${relativeTime(lastUnlocked)}` : "Aucun succès débloqué";
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onClose }: Props) {
   return (
@@ -39,6 +44,11 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         <h2>{game.title}</h2>
         <dl className="stats">
           <div title={playtimeOrigin(game)}><dt>Temps de jeu</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
+          {game.achievements && (
+            <div title={lastAchievement(game.achievements.lastUnlocked)}>
+              <dt>Succès</dt><dd>{formatAchievements(game.achievements.unlocked, game.achievements.total)}</dd>
+            </div>
+          )}
           <div><dt>Dernière session</dt><dd>{relativeTime(game.lastPlayed)}</dd></div>
           <div><dt>Taille</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
           <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
