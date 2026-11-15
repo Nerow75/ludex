@@ -8,9 +8,14 @@ use std::fs;
 use std::path::Path;
 
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
-    let dir = program_data().join(r"Epic\EpicGamesLauncher\Data\Manifests");
-    if !dir.exists() {
+    let launcher = program_data().join(r"Epic\EpicGamesLauncher");
+    if !launcher.exists() {
         return Ok(None);
+    }
+    // Le dossier des manifestes n'apparaît qu'à la première installation d'un jeu.
+    let dir = launcher.join(r"Data\Manifests");
+    if !dir.exists() {
+        return Ok(Some(Vec::new()));
     }
     let entries = fs::read_dir(&dir).map_err(|e| format!("Lecture des manifestes Epic impossible : {e}"))?;
 
