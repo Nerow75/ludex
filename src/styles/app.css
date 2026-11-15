@@ -147,6 +147,12 @@ kbd {
   position: absolute; left: 10%; right: 10%; bottom: 9%; color: #fff;
   font: 500 1.05em/1.1 var(--lx-font-body); text-wrap: balance;
 }
+/* Icône de l'exécutable sur la jaquette générée : centrée, à la place du monogramme. */
+.cover--icon::before { content: none; }
+.cover .cover__icon {
+  position: absolute; left: 50%; top: 40%; width: 40%; height: auto; aspect-ratio: 1; transform: translate(-50%, -50%);
+  object-fit: contain; filter: drop-shadow(0 8px 24px rgb(0 0 0 / .45));
+}
 
 /* ---------- Grille ---------- */
 .grid { --card-min: 140px; --gap-x: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); gap: 24px var(--gap-x); }

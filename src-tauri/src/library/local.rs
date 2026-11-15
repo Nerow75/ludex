@@ -174,7 +174,7 @@ pub fn is_game_exe_name(name: &str) -> bool {
 const LAUNCHER_APPS: &[&str] = &[
     "ubisoftconnect", "ubisoftgamelauncher", "steam", "epicgameslauncher", "eaapp", "eadesktop", "origin", "battlenet",
     "goggalaxy", "rockstargameslauncher", "riotclient", "battleyelauncher", "paradoxlauncher", "curseforge", "overwolf",
-    "ankamalauncher", "hoyoplay", "unityhub",
+    "ankamalauncher", "hoyoplay", "unityhub", "contentmanager",
 ];
 /// Dossiers où l'exécutable du jeu ne se trouve jamais.
 const NOT_GAME_DIR: &[&str] = &[
@@ -268,6 +268,40 @@ pub fn product_name(exe: &Path) -> Option<String> {
                 // Un nom égal à celui du fichier (« USF7 ») n'apprend rien : le dossier dira mieux.
                 !v.is_empty() && v.len() <= 60 && !GENERIC.contains(&c.as_str()) && !c.contains("battleye") && c != stem
             })
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = exe;
+        None
+    }
+}
+
+/// Plus grande icône d'un exécutable, en PNG ou en fichier .ico d'une seule image, avec son type MIME.
+pub fn exe_icon(exe: &Path) -> Option<(Vec<u8>, &'static str)> {
+    #[cfg(windows)]
+    {
+        use pelite::{FileMap, PeFile};
+        let map = FileMap::open(exe).ok()?;
+        let file = PeFile::from_bytes(&map).ok()?;
+        let resources = file.resources().ok()?;
+        let (_, group) = resources.icons().flatten().next()?;
+        // Largeur 0 = 256 px dans un répertoire d'icônes.
+        let size = |w: u8| if w == 0 { 256 } else { w as u32 };
+        let entry = group.entries().iter().max_by_key(|e| (size(e.bWidth), e.wBitCount))?;
+        let image = group.image(entry.nId).ok()?;
+        if image.starts_with(b"\x89PNG") {
+            return Some((image.to_vec(), "image/png"));
+        }
+        // Image DIB : on l'enveloppe dans un .ico d'une seule entrée, que la WebView sait afficher.
+        let mut ico = Vec::with_capacity(22 + image.len());
+        ico.extend_from_slice(&[0, 0, 1, 0, 1, 0]);
+        ico.extend_from_slice(&[entry.bWidth, entry.bHeight, entry.bColorCount, 0]);
+        ico.extend_from_slice(&entry.wPlanes.to_le_bytes());
+        ico.extend_from_slice(&entry.wBitCount.to_le_bytes());
+        ico.extend_from_slice(&(image.len() as u32).to_le_bytes());
+        ico.extend_from_slice(&22u32.to_le_bytes());
+        ico.extend_from_slice(image);
+        Some((ico, "image/x-icon"))
     }
     #[cfg(not(windows))]
     {

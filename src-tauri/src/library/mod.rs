@@ -6,6 +6,7 @@ mod ea;
 mod epic;
 mod gog;
 mod local;
+pub use local::exe_icon;
 mod riot;
 mod rockstar;
 mod steam;
@@ -68,6 +69,8 @@ pub struct Game {
     pub cover_url: Option<String>,
     pub hero_url: Option<String>,
     pub logo_url: Option<String>,
+    /// Icône de l'exécutable, montrée sur la jaquette générée quand il n'y a pas de jaquette.
+    pub icon_url: Option<String>,
     /// Dernière session connue du launcher (secondes Unix).
     pub last_played: Option<u64>,
     /// Taille sur le disque en octets, si le launcher la fournit.
@@ -108,6 +111,8 @@ pub struct LocalArt {
     pub cover: Option<PathBuf>,
     pub hero: Option<PathBuf>,
     pub logo: Option<PathBuf>,
+    /// Exécutable dont l'icône est extraite à la demande.
+    pub icon: Option<PathBuf>,
 }
 
 impl LocalArt {
@@ -116,6 +121,7 @@ impl LocalArt {
             "cover" => self.cover.as_ref(),
             "hero" => self.hero.as_ref(),
             "logo" => self.logo.as_ref(),
+            "icon" => self.icon.as_ref(),
             _ => None,
         }
     }
@@ -155,6 +161,7 @@ impl Game {
             cover_url: None,
             hero_url: None,
             logo_url: None,
+            icon_url: None,
             last_played: None,
             size_on_disk: None,
             playtime_minutes: None,
@@ -238,8 +245,26 @@ pub fn scan() -> ScanResult {
             Err(e) => reports.push(SourceReport { platform, installed: true, count: 0, error: Some(e) }),
         }
     }
+    games.iter_mut().for_each(add_icon);
     games.sort_by_key(|g| g.title.to_lowercase());
     ScanResult { games, sources: reports }
+}
+
+/// Jeu sans jaquette : l'icône de son exécutable (celui qu'on lance s'il est dans le dossier du
+/// jeu, sinon l'exécutable principal du dossier) servira sur la jaquette générée.
+fn add_icon(game: &mut Game) {
+    if game.cover_url.is_some() {
+        return;
+    }
+    let Some(dir) = game.install_dir.as_deref().map(std::path::Path::new) else { return };
+    let exe = match &game.launch {
+        Launch::Exec { path, .. } if path.starts_with(dir) => Some(path.clone()),
+        _ => local::main_exe(dir),
+    };
+    if let Some(exe) = exe {
+        game.local_art.icon = Some(exe);
+        game.icon_url = Some(art_url(game, "icon"));
+    }
 }
 
 #[cfg(test)]

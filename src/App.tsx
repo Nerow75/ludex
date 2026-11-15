@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   gameSessions,
   launchGame,
+  onGameArt,
   onGameSession,
   openInstallDir,
   PLATFORM_LABEL,
@@ -92,13 +93,14 @@ export default function App() {
     if (!selected) return;
     let alive = true;
     setAmbient(titleColor(selected.title));
-    if (selected.coverUrl) {
-      ambientFromImage(selected.coverUrl).then((c) => alive && c && setAmbient(c));
+    const image = selected.coverUrl ?? selected.iconUrl;
+    if (image) {
+      ambientFromImage(image).then((c) => alive && c && setAmbient(c));
     }
     return () => {
       alive = false;
     };
-  }, [selected?.id]);
+  }, [selected?.id, selected?.coverUrl]);
 
   // Garde la fiche dépliée (ou la jaquette sélectionnée) visible.
   useEffect(() => {
@@ -140,6 +142,12 @@ export default function App() {
       unlisten.then((stop) => stop()).catch(() => {});
     };
   }, [patchGame, refresh]);
+
+  // Jaquettes retrouvées en arrière-plan après le scan : elles remplacent la jaquette générée.
+  useEffect(() => {
+    const unlisten = onGameArt(({ id, coverUrl, heroUrl, logoUrl }) => patchGame(id, { coverUrl, heroUrl, logoUrl }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
 
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);

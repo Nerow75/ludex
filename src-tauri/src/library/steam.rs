@@ -56,7 +56,7 @@ fn local_art(cache: &Path, appid: &str) -> LocalArt {
                 .cloned()
         })
     };
-    LocalArt { cover: pick(COVER_FILES), hero: pick(HERO_FILES), logo: pick(LOGO_FILES) }
+    LocalArt { cover: pick(COVER_FILES), hero: pick(HERO_FILES), logo: pick(LOGO_FILES), icon: None }
 }
 
 fn steam_root() -> Option<PathBuf> {

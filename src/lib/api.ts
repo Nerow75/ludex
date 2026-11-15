@@ -15,6 +15,8 @@ export interface Game {
   platformId: string;
   installDir: string | null;
   coverUrl: string | null;
+  /** Icône de l'exécutable, pour la jaquette générée. */
+  iconUrl: string | null;
   heroUrl: string | null;
   logoUrl: string | null;
   /** Dernière session (secondes Unix), launcher ou Ludex. */
@@ -73,5 +75,14 @@ export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidde
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });
 /** Sessions en cours, pour retrouver l'état « En jeu » au chargement. */
 export const gameSessions = () => invoke<SessionEvent[]>("game_sessions");
+/** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
+export interface ArtEvent {
+  id: string;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  logoUrl: string | null;
+}
+export const onGameArt = (handler: (event: ArtEvent) => void): Promise<UnlistenFn> =>
+  listen<ArtEvent>("game-art", (e) => handler(e.payload));
 export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
   listen<SessionEvent>("game-session", (e) => handler(e.payload));
