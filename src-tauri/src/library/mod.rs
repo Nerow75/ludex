@@ -9,6 +9,7 @@ mod gog;
 mod kvbin;
 mod local;
 pub use local::exe_icon;
+pub mod manual;
 mod riot;
 mod rockstar;
 mod steam;
@@ -91,6 +92,8 @@ pub struct Game {
     pub launcher_tracks_playtime: bool,
     /// Application ou outil plutôt qu'un jeu (masqué par défaut).
     pub is_tool: bool,
+    /// Ajouté à la main par l'utilisateur (`manual.rs`) : il peut le retirer.
+    pub manual: bool,
     /// Préférences de l'utilisateur, appliquées par `lib.rs` depuis le stockage local.
     pub favorite: bool,
     pub hidden: bool,
@@ -221,6 +224,7 @@ impl Game {
             install_state: InstallState::Ready,
             launcher_tracks_playtime: false,
             is_tool: false,
+            manual: false,
             favorite: false,
             hidden: false,
             launch_label: launch.label(),

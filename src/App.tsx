@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  addGame,
+  changeExecutable,
   gameSessions,
   launchGame,
   onGameArt,
@@ -9,11 +11,14 @@ import {
   openInstallDir,
   PLATFORM_LABEL,
   PLATFORMS,
+  removeGame,
+  renameGame,
   scanLibrary,
   setFavorite,
   setHidden,
   type Game,
   type LibraryEvent,
+  type LibraryUpdate,
   type ScanResult,
   type SessionEvent,
 } from "./lib/api";
@@ -24,7 +29,7 @@ import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
-import { LudexMark, RefreshIcon, SearchIcon } from "./components/Icons";
+import { LudexMark, PlusIcon, RefreshIcon, SearchIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 
 interface Toast {
@@ -228,12 +233,75 @@ export default function App() {
     }
   }, [showToast]);
 
+  /** Bibliothèque relue par une commande (ajout, correction) : remplace le scan et sélectionne le jeu. */
+  const applyUpdate = useCallback((u: LibraryUpdate) => {
+    setScan(u.scan);
+    setScanError(null);
+    setSelectedId(u.id);
+  }, []);
+
+  // Le sélecteur de fichier est ouvert côté Rust : un second Ctrl+N pendant ce temps ne fait rien.
+  const adding = useRef(false);
+  const addManualGame = useCallback(async () => {
+    if (adding.current) return;
+    adding.current = true;
+    try {
+      const u = await addGame();
+      if (!u) return; // sélection annulée
+      applyUpdate(u);
+      // Le nouveau jeu doit être visible : ni filtre qui l'exclut, ni recherche.
+      setFilter((f) => (f === "all" || f === "other" ? f : "all"));
+      setQuery("");
+      setOpen(true);
+      showToast({ title: `${u.title} ajouté`, detail: "Rangé dans « Autres »" });
+    } catch (e) {
+      showToast({ title: "Jeu non ajouté", detail: String(e), error: true }, 6000);
+    } finally {
+      adding.current = false;
+    }
+  }, [applyUpdate, showToast]);
+
+  const changeExe = useCallback(async (game: Game) => {
+    try {
+      const u = await changeExecutable(game.id);
+      if (!u) return;
+      applyUpdate(u);
+      const label = u.scan.games.find((g) => g.id === u.id)?.launchLabel;
+      showToast({ title: `Exécutable de ${u.title} changé`, detail: label });
+    } catch (e) {
+      showToast({ title: "Exécutable non changé", detail: String(e), error: true }, 6000);
+    }
+  }, [applyUpdate, showToast]);
+
+  const rename = useCallback(async (game: Game, title: string) => {
+    // Affiché tout de suite ; le titre nettoyé par Ludex arrive avec la bibliothèque relue.
+    if (title.trim()) patchGame(game.id, { title: title.trim() });
+    try {
+      const u = await renameGame(game.id, title);
+      applyUpdate(u);
+      showToast({ title: `Renommé en ${u.title}` });
+    } catch (e) {
+      patchGame(game.id, { title: game.title });
+      showToast({ title: "Titre non enregistré", detail: String(e), error: true }, 5000);
+    }
+  }, [applyUpdate, patchGame, showToast]);
+
+  const remove = useCallback(async (game: Game) => {
+    try {
+      setScan(await removeGame(game.id));
+      setOpen(false);
+      showToast({ title: `${game.title} retiré`, detail: "Ajouté de nouveau, il retrouvera son temps de jeu" });
+    } catch (e) {
+      showToast({ title: "Jeu non retiré", detail: String(e), error: true }, 5000);
+    }
+  }, [showToast]);
+
   const focusCard = (id: string | undefined) =>
     requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
-  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh });
-  live.current = { results, selected, open, query, play, toggleFavorite, refresh };
+  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame });
+  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame };
 
   /** Déplace la sélection dans la grille, comme les flèches du clavier. */
   const moveSelection = (dir: "up" | "down" | "left" | "right") => {
@@ -286,6 +354,9 @@ export default function App() {
       } else if (ctrl && key.toLowerCase() === "d") {
         e.preventDefault();
         if (s.selected) s.toggleFavorite(s.selected);
+      } else if (ctrl && key.toLowerCase() === "n") {
+        e.preventDefault(); // sinon la WebView ouvre une nouvelle fenêtre
+        s.addManualGame();
       } else if (inInput) {
         if (key === "ArrowDown" && s.selected) {
           e.preventDefault();
@@ -404,6 +475,9 @@ export default function App() {
           {query ? <kbd>Entrée</kbd> : <><kbd>Ctrl</kbd><kbd>K</kbd></>}
         </label>
         <div className="top__tools">
+          <button type="button" className="top__add" title="Ajouter un jeu (Ctrl+N)" onClick={addManualGame}>
+            <PlusIcon />Ajouter un jeu
+          </button>
           <button
             type="button"
             aria-label="Rescanner la bibliothèque"
@@ -437,10 +511,15 @@ export default function App() {
         {scan && emptyLibrary && (
           <EmptyState
             title="Aucun jeu trouvé sur ce PC"
-            action={<button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>}
+            action={
+              <span className="empty__acts">
+                <button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>
+                <button type="button" className="btn-ghost" onClick={addManualGame}><PlusIcon /> Ajouter un jeu</button>
+              </span>
+            }
           >
             Ludex lit les jeux installés par Steam, Epic Games, GOG, Ubisoft, EA, Battle.net, Rockstar, Xbox et Riot, ainsi que les dossiers « Jeux » et « Games » de tes disques, sans connexion à tes comptes.
-            Installe un jeu avec l'un d'eux, puis relance un scan.
+            Installe un jeu avec l'un d'eux puis relance un scan, ou ajoute un jeu rangé ailleurs en choisissant son exécutable.
             <span className="empty__sources">
               {scan.sources.map((s) => (
                 <span key={s.platform}>{PLATFORM_LABEL[s.platform]} : {s.installed ? `${s.count} jeu${s.count > 1 ? "x" : ""}` : "non détecté"}</span>
@@ -487,6 +566,9 @@ export default function App() {
                   onFavorite={toggleFavorite}
                   onHide={toggleHidden}
                   onOpenFolder={openFolder}
+                  onChangeExe={changeExe}
+                  onRename={rename}
+                  onRemove={remove}
                   onClose={() => setOpen(false)}
                 />
               )}
@@ -511,6 +593,7 @@ export default function App() {
           <span><kbd>Entrée</kbd> jouer</span>
           <span><kbd>Espace</kbd> fiche</span>
           <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
+          <span><kbd>Ctrl</kbd><kbd>N</kbd> ajouter</span>
           <span><kbd>F5</kbd> rescanner</span>
           <span><kbd>Échap</kbd> fermer</span>
         </footer>

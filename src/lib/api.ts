@@ -64,6 +64,8 @@ export interface Game {
   installState: InstallState;
   /** Application plutôt qu'un jeu (masquée par défaut). */
   isTool: boolean;
+  /** Ajouté à la main (« Autres ») : il peut être retiré. */
+  manual: boolean;
   favorite: boolean;
   hidden: boolean;
   launchLabel: string;
@@ -110,6 +112,25 @@ export const launchGame = (id: string) => invoke<number>("launch_game", { id });
 export const setFavorite = (id: string, value: boolean) => invoke<void>("set_favorite", { id, value });
 export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidden", { id, value });
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });
+/** Jeu ajouté ou modifié, avec la bibliothèque relue après l'opération. */
+export interface LibraryUpdate {
+  id: string;
+  title: string;
+  scan: ScanResult;
+}
+/** Titre libre : 80 caractères au plus (nettoyé côté Rust). */
+export const MAX_TITLE = 80;
+/**
+ * Ouvre le sélecteur de fichier natif (côté Rust) et ajoute l'exécutable choisi.
+ * `null` : sélection annulée. Aucun chemin ne passe par le front.
+ */
+export const addGame = () => invoke<LibraryUpdate | null>("add_game");
+/** Rouvre le sélecteur dans le dossier du jeu (« Autres » seulement). `null` : annulé. */
+export const changeExecutable = (id: string) => invoke<LibraryUpdate | null>("change_executable", { id });
+/** Titre vide : retour au titre d'origine. */
+export const renameGame = (id: string, title: string) => invoke<LibraryUpdate>("rename_game", { id, title });
+/** Jeux ajoutés à la main seulement (les autres se masquent). */
+export const removeGame = (id: string) => invoke<ScanResult>("remove_game", { id });
 /** Sessions en cours, pour retrouver l'état « En jeu » au chargement. */
 export const gameSessions = () => invoke<SessionEvent[]>("game_sessions");
 /** Session terminée, mesurée par Ludex (parties lancées depuis Ludex, une minute au moins). */

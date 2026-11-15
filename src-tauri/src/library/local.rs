@@ -351,7 +351,7 @@ pub fn path_id(dir: &Path) -> String {
 
 /// Titre sans information de version : le nom du dossier, ou celui de l'exécutable s'il est plus
 /// complet (« EFT » → « Escape From Tarkov », « Schedule » → « Schedule I »).
-fn fallback_title(folder: &str, exe: &Path) -> String {
+pub(super) fn fallback_title(folder: &str, exe: &Path) -> String {
     let stem = exe.file_stem().and_then(|s| s.to_str()).unwrap_or("");
     let stem = stem.strip_suffix("_BE").unwrap_or(stem);
     if compact(stem).len() > compact(folder).len() { pretty_folder(stem) } else { pretty_folder(folder) }

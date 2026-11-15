@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { gameHistory, PLATFORM_LABEL, type Game, type PastSession } from "../lib/api";
+import { gameHistory, MAX_TITLE, PLATFORM_LABEL, type Game, type PastSession } from "../lib/api";
 import {
   formatAchievements,
   formatDate,
@@ -11,7 +11,7 @@ import {
   releaseYear,
 } from "../lib/format";
 import { Art, Logo } from "./Art";
-import { CloseIcon, EyeOffIcon, FolderIcon, PlayIcon, StarIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
 
 interface Props {
   game: Game;
@@ -23,7 +23,44 @@ interface Props {
   onFavorite: (game: Game) => void;
   onHide: (game: Game) => void;
   onOpenFolder: (game: Game) => void;
+  /** Jeux « Autres » : choisir un autre exécutable. */
+  onChangeExe: (game: Game) => void;
+  /** Titre vide : retour au titre d'origine. */
+  onRename: (game: Game, title: string) => void;
+  /** Jeux ajoutés à la main seulement. */
+  onRemove: (game: Game) => void;
   onClose: () => void;
+}
+
+/** Titre modifiable sur place : Entrée valide, Échap (ou un clic ailleurs) annule. */
+function TitleEditor({ game, onDone, onRename }: { game: Game; onDone: () => void; onRename: Props["onRename"] }) {
+  const [value, setValue] = useState(game.title);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // pas de raccourci global (Ctrl+D, flèches) pendant la saisie
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (value.trim() !== game.title) onRename(game, value);
+      onDone();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onDone();
+    }
+  };
+  return (
+    <input
+      className="strip__rename"
+      value={value}
+      maxLength={MAX_TITLE}
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={onKeyDown}
+      onBlur={onDone}
+      aria-label={`Nouveau titre de ${game.title}`}
+      title="Entrée pour valider, Échap pour annuler. Vide : titre d'origine"
+      spellCheck={false}
+    />
+  );
 }
 
 /** D'où vient le temps de jeu affiché, en une phrase. */
@@ -83,7 +120,8 @@ function lastSessionText(game: Game, last: PastSession | null): { text: string; 
 }
 
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
-export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onClose }: Props) {
+export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
+  const [renaming, setRenaming] = useState(false);
   const details = detailsLine(game);
   const description = game.details?.description;
   const lastSession = lastSessionText(game, useLastSession(game.id, playing));
@@ -99,7 +137,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           <span className="eyebrow">{PLATFORM_LABEL[game.platform]}{game.isTool ? " · Application" : ""}</span>
           {playing && <span className="live">En jeu</span>}
         </div>
-        <h2>{game.title}</h2>
+        {renaming ? <TitleEditor game={game} onRename={onRename} onDone={() => setRenaming(false)} /> : <h2>{game.title}</h2>}
         {details && <p className="strip__meta" title={details.title}>{details.line}</p>}
         {description && <p className="strip__desc" title={description}>{description}</p>}
         <dl className="stats">
@@ -131,6 +169,23 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
               <FolderIcon />
             </button>
           )}
+          {game.platform === "other" && (
+            <button type="button" className="btn-icon" aria-label="Changer l'exécutable" title="Changer l'exécutable" onClick={() => onChangeExe(game)}>
+              <FileIcon />
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-icon"
+            aria-pressed={renaming}
+            aria-label="Renommer"
+            title="Renommer"
+            // Sans ceci, le clic ferme d'abord l'éditeur (perte du focus) puis le rouvre.
+            onMouseDown={(e) => renaming && e.preventDefault()}
+            onClick={() => setRenaming((r) => !r)}
+          >
+            <PencilIcon />
+          </button>
           <button
             type="button"
             className="btn-icon"
@@ -140,6 +195,11 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           >
             <EyeOffIcon />
           </button>
+          {game.manual && (
+            <button type="button" className="btn-icon" aria-label="Retirer de la bibliothèque" title="Retirer de la bibliothèque" onClick={() => onRemove(game)}>
+              <TrashIcon />
+            </button>
+          )}
         </div>
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
       </div>
