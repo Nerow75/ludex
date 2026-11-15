@@ -5,6 +5,7 @@ import {
   onGameArt,
   onGameDetails,
   onGameSession,
+  onLibraryChanged,
   openInstallDir,
   PLATFORM_LABEL,
   PLATFORMS,
@@ -12,6 +13,7 @@ import {
   setFavorite,
   setHidden,
   type Game,
+  type LibraryEvent,
   type ScanResult,
   type SessionEvent,
 } from "./lib/api";
@@ -149,6 +151,18 @@ export default function App() {
     const unlisten = onGameArt(({ id, coverUrl, heroUrl, logoUrl }) => patchGame(id, { coverUrl, heroUrl, logoUrl }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
+
+  // Rescan fait tout seul par Ludex (jeu installé ou désinstallé) : bibliothèque remplacée sans
+  // spinner, toast seulement si des jeux sont apparus ou ont disparu.
+  useEffect(() => {
+    const unlisten = onLibraryChanged((e) => {
+      setScan(e.scan);
+      setScanError(null);
+      const t = libraryToast(e);
+      if (t) showToast(t, 5000);
+    });
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [showToast]);
 
   // Fiches (genres, studio, sortie) reçues en arrière-plan après le scan.
   useEffect(() => {
@@ -527,6 +541,18 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+/** « Nouveau jeu : Hades », « 3 nouveaux jeux », « Jeu retiré : Portal »… `null` si rien n'a changé. */
+function libraryToast({ added, removed }: LibraryEvent): Toast | null {
+  const list = (titles: string[]) => (titles.length > 1 ? titles.join(", ") : undefined);
+  const gone = removed.length === 1 ? `Jeu retiré : ${removed[0]}` : `${removed.length} jeux retirés`;
+  if (added.length) {
+    const title = added.length === 1 ? `Nouveau jeu : ${added[0]}` : `${added.length} nouveaux jeux`;
+    const detail = [list(added), removed.length ? gone : undefined].filter(Boolean).join(" · ");
+    return { title, detail: detail || undefined };
+  }
+  return removed.length ? { title: gone, detail: list(removed) } : null;
 }
 
 function NoResults({ filter, query, onClear }: { filter: Filter; query: string; onClear: () => void }) {

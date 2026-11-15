@@ -142,3 +142,12 @@ export const onGameDetails = (handler: (event: DetailsEvent) => void): Promise<U
   listen<DetailsEvent>("game-details", (e) => handler(e.payload));
 export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
   listen<SessionEvent>("game-session", (e) => handler(e.payload));
+/** Bibliothèque relue sans demande du front : jeu installé ou désinstallé, ou retour sur la fenêtre
+ * après un long moment. `added` et `removed` : titres des jeux apparus et disparus (hors masqués). */
+export interface LibraryEvent {
+  added: string[];
+  removed: string[];
+  scan: ScanResult;
+}
+export const onLibraryChanged = (handler: (event: LibraryEvent) => void): Promise<UnlistenFn> =>
+  listen<LibraryEvent>("library-changed", (e) => handler(e.payload));

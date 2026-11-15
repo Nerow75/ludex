@@ -59,25 +59,30 @@ fn is_library_name(name: &str) -> bool {
     !n.contains("xbox") && (n.split(|c: char| !c.is_alphanumeric()).any(|w| w == "jeux" || w == "jeu" || w == "games" || w == "game"))
 }
 
+/// Liste des dossiers candidats gardée pendant un scan, avec l'heure où elle a été établie.
+static CANDIDATES: std::sync::Mutex<Option<(std::time::Instant, Vec<PathBuf>)>> = std::sync::Mutex::new(None);
+
 /// Dossiers candidats. EA, Battle.net et « Autres » les demandent tour à tour pendant un même
 /// scan : la liste est gardée quelques secondes pour ne parcourir les disques qu'une fois.
 pub fn candidates() -> Vec<PathBuf> {
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
-    static CACHE: Mutex<Option<(Instant, Vec<PathBuf>)>> = Mutex::new(None);
-    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache = CANDIDATES.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((at, list)) = cache.as_ref()
-        && at.elapsed() < Duration::from_secs(10)
+        && at.elapsed() < std::time::Duration::from_secs(10)
     {
         return list.clone();
     }
     let list = find_candidates();
-    *cache = Some((Instant::now(), list.clone()));
+    *cache = Some((std::time::Instant::now(), list.clone()));
     list
 }
 
-/// Sous-dossiers des bibliothèques de jeux, puis emplacements de la désinstallation Windows.
-fn find_candidates() -> Vec<PathBuf> {
+/// Oublie la liste des dossiers candidats : un nouveau scan relit les disques (jeu tout juste installé).
+pub fn forget_candidates() {
+    *CANDIDATES.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+/// Dossiers « Jeux » / « Games » à la racine des lecteurs.
+fn drive_libraries() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     for drive in b'A'..=b'Z' {
         let root = PathBuf::from(format!("{}:\\", drive as char));
@@ -86,7 +91,29 @@ fn find_candidates() -> Vec<PathBuf> {
         }
         roots.extend(subdirs(&root).into_iter().filter(|d| d.file_name().and_then(|n| n.to_str()).is_some_and(is_library_name)));
     }
+    roots
+}
 
+/// Une bibliothèque dans la bibliothèque (« Jeux Epic ») : ses sous-dossiers sont des jeux.
+fn is_nested_library(dir: &Path) -> bool {
+    let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    is_library_name(name) && kind(dir) == Kind::Other && !has_exe(dir)
+}
+
+/// Dossiers dont chaque sous-dossier direct est un jeu : bibliothèques à la racine des lecteurs
+/// et bibliothèques qu'elles contiennent. Surveillés pour repérer un jeu ajouté ou supprimé.
+pub fn library_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    for root in drive_libraries() {
+        let nested: Vec<PathBuf> = subdirs(&root).into_iter().filter(|d| is_nested_library(d)).collect();
+        dirs.push(root);
+        dirs.extend(nested);
+    }
+    dirs
+}
+
+/// Sous-dossiers des bibliothèques de jeux, puis emplacements de la désinstallation Windows.
+fn find_candidates() -> Vec<PathBuf> {
     let mut seen = HashSet::new();
     let mut found = Vec::new();
     let mut push = |dir: PathBuf, found: &mut Vec<PathBuf>| {
@@ -94,11 +121,9 @@ fn find_candidates() -> Vec<PathBuf> {
             found.push(dir);
         }
     };
-    for root in roots {
+    for root in drive_libraries() {
         for dir in subdirs(&root) {
-            let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            // Une bibliothèque dans la bibliothèque (« Jeux Epic ») : ses sous-dossiers sont des jeux.
-            if is_library_name(name) && kind(&dir) == Kind::Other && !has_exe(&dir) {
+            if is_nested_library(&dir) {
                 subdirs(&dir).into_iter().for_each(|d| push(d, &mut found));
             } else {
                 push(dir, &mut found);

@@ -5,13 +5,15 @@ mod library;
 mod metadata;
 mod session;
 mod store;
+mod watch;
 
 use library::{Game, Launch, PlaytimeSource, ScanResult};
 use serde::Serialize;
 use session::{Phase, Tracker};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, OnceLock, TryLockError};
+use std::time::{Duration, Instant};
 use store::UserData;
 use tauri::http::{header, Response, StatusCode};
 use tauri::{Emitter, Manager, Runtime, State};
@@ -38,6 +40,12 @@ struct AppState {
     images: Mutex<images::ImageCache>,
     /// Un téléchargement d'images tourne déjà.
     images_busy: AtomicBool,
+    /// Tenu pendant un scan : jamais deux scans à la fois.
+    scan_lock: Mutex<()>,
+    /// Fin du dernier scan.
+    last_scan: Mutex<Option<Instant>>,
+    /// Surveillance des dossiers des launchers, lancée après le premier scan.
+    watch: OnceLock<watch::Watch>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
@@ -315,11 +323,11 @@ fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
     m.lock().map_err(|_| "État interne indisponible".to_string())
 }
 
-#[tauri::command]
-async fn scan_library(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<ScanResult, String> {
-    let mut result = tauri::async_runtime::spawn_blocking(library::scan)
-        .await
-        .map_err(|e| format!("Le scan a échoué : {e}"))?;
+/// Scan complet : préférences, jaquettes et fiches appliquées, état mis à jour, puis recherche des
+/// images et fiches manquantes. Le verrou `scanning` (pris par l'appelant) empêche deux scans à la
+/// fois. Renvoie aussi les jeux apparus et disparus depuis le scan précédent.
+fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>) -> Result<(ScanResult, watch::Changes), String> {
+    let mut result = library::scan();
     {
         let data = lock(&state.data)?;
         let art = lock(&state.art)?;
@@ -333,11 +341,83 @@ async fn scan_library(app: tauri::AppHandle, state: State<'_, AppState>) -> Resu
             images.apply(g);
         });
     }
-    *lock(&state.games)? = result.games.clone();
+    let changes = {
+        let mut games = lock(&state.games)?;
+        let changes = watch::changes(&games, &result.games);
+        *games = result.games.clone();
+        changes
+    };
+    *lock(&state.last_scan)? = Some(Instant::now());
+    drop(scanning);
+    // Une bibliothèque Steam ou un dossier « Jeux » a pu apparaître.
+    if let Some(w) = state.watch.get() {
+        w.rewatch();
+    }
     resolve_art(app.clone());
     resolve_images(app.clone());
-    resolve_details(app);
+    resolve_details(app.clone());
+    Ok((result, changes))
+}
+
+#[tauri::command]
+async fn scan_library(app: tauri::AppHandle) -> Result<ScanResult, String> {
+    let handle = app.clone();
+    let (result, _) = tauri::async_runtime::spawn_blocking(move || {
+        let state = handle.state::<AppState>();
+        // Un rescan automatique en cours : on attend sa fin plutôt que de scanner en même temps.
+        let scanning = state.scan_lock.lock().unwrap_or_else(|e| e.into_inner());
+        rescan(&handle, &state, scanning)
+    })
+    .await
+    .map_err(|e| format!("Le scan a échoué : {e}"))??;
+    start_watch(&app);
     Ok(result)
+}
+
+/// Événement `library-changed` : bibliothèque relue sans demande du front (jeu installé ou
+/// désinstallé, retour sur la fenêtre), avec les titres des jeux apparus et disparus.
+#[derive(Clone, Serialize)]
+struct LibraryEvent {
+    added: Vec<String>,
+    removed: Vec<String>,
+    scan: ScanResult,
+}
+
+const LIBRARY_EVENT: &str = "library-changed";
+
+/// Retour sur la fenêtre après ce temps sans scan : rescan, pour les sources lues dans le registre
+/// (GOG, Ubisoft, Rockstar, Xbox) que la surveillance des dossiers ne voit pas.
+const STALE_ON_FOCUS: Duration = Duration::from_secs(5 * 60);
+
+/// Surveille les dossiers des launchers, après le premier scan seulement : la bibliothèque
+/// entière ne doit jamais être annoncée comme nouvelle.
+fn start_watch(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    app.state::<AppState>().watch.get_or_init(|| watch::Watch::spawn(move || auto_rescan(&handle, false)));
+}
+
+fn is_stale(state: &AppState) -> bool {
+    lock(&state.last_scan).is_ok_and(|last| last.is_some_and(|t| t.elapsed() >= STALE_ON_FOCUS))
+}
+
+/// Rescan sans demande du front, puis `library-changed`. `false` : un scan tourne déjà.
+fn auto_rescan(app: &tauri::AppHandle, only_if_stale: bool) -> bool {
+    let Some(state) = app.try_state::<AppState>() else { return true };
+    let scanning = match state.scan_lock.try_lock() {
+        Ok(guard) => guard,
+        Err(TryLockError::WouldBlock) => return false,
+        Err(TryLockError::Poisoned(e)) => e.into_inner(),
+    };
+    if only_if_stale && !is_stale(&state) {
+        return true;
+    }
+    match rescan(app, &state, scanning) {
+        Ok((scan, changes)) => {
+            let _ = app.emit(LIBRARY_EVENT, LibraryEvent { added: changes.added, removed: changes.removed, scan });
+        }
+        Err(e) => eprintln!("Rescan automatique impossible : {e}"),
+    }
+    true
 }
 
 /// Modifie les préférences d'un jeu connu, puis les enregistre.
@@ -487,10 +567,22 @@ pub fn run() {
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
                 images_busy: AtomicBool::new(false),
+                scan_lock: Mutex::new(()),
+                last_scan: Mutex::new(None),
+                watch: OnceLock::new(),
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Retour sur Ludex après un long moment : relit les launchers sans surveillance.
+            if let tauri::WindowEvent::Focused(true) = event
+                && window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s))
+            {
+                let app = window.app_handle().clone();
+                std::thread::spawn(move || auto_rescan(&app, true));
+            }
         })
         .invoke_handler(tauri::generate_handler![
             scan_library,

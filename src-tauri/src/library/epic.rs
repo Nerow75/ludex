@@ -5,15 +5,25 @@ use super::{program_data, Game, InstallState, Launch, Platform};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Dossier des manifestes `.item`. Il n'apparaît qu'à la première installation d'un jeu.
+pub fn manifests_dir() -> PathBuf {
+    program_data().join(r"Epic\EpicGamesLauncher\Data\Manifests")
+}
+
+/// Le manifeste `.item` décrit-il un jeu complètement installé ? `None` : illisible (en cours d'écriture).
+pub fn item_installed(text: &str) -> Option<bool> {
+    let item = serde_json::from_str::<Value>(text).ok()?;
+    Some(item.get("bIsIncompleteInstall").and_then(Value::as_bool) != Some(true))
+}
 
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let launcher = program_data().join(r"Epic\EpicGamesLauncher");
     if !launcher.exists() {
         return Ok(None);
     }
-    // Le dossier des manifestes n'apparaît qu'à la première installation d'un jeu.
-    let dir = launcher.join(r"Data\Manifests");
+    let dir = manifests_dir();
     if !dir.exists() {
         return Ok(Some(Vec::new()));
     }
@@ -102,6 +112,11 @@ mod tests {
         assert_eq!(game.launch_label, "com.epicgames.launcher://apps/ns%3Aitem%3ASugar?action=launch&silent=true");
 
         assert_eq!(game.install_state, InstallState::Ready);
+        assert_eq!(item_installed(&base.to_string()), Some(true));
+        let mut incomplete = base.clone();
+        incomplete["bIsIncompleteInstall"] = true.into();
+        assert_eq!(item_installed(&incomplete.to_string()), Some(false));
+        assert_eq!(item_installed(r#"{ "AppName": "#), None);
 
         let mut dlc = base.clone();
         dlc["AppName"] = "SugarDLC".into();

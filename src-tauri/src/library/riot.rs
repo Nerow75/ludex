@@ -44,8 +44,13 @@ fn install_path(settings: &Path) -> Option<PathBuf> {
     })
 }
 
+/// Dossier de `RiotClientInstalls.json`, avec `Metadata\<produit>.<patchline>` pour chaque jeu.
+pub fn root_dir() -> PathBuf {
+    program_data().join("Riot Games")
+}
+
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
-    let root = program_data().join("Riot Games");
+    let root = root_dir();
     let Some(client) = riot_client(&root) else { return Ok(None) };
 
     let mut games = Vec::new();
