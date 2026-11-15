@@ -62,6 +62,15 @@ kbd {
 .bar h2 { font-size: 17px; font-weight: 720; margin-right: auto; }
 .bar h2 span { font: 500 12.5px var(--lx-font-mono); color: var(--lx-text-3); margin-left: 8px; letter-spacing: 0; }
 
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; border: 1px solid var(--lx-border); background: color-mix(in srgb, var(--lx-surface) 85%, transparent); }
+.seg button {
+  height: 28px; padding: 0 11px; border: 0; border-radius: 7px; background: none; color: var(--lx-text-3);
+  font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; transition: color .15s, background-color .15s;
+}
+.seg button:hover { color: var(--lx-text); }
+.seg button[aria-pressed="true"] { background: var(--lx-surface-2); color: var(--lx-text); }
+.seg em { font-style: normal; font-family: var(--lx-font-mono); font-size: 11px; color: var(--lx-text-3); }
+
 /* ---------- Visuels larges et logos ---------- */
 .art {
   position: absolute; inset: 0; overflow: hidden;

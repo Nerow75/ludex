@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { launchGame, openInstallDir, PLATFORM_LABEL, scanLibrary, setFavorite, setHidden, type Game, type ScanResult } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
-import { cleanTitle, norm, relativeTime } from "./lib/format";
+import { formatSize, relativeTime } from "./lib/format";
+import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
@@ -15,7 +16,9 @@ interface Toast {
   action?: { label: string; run: () => void };
 }
 
-const byLastPlayed = (a: Game, b: Game) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr");
+const FILTERS: readonly Filter[] = ["all", "favorites", "steam", "epic", "riot", "hidden"];
+const SORTS = Object.keys(SORT_LABEL) as Sort[];
+const FILTER_LABEL: Record<Filter, string> = { all: "Tous", favorites: "Favoris", hidden: "Masqués", ...PLATFORM_LABEL };
 
 export default function App() {
   const [scan, setScan] = useState<ScanResult | null>(null);
@@ -24,20 +27,22 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
+  const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   const toastTimer = useRef<number>(undefined);
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
 
-  // Les applis masquées (Wallpaper Engine…) restent dans le scan mais sortent de la bibliothèque.
-  const library = useMemo(() => (scan?.games ?? []).filter((g) => !g.hidden).sort(byLastPlayed), [scan]);
-  const results = useMemo(() => {
-    const q = norm(query.trim());
-    return q ? library.filter((g) => norm(cleanTitle(g.title)).includes(q)) : library;
-  }, [library, query]);
-  const recent = useMemo(() => library.filter((g) => g.lastPlayed).slice(0, 4), [library]);
-  const selected = results.find((g) => g.id === selectedId) ?? (query ? results[0] : library[0]) ?? null;
+  // Les applis masquées (Wallpaper Engine…) restent dans le scan mais n'apparaissent que dans « Masqués ».
+  const games = scan?.games ?? [];
+  const results = useMemo(() => selectGames(games, filter, sort, query), [games, filter, sort, query]);
+  const recent = useMemo(() => recentGames(games, 4), [games]);
+  const selected =
+    results.find((g) => g.id === selectedId) ??
+    (query ? results[0] : results.find((g) => g.id === recent[0]?.id) ?? results[0]) ??
+    null;
 
   const refresh = useCallback(async () => {
     setScanning(true);
@@ -165,7 +170,18 @@ export default function App() {
   };
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
-  const meta = useCallback((g: Game) => relativeTime(g.lastPlayed), []);
+  const meta = useCallback((g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : relativeTime(g.lastPlayed)), [sort]);
+  const count = (f: Filter) => selectGames(games, f, sort, "").length;
+  const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || scan?.sources.some((s) => s.platform === f && s.installed));
+  const changeFilter = (f: Filter) => {
+    setFilter(f);
+    setOpen(false);
+    remember("filter", f);
+  };
+  const changeSort = (s: Sort) => {
+    setSort(s);
+    remember("sort", s);
+  };
 
   return (
     <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
@@ -216,12 +232,24 @@ export default function App() {
 
         {!scan && !scanError && <div className="loading">Recherche de tes jeux…</div>}
 
-        {scan && !query && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
+        {scan && !query && filter === "all" && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
 
         {scan && (
           <section aria-labelledby="lib-title">
             <div className="bar">
               <h2 id="lib-title">{query ? "Résultats" : "Bibliothèque"}<span>{results.length}</span></h2>
+              <div className="seg" role="group" aria-label="Filtrer">
+                {filters.map((f) => (
+                  <button key={f} type="button" aria-pressed={filter === f} onClick={() => changeFilter(f)}>
+                    {FILTER_LABEL[f]} <em>{count(f)}</em>
+                  </button>
+                ))}
+              </div>
+              <div className="seg" role="group" aria-label="Trier">
+                {SORTS.map((s) => (
+                  <button key={s} type="button" aria-pressed={sort === s} onClick={() => changeSort(s)}>{SORT_LABEL[s]}</button>
+                ))}
+              </div>
             </div>
             <LibraryGrid
               games={results}
