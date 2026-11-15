@@ -51,13 +51,35 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "Ludex",
+    "category": "Game",
+    "shortDescription": "Tous tes jeux, un seul launcher",
+    "longDescription": "Ludex détecte les jeux installés par tous tes launchers et les lance depuis une seule interface.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["French"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlGMzdGNkM5MzMxNzZCMUIKUldRYmF4Y3p5ZlkzbjdNUWlIcEtaMlFhdEtkUkRFeWVmQTRRQ2NneWlRM0VJVlJMZjNPdkpYajcK",
+      "endpoints": ["https://github.com/OWNER/ludex/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

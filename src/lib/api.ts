@@ -151,3 +151,15 @@ export interface LibraryEvent {
 }
 export const onLibraryChanged = (handler: (event: LibraryEvent) => void): Promise<UnlistenFn> =>
   listen<LibraryEvent>("library-changed", (e) => handler(e.payload));
+/** Nouvelle version de Ludex publiée (vérifiée côté Rust, jamais en dev). */
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+}
+/** Mise à jour déjà trouvée, pour la retrouver après un rechargement de l'interface. */
+export const availableUpdate = () => invoke<UpdateInfo | null>("available_update");
+/** Télécharge et installe la mise à jour trouvée : Ludex se ferme puis se relance. */
+export const installUpdate = () => invoke<void>("install_update");
+export const onUpdateAvailable = (handler: (event: UpdateInfo) => void): Promise<UnlistenFn> =>
+  listen<UpdateInfo>("update-available", (e) => handler(e.payload));

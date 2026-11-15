@@ -43,6 +43,7 @@ kbd {
 }
 .top__tools button:not(:disabled):hover { background: var(--lx-surface); color: var(--lx-text); }
 .top__tools button.is-spinning svg { animation: spin .9s linear infinite; }
+.top__tools button.top__update { color: var(--lx-accent-text); }
 .hint { text-align: center; font-size: 13px; color: var(--lx-text-3); min-height: 24px; }
 .hint b { color: var(--lx-text); font-weight: 500; }
 
