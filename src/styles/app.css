@@ -174,6 +174,11 @@ kbd {
 .card__title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card__meta { font-size: 12px; color: var(--lx-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Session en cours, lancée depuis Ludex : mention discrète, pastille fixe. */
+.live { display: inline-flex; align-items: center; gap: 4px; color: var(--lx-accent-text); font-weight: 500; }
+.live::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lx-accent); }
+.tile small .live { color: inherit; }
+
 /* ---------- Boutons ---------- */
 .btn-play {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px 0 16px;
@@ -208,6 +213,7 @@ kbd {
 .strip__art .game-logo { position: absolute; left: 24px; right: 40px; bottom: 16px; height: 72px; }
 .strip__info { padding: 24px 56px 24px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .strip__info h2 { font-size: 24px; line-height: 1.15; }
+.strip__eyebrow { display: flex; align-items: center; gap: 12px; font-size: 12px; line-height: 1; }
 .strip__acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .strip__close {
   position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 0; border-radius: 8px;
@@ -215,7 +221,7 @@ kbd {
 }
 .strip__close:hover { background: var(--lx-surface-2); color: var(--lx-text); }
 .stats {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0;
   background: var(--lx-border); border: 1px solid var(--lx-border); border-radius: var(--lx-radius-s); overflow: hidden;
 }
 .stats div { background: var(--lx-surface); padding: 8px 12px; min-width: 0; }
@@ -254,6 +260,7 @@ kbd {
   .resume__grid { grid-template-columns: 1.6fr 1fr 1fr; }
   .resume__grid .tile:nth-child(4) { display: none; }
   .strip { grid-template-columns: 240px minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .top { grid-template-columns: auto minmax(0, 1fr) auto; padding: 16px 24px 8px; }
   .scroll { padding: 8px 24px 48px; }
 }

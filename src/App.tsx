@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { launchGame, openInstallDir, PLATFORM_LABEL, PLATFORMS, scanLibrary, setFavorite, setHidden, type Game, type ScanResult } from "./lib/api";
+import {
+  gameSessions,
+  launchGame,
+  onGameSession,
+  openInstallDir,
+  PLATFORM_LABEL,
+  PLATFORMS,
+  scanLibrary,
+  setFavorite,
+  setHidden,
+  type Game,
+  type ScanResult,
+  type SessionEvent,
+} from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
-import { formatSize, relativeTime } from "./lib/format";
+import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
@@ -32,6 +45,8 @@ export default function App() {
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
+  /** Jeux lancés depuis Ludex dont un processus tourne. */
+  const [playing, setPlaying] = useState<ReadonlySet<string>>(() => new Set());
   const toastTimer = useRef<number>(undefined);
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
@@ -94,6 +109,36 @@ export default function App() {
   const patchGame = useCallback((id: string, patch: Partial<Game>) => {
     setScan((s) => s && { ...s, games: s.games.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
   }, []);
+
+  // Sessions suivies par Ludex : état « En jeu » et temps de jeu mis à jour pendant la partie.
+  useEffect(() => {
+    let alive = true;
+    let rescan: number | undefined;
+    const apply = (e: SessionEvent) => {
+      setPlaying((current) => {
+        if ((e.phase === "running") === current.has(e.id)) return current;
+        const next = new Set(current);
+        if (e.phase === "running") next.add(e.id);
+        else next.delete(e.id);
+        return next;
+      });
+      if (e.playtimeMinutes !== null) patchGame(e.id, { playtimeMinutes: e.playtimeMinutes, playtimeSource: e.playtimeSource });
+      // Partie terminée : relit les launchers (temps de Steam, dernière session) sans prévenir.
+      if (e.phase === "ended") {
+        window.clearTimeout(rescan);
+        rescan = window.setTimeout(() => alive && refresh(), 10_000);
+      }
+    };
+    const unlisten = onGameSession(apply);
+    gameSessions()
+      .then((sessions) => alive && sessions.forEach(apply))
+      .catch(() => {}); // sans état « En jeu », le reste de l'interface fonctionne
+    return () => {
+      alive = false;
+      window.clearTimeout(rescan);
+      unlisten.then((stop) => stop()).catch(() => {});
+    };
+  }, [patchGame, refresh]);
 
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);
@@ -224,7 +269,10 @@ export default function App() {
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
-  const meta = useCallback((g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : relativeTime(g.lastPlayed)), [sort]);
+  const meta = useCallback(
+    (g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : sort === "playtime" ? formatPlaytime(g.playtimeMinutes) : relativeTime(g.lastPlayed)),
+    [sort],
+  );
   const count = (f: Filter) => selectGames(games, f, sort, "").length;
   // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre).
   const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || f === filter || games.some((g) => g.platform === f));
@@ -307,7 +355,7 @@ export default function App() {
           </EmptyState>
         )}
 
-        {scan && !emptyLibrary && !query && filter === "all" && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
+        {scan && !emptyLibrary && !query && filter === "all" && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
 
         {scan && !emptyLibrary && (
           <section aria-labelledby="lib-title">
@@ -332,6 +380,7 @@ export default function App() {
               selectedId={selected?.id ?? null}
               open={open}
               meta={meta}
+              playing={playing}
               onSelect={select}
               onPlay={play}
               renderStrip={(g, notch) => (
@@ -339,6 +388,7 @@ export default function App() {
                   key={`strip-${g.id}`}
                   game={g}
                   notch={notch}
+                  playing={playing.has(g.id)}
                   onPlay={play}
                   onFavorite={toggleFavorite}
                   onHide={toggleHidden}

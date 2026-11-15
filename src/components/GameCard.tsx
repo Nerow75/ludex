@@ -8,11 +8,13 @@ interface Props {
   selected: boolean;
   /** Information contextuelle sous le titre (dernière session, taille…). */
   meta: string;
+  /** Une session lancée depuis Ludex est en cours : remplace l'information sous le titre. */
+  playing: boolean;
   onSelect: (game: Game) => void;
   onPlay: (game: Game) => void;
 }
 
-export const GameCard = memo(function GameCard({ game, selected, meta, onSelect, onPlay }: Props) {
+export const GameCard = memo(function GameCard({ game, selected, meta, playing, onSelect, onPlay }: Props) {
   return (
     <div className={`card ${selected ? "is-sel" : ""}`} data-game={game.id}>
       <div className="card__art">
@@ -20,7 +22,7 @@ export const GameCard = memo(function GameCard({ game, selected, meta, onSelect,
           type="button"
           className="card__hit"
           aria-pressed={selected}
-          aria-label={game.title}
+          aria-label={playing ? `${game.title}, en jeu` : game.title}
           onClick={() => onSelect(game)}
           onDoubleClick={() => onPlay(game)}
         >
@@ -34,7 +36,7 @@ export const GameCard = memo(function GameCard({ game, selected, meta, onSelect,
       </div>
       <div className="card__text" onClick={() => onSelect(game)} onDoubleClick={() => onPlay(game)}>
         <span className="card__title">{game.title}</span>
-        <span className="card__meta">{meta}</span>
+        <span className="card__meta">{playing ? <span className="live">En jeu</span> : meta}</span>
       </div>
     </div>
   );

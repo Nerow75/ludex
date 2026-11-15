@@ -25,13 +25,15 @@ interface Props {
   selectedId: string | null;
   open: boolean;
   meta: (game: Game) => string;
+  /** Jeux dont une session est en cours. */
+  playing: ReadonlySet<string>;
   onSelect: (game: Game) => void;
   onPlay: (game: Game) => void;
   /** Fiche à insérer sous la rangée du jeu sélectionné ; reçoit la position de la flèche. */
   renderStrip: (game: Game, notch: number) => ReactNode;
 }
 
-export function LibraryGrid({ games, selectedId, open, meta, onSelect, onPlay, renderStrip }: Props) {
+export function LibraryGrid({ games, selectedId, open, meta, playing, onSelect, onPlay, renderStrip }: Props) {
   const { ref, width, cols } = useColumns();
   const index = games.findIndex((g) => g.id === selectedId);
   const rowEnd = index < 0 ? -1 : Math.min(games.length - 1, Math.floor(index / cols) * cols + cols - 1);
@@ -42,7 +44,7 @@ export function LibraryGrid({ games, selectedId, open, meta, onSelect, onPlay, r
     <div className="grid" ref={ref} style={{ ["--card-min" as string]: `${CARD_MIN}px`, ["--gap-x" as string]: `${GAP_X}px` }}>
       {games.map((g, i) => (
         <Fragment key={g.id}>
-          <GameCard game={g} selected={g.id === selectedId} meta={meta(g)} onSelect={onSelect} onPlay={onPlay} />
+          <GameCard game={g} selected={g.id === selectedId} meta={meta(g)} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
           {open && i === rowEnd && width > 0 && renderStrip(games[index], notch)}
         </Fragment>
       ))}

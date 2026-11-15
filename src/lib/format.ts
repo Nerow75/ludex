@@ -20,6 +20,18 @@ export function relativeTime(ts: number | null): string {
   return months < 12 ? `il y a ${months} mois` : "il y a plus d'un an";
 }
 
+const hoursFine = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+const hoursRound = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+
+/** « 45 min », « 2,5 h », « 12 h », « 1 240 h ». `null` : aucun chiffre connu. */
+export function formatPlaytime(minutes: number | null): string {
+  if (minutes === null) return "Non mesuré";
+  if (minutes < 1) return "Jamais joué";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  return `${(hours < 10 ? hoursFine : hoursRound).format(hours)} h`;
+}
+
 export function formatSize(bytes: number | null): string {
   if (!bytes) return "Inconnue";
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;

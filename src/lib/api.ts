@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot";
+export type PlaytimeSource = "launcher" | "ludex";
+/** `detecting` : lancé, le jeu n'est pas encore visible ; `running` : en jeu ; `ended` : terminé. */
+export type SessionPhase = "detecting" | "running" | "ended";
 
 export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "rockstar", "xbox", "riot"];
 
@@ -17,6 +21,10 @@ export interface Game {
   lastPlayed: number | null;
   /** Taille sur le disque, en octets. */
   sizeOnDisk: number | null;
+  /** Temps de jeu en minutes, `null` si personne ne l'a mesuré. */
+  playtimeMinutes: number | null;
+  /** Chiffre du launcher (Steam, GOG Galaxy) ou sessions mesurées par Ludex : jamais additionnés. */
+  playtimeSource: PlaytimeSource | null;
   /** Application plutôt qu'un jeu (masquée par défaut). */
   isTool: boolean;
   favorite: boolean;
@@ -36,6 +44,14 @@ export interface ScanResult {
   sources: SourceReport[];
 }
 
+/** Session d'un jeu lancé depuis Ludex. Le temps de jeu n'accompagne que les mises à jour du cumul. */
+export interface SessionEvent {
+  id: string;
+  phase: SessionPhase;
+  playtimeMinutes: number | null;
+  playtimeSource: PlaytimeSource | null;
+}
+
 export const PLATFORM_LABEL: Record<Platform, string> = {
   steam: "Steam",
   epic: "Epic Games",
@@ -52,3 +68,7 @@ export const launchGame = (id: string) => invoke<number>("launch_game", { id });
 export const setFavorite = (id: string, value: boolean) => invoke<void>("set_favorite", { id, value });
 export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidden", { id, value });
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });
+/** Sessions en cours, pour retrouver l'état « En jeu » au chargement. */
+export const gameSessions = () => invoke<SessionEvent[]>("game_sessions");
+export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
+  listen<SessionEvent>("game-session", (e) => handler(e.payload));

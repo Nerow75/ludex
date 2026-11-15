@@ -2,14 +2,16 @@ import type { Game, Platform } from "./api";
 import { cleanTitle, norm } from "./format";
 
 export type Filter = "all" | "favorites" | "hidden" | Platform;
-export type Sort = "recent" | "title" | "size";
+export type Sort = "recent" | "playtime" | "title" | "size";
 
-export const SORT_LABEL: Record<Sort, string> = { recent: "Récents", title: "A → Z", size: "Taille" };
+export const SORT_LABEL: Record<Sort, string> = { recent: "Récents", playtime: "Plus joués", title: "A → Z", size: "Taille" };
 
 const byTitle = (a: Game, b: Game) => cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr", { sensitivity: "base" });
 
 const COMPARE: Record<Sort, (a: Game, b: Game) => number> = {
   recent: (a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || byTitle(a, b),
+  // Jamais joué (0) avant inconnu (null).
+  playtime: (a, b) => (b.playtimeMinutes ?? -1) - (a.playtimeMinutes ?? -1) || byTitle(a, b),
   title: byTitle,
   size: (a, b) => (b.sizeOnDisk ?? 0) - (a.sizeOnDisk ?? 0) || byTitle(a, b),
 };
