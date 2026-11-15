@@ -706,10 +706,11 @@ fn autostart_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
 }
 
 /// Reconstruit le menu de la zone de notification s'il a changé (`force` : toujours, après un
-/// clic sur une case à cocher que Windows a déjà basculée). Aucun verrou n'est tenu pendant la
-/// construction, qui passe par le fil principal.
+/// clic sur une case à cocher que Windows a déjà basculée). Le menu est construit sur le fil
+/// principal sans l'attendre : appelée depuis le fil d'un scan, une construction directe attendrait
+/// le fil principal et pourrait bloquer le scan. Aucun verrou n'est tenu pendant la construction.
 fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
-    let (Some(state), Some(icon)) = (app.try_state::<AppState>(), app.tray_by_id(tray::TRAY_ID)) else { return };
+    let (Some(state), Some(_)) = (app.try_state::<AppState>(), app.tray_by_id(tray::TRAY_ID)) else { return };
     let keep = lock(&state.data).map(|d| d.settings.keep_in_tray).unwrap_or(true);
     let autostart = autostart_enabled(app);
     let Ok(entries) = lock(&state.games).map(|games| tray::entries(&tray::recent(&games, tray::RECENT_COUNT), autostart, keep)) else {
@@ -719,13 +720,20 @@ fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
         Ok(mut last) if force || *last != entries => *last = entries.clone(),
         _ => return,
     }
-    match tray::build(app, &entries) {
-        Ok(menu) => {
-            if let Err(e) = icon.set_menu(Some(menu)) {
-                eprintln!("Menu de la zone de notification non mis à jour : {e}");
+    let handle = app.clone();
+    let queued = app.run_on_main_thread(move || {
+        let Some(icon) = handle.tray_by_id(tray::TRAY_ID) else { return };
+        match tray::build(&handle, &entries) {
+            Ok(menu) => {
+                if let Err(e) = icon.set_menu(Some(menu)) {
+                    eprintln!("Menu de la zone de notification non mis à jour : {e}");
+                }
             }
+            Err(e) => eprintln!("Menu de la zone de notification non construit : {e}"),
         }
-        Err(e) => eprintln!("Menu de la zone de notification non construit : {e}"),
+    });
+    if let Err(e) = queued {
+        eprintln!("Menu de la zone de notification non mis à jour : {e}");
     }
 }
 
