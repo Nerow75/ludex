@@ -79,6 +79,8 @@ kbd {
   font-size: 12px; color: var(--lx-text-3);
 }
 .keys span { display: inline-flex; align-items: center; gap: 4px; }
+/* Boutons de face de la manette : pastilles rondes, même teinte que les touches. */
+.keys kbd.pad { width: 20px; height: 20px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 600; }
 
 .bar { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; flex-wrap: wrap; }
 .bar h2 { font-size: 18px; margin-right: auto; }

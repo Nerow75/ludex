@@ -33,7 +33,7 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 - `src/lib/api.ts` : types et appels `invoke`. `src/lib/color.ts` : couleur d'ambiance extraite de la jaquette (fallback : hash du titre).
 - `src/lib/library.ts` : filtres, tri (Récents, Plus joués, A → Z, Taille), récents, préférences d'affichage (localStorage). `src/lib/format.ts` : dates relatives, tailles, temps de jeu (`formatPlaytime` : « 45 min », « 2,5 h », « 1 240 h », « Jamais joué », « Non mesuré »), recherche.
 - `src/components/` : GameCard, LibraryGrid (colonnes mesurées, insère la fiche sous la rangée), GameStrip (fiche dépliable, stat « Temps de jeu » avec sa provenance au survol), ResumeRow, Art et Logo, Cover, States, Icons. Mention `.live` « En jeu » sur la carte, la tuile et la fiche.
-- `src/App.tsx` : écran unique « Focus » : grand champ de recherche, Reprendre, filtres et tri, grille, barre de raccourcis (taper n'importe où, flèches, Entrée, Espace, Échap, Ctrl+D, Ctrl+K, F5). Écoute `game-session` (ensemble `playing`, temps mis à jour en direct) et rescanne en silence 10 s après la fin d'une partie.
+- `src/App.tsx` : écran unique « Focus » : grand champ de recherche, Reprendre, filtres et tri, grille, barre de raccourcis (taper n'importe où, flèches, Entrée, Espace, Échap, Ctrl+D, Ctrl+K, F5). Manette (`src/lib/gamepad.ts`, Gamepad API, ignorée quand Ludex n'a pas le focus) : croix ou stick naviguer, A jouer, X fiche, Y favori, B fermer, LB/RB filtre, LT/RT tri ; la barre du bas montre ces boutons après une action à la manette. Écoute `game-session` (ensemble `playing`, temps mis à jour en direct) et rescanne en silence 10 s après la fin d'une partie.
 
 ## Design system
 

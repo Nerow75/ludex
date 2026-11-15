@@ -15,6 +15,7 @@ import {
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
+import { useGamepad } from "./lib/gamepad";
 import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
 import { GameStrip } from "./components/GameStrip";
 import { LibraryGrid } from "./components/LibraryGrid";
@@ -204,6 +205,39 @@ export default function App() {
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
   const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh });
   live.current = { results, selected, open, query, play, toggleFavorite, refresh };
+
+  /** Déplace la sélection dans la grille, comme les flèches du clavier. */
+  const moveSelection = (dir: "up" | "down" | "left" | "right") => {
+    const s = live.current;
+    if (!s.results.length) return;
+    const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
+    const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
+    const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
+    const step = { left: -1, right: 1, up: -cols, down: cols }[dir];
+    const next = s.results[Math.min(s.results.length - 1, Math.max(0, i + step))];
+    setSelectedId(next.id);
+    focusCard(next.id);
+  };
+
+  /** Échap ou B : replie la fiche, sinon efface la recherche. */
+  const back = () => {
+    const s = live.current;
+    if (s.open) setOpen(false);
+    else if (s.query) setQuery("");
+  };
+
+  // Indices de la barre du bas : ceux de la manette après une action à la manette, ceux du clavier sinon.
+  const [padHints, setPadHints] = useState(false);
+  useEffect(() => {
+    const toKeyboard = () => setPadHints(false);
+    window.addEventListener("keydown", toKeyboard);
+    window.addEventListener("pointerdown", toKeyboard);
+    return () => {
+      window.removeEventListener("keydown", toKeyboard);
+      window.removeEventListener("pointerdown", toKeyboard);
+    };
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = live.current;
@@ -230,8 +264,7 @@ export default function App() {
           focusCard(s.selected.id);
         }
       } else if (key === "Escape") {
-        if (s.open) setOpen(false);
-        else if (s.query) setQuery("");
+        back();
       } else if (key.length === 1 && key !== " " && !ctrl && !e.altKey) {
         // Taper n'importe où commence une recherche : le caractère arrive dans le champ.
         searchRef.current?.focus();
@@ -243,13 +276,7 @@ export default function App() {
         setOpen((o) => !o);
       } else if (onGame && key.startsWith("Arrow") && s.results.length) {
         e.preventDefault();
-        const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
-        const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
-        const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
-        const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols } as Record<string, number>)[key] ?? 0;
-        const next = s.results[Math.min(s.results.length - 1, Math.max(0, i + step))];
-        setSelectedId(next.id);
-        focusCard(next.id);
+        moveSelection(key.slice(5).toLowerCase() as "up" | "down" | "left" | "right");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -285,6 +312,44 @@ export default function App() {
     setSort(s);
     remember("sort", s);
   };
+  /** Passe au filtre ou au tri voisin, en boucle. */
+  const cycle = <T,>(list: readonly T[], current: T, delta: number) =>
+    list[(Math.max(0, list.indexOf(current)) + delta + list.length) % list.length];
+
+  const padConnected = useGamepad((action) => {
+    setPadHints(true);
+    const s = live.current;
+    switch (action) {
+      case "up":
+      case "down":
+      case "left":
+      case "right":
+        // La sélection quitte le champ de recherche pour la grille.
+        moveSelection(action);
+        break;
+      case "confirm":
+        if (s.selected) s.play(s.selected);
+        break;
+      case "back":
+        back();
+        break;
+      case "details":
+        if (s.selected) setOpen((o) => !o);
+        break;
+      case "favorite":
+        if (s.selected) s.toggleFavorite(s.selected);
+        break;
+      case "prevFilter":
+      case "nextFilter":
+        changeFilter(cycle(filters, filter, action === "nextFilter" ? 1 : -1));
+        break;
+      case "prevSort":
+      case "nextSort":
+        changeSort(cycle(SORTS, sort, action === "nextSort" ? 1 : -1));
+        break;
+    }
+  });
+  const showPadHints = padConnected && padHints;
 
   return (
     <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
@@ -401,14 +466,26 @@ export default function App() {
         )}
       </main>
 
-      <footer className="keys" aria-hidden>
-        <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> naviguer</span>
-        <span><kbd>Entrée</kbd> jouer</span>
-        <span><kbd>Espace</kbd> fiche</span>
-        <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
-        <span><kbd>F5</kbd> rescanner</span>
-        <span><kbd>Échap</kbd> fermer</span>
-      </footer>
+      {showPadHints ? (
+        <footer className="keys keys--pad" aria-hidden>
+          <span><kbd>Croix</kbd> naviguer</span>
+          <span><kbd className="pad">A</kbd> jouer</span>
+          <span><kbd className="pad">X</kbd> fiche</span>
+          <span><kbd className="pad">Y</kbd> favori</span>
+          <span><kbd>LB</kbd><kbd>RB</kbd> filtre</span>
+          <span><kbd>LT</kbd><kbd>RT</kbd> tri</span>
+          <span><kbd className="pad">B</kbd> fermer</span>
+        </footer>
+      ) : (
+        <footer className="keys" aria-hidden>
+          <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> naviguer</span>
+          <span><kbd>Entrée</kbd> jouer</span>
+          <span><kbd>Espace</kbd> fiche</span>
+          <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
+          <span><kbd>F5</kbd> rescanner</span>
+          <span><kbd>Échap</kbd> fermer</span>
+        </footer>
+      )}
 
       <div className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`} role="status" aria-live="polite">
         {toast && (
