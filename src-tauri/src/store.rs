@@ -1,6 +1,7 @@
 //! Préférences de l'utilisateur, gardées dans un fichier JSON du dossier de données de l'app :
-//! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex et temps de jeu
-//! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur.
+//! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex, temps de jeu
+//! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur, et
+//! réglages de l'application (zone de notification, lancement avec Windows).
 
 use crate::library::manual::{self, Custom, ManualGame};
 use crate::library::{Game, PlaytimeSource};
@@ -28,6 +29,27 @@ pub struct UserData {
     pub exes: BTreeMap<String, PathBuf>,
     /// Titre choisi par l'utilisateur, par id (jeux détectés ; un jeu manuel garde le sien).
     pub titles: BTreeMap<String, String>,
+    /// Réglages de l'application (zone de notification, lancement avec Windows).
+    pub settings: Settings,
+}
+
+/// Réglages de l'application, modifiés depuis le menu de la zone de notification.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Settings {
+    /// Fermer la fenêtre la cache dans la zone de notification au lieu de quitter : le suivi des
+    /// parties continue. Actif par défaut, « Quitter » du menu quitte vraiment.
+    pub keep_in_tray: bool,
+    /// Dernier choix « Lancer avec Windows ». L'entrée du registre fait foi, ce champ la reflète.
+    pub launch_at_startup: bool,
+    /// L'explication « Ludex tourne encore » a déjà été montrée à la première fermeture.
+    pub tray_hint_shown: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false }
+    }
 }
 
 impl UserData {
@@ -281,14 +303,28 @@ mod tests {
     }
 
     #[test]
+    fn settings_default_to_tray_without_autostart() {
+        let s = UserData::default().settings;
+        assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
+        // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
+        let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
+        assert_eq!(old.settings, Settings::default());
+        let partial: UserData = serde_json::from_str(r#"{"settings":{"launchAtStartup":true}}"#).unwrap();
+        assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup);
+    }
+
+    #[test]
     fn save_and_load_round_trip() {
         let path = std::env::temp_dir().join(format!("ludex-test-{}.json", std::process::id()));
         let mut data = UserData::default();
         data.set_favorite("steam:730", true);
         data.add_playtime("epic:Sugar", 4200);
+        data.settings.keep_in_tray = false;
+        data.settings.tray_hint_shown = true;
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));
+        assert_eq!(loaded.settings, data.settings);
         assert_eq!(loaded.playtime.get("epic:Sugar"), Some(&4200));
         let _ = fs::remove_file(path);
     }
