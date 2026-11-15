@@ -17,7 +17,8 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 
 ## Architecture
 
-- `src-tauri/src/library/` : une source par launcher (`steam.rs`, `epic.rs`, `riot.rs`), lecture de fichiers locaux uniquement, aucune connexion à un compte. `vdf.rs` parse le format Valve. `mod.rs` définit `Game`, `Launch`, `ScanResult` et agrège les sources (`Ok(None)` = launcher absent).
+- `src-tauri/src/library/` : une source par launcher (`steam.rs`, `epic.rs`, `gog.rs`, `ubisoft.rs`, `rockstar.rs`, `xbox.rs`, `riot.rs`), lecture de fichiers locaux et du registre uniquement, aucune connexion à un compte. `vdf.rs` parse le format Valve. `mod.rs` définit `Game`, `Launch`, `ScanResult`, les utilitaires `reg` (registre en lecture) et `xml_attr`, et agrège les sources dans l'ordre de priorité : `Ok(None)` = launcher absent, `Ok(Some(vec![]))` = installé sans jeu ; un jeu dont le dossier est déjà vu par une source précédente est écarté.
+- Sources : GOG (registre `GOG.com\Games`, lancement par Galaxy ou l'exe), Ubisoft (registre `Ubisoft\Launcher\Installs`, `uplay://launch/<id>/0`), Rockstar (registre `Rockstar Games`, exe `Play*.exe`, images Steam via une table titre → appid), Xbox (registre des paquets MSIX, jeu = `MicrosoftGame.config` à la racine, `explorer.exe shell:AppsFolder\<famille>!<app>`, visuel = écran de démarrage local). `Launch::Exec` part du dossier de l'exécutable.
 - `src-tauri/src/lib.rs` : commandes Tauri `scan_library`, `launch_game` (renvoie l'heure du lancement), `open_install_dir`, `set_favorite`, `set_hidden`. Jeux scannés et préférences gardés dans `AppState`. Protocole `ludex` (`http://ludex.localhost/<plateforme>/<id>/<cover|hero|logo>` sous Windows) : sert les images locales d'un jeu de l'état (`Game.local_art`, jamais sérialisé).
 - `src-tauri/src/store.rs` : préférences (favoris, masqués, outils ré-affichés, dernier lancement Ludex) dans `user-data.json` du dossier de données de l'app (`%APPDATA%/com.ludex.app`).
 - Steam fournit `LastPlayed` et `SizeOnDisk`, Epic `InstallSize`. Images Steam : d'abord `appcache/librarycache/<appid>/` (à plat ou dans des sous-dossiers hachés, jaquette `library_600x900` ou `library_capsule`), sinon le CDN. Les outils (Wallpaper Engine, `* Editor`, `* Dedicated Server`…) sont `is_tool` : masqués par défaut, jamais exclus.
@@ -37,7 +38,7 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 
 ## État actuel
 
-- Testé sur le PC de l'utilisateur : Steam 69 jeux, Riot 2, Epic absent (Epic testé seulement en unitaire).
+- Testé sur le PC de l'utilisateur : Steam 69 jeux, Riot 2, Rockstar 1 (GTA V), Xbox 1 (Minecraft Launcher), Epic et Ubisoft installés sans jeu, GOG absent. Epic, GOG et Ubisoft avec jeux testés seulement en unitaire. EA app et Battle.net pas encore pris en charge.
 - Refonte UI « Focus » faite (branche `refonte-ui-focus`). Audit et maquettes : `maquettes/refonte-ui.html` (non versionné).
 - Problèmes connus : jeux Riot sans images (jaquette générée). Amis et Succès pas commencés.
 - Idées et tâches : projet Ludex du tableau « Tâches NRW » (https://claude.ai/artifact/LLukjvgWpKWsVhMMez4a8t).

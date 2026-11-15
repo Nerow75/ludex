@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { launchGame, openInstallDir, PLATFORM_LABEL, scanLibrary, setFavorite, setHidden, type Game, type ScanResult } from "./lib/api";
+import { launchGame, openInstallDir, PLATFORM_LABEL, PLATFORMS, scanLibrary, setFavorite, setHidden, type Game, type ScanResult } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatSize, relativeTime } from "./lib/format";
 import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
@@ -17,7 +17,7 @@ interface Toast {
   action?: { label: string; run: () => void };
 }
 
-const FILTERS: readonly Filter[] = ["all", "favorites", "steam", "epic", "riot", "hidden"];
+const FILTERS: readonly Filter[] = ["all", "favorites", ...PLATFORMS, "hidden"];
 const SORTS = Object.keys(SORT_LABEL) as Sort[];
 const FILTER_LABEL: Record<Filter, string> = { all: "Tous", favorites: "Favoris", hidden: "Masqués", ...PLATFORM_LABEL };
 
@@ -226,7 +226,8 @@ export default function App() {
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
   const meta = useCallback((g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : relativeTime(g.lastPlayed)), [sort]);
   const count = (f: Filter) => selectGames(games, f, sort, "").length;
-  const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || scan?.sources.some((s) => s.platform === f && s.installed));
+  // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre).
+  const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || f === filter || games.some((g) => g.platform === f));
   const changeFilter = (f: Filter) => {
     setFilter(f);
     setOpen(false);
@@ -275,7 +276,7 @@ export default function App() {
       </header>
       <p className="hint" aria-live="polite">
         {!scan
-          ? "Recherche de tes jeux dans Steam, Epic Games et Riot"
+          ? "Recherche de tes jeux dans tous tes launchers"
           : query && selected
             ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></>
             : query
@@ -296,7 +297,7 @@ export default function App() {
             title="Aucun jeu trouvé sur ce PC"
             action={<button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>}
           >
-            Ludex lit les jeux installés par Steam, Epic Games et Riot, sans connexion à tes comptes.
+            Ludex lit les jeux installés par Steam, Epic Games, GOG, Ubisoft, Rockstar, Xbox et Riot, sans connexion à tes comptes.
             Installe un jeu avec l'un d'eux, puis relance un scan.
             <span className="empty__sources">
               {scan.sources.map((s) => (

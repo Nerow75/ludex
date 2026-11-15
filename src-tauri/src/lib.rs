@@ -84,6 +84,8 @@ fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) ->
             .map_err(|e| format!("Le launcher n'a pas répondu : {e}")),
         Launch::Exec { path, args } => std::process::Command::new(path)
             .args(args)
+            // Beaucoup de jeux cherchent leurs fichiers dans le dossier courant.
+            .current_dir(path.parent().unwrap_or(path))
             .spawn()
             .map(|_| ())
             .map_err(|e| format!("Impossible de démarrer {} : {e}", path.display())),

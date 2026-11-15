@@ -2,9 +2,13 @@
 //! Chaque source lit uniquement des fichiers locaux : aucune connexion à un compte n'est nécessaire.
 
 mod epic;
+mod gog;
 mod riot;
+mod rockstar;
 mod steam;
+mod ubisoft;
 mod vdf;
+mod xbox;
 
 use serde::Serialize;
 use std::path::PathBuf;
@@ -15,6 +19,10 @@ pub enum Platform {
     Steam,
     Epic,
     Riot,
+    Gog,
+    Ubisoft,
+    Rockstar,
+    Xbox,
 }
 
 /// Comment demander au launcher de lancer le jeu.
@@ -35,7 +43,7 @@ impl Launch {
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default();
-                format!("{} {}", exe, args.join(" "))
+                format!("{} {}", exe, args.join(" ")).trim_end().to_string()
             }
         }
     }
@@ -106,6 +114,10 @@ impl Game {
             Platform::Steam => "steam",
             Platform::Epic => "epic",
             Platform::Riot => "riot",
+            Platform::Gog => "gog",
+            Platform::Ubisoft => "ubisoft",
+            Platform::Rockstar => "rockstar",
+            Platform::Xbox => "xbox",
         };
         Game {
             id: format!("{prefix}:{platform_id}"),
@@ -149,17 +161,24 @@ pub struct ScanResult {
 type SourceFn = fn() -> Result<Option<Vec<Game>>, String>;
 
 pub fn scan() -> ScanResult {
-    let sources: [(Platform, SourceFn); 3] = [
+    // Ordre = priorité : un jeu vu par deux launchers (même dossier) reste au premier.
+    let sources: [(Platform, SourceFn); 7] = [
         (Platform::Steam, steam::scan),
         (Platform::Epic, epic::scan),
+        (Platform::Gog, gog::scan),
+        (Platform::Ubisoft, ubisoft::scan),
+        (Platform::Rockstar, rockstar::scan),
+        (Platform::Xbox, xbox::scan),
         (Platform::Riot, riot::scan),
     ];
 
     let mut games = Vec::new();
     let mut reports = Vec::new();
+    let mut dirs = std::collections::HashSet::new();
     for (platform, source) in sources {
         match source() {
-            Ok(Some(found)) => {
+            Ok(Some(mut found)) => {
+                found.retain(|g| g.install_dir.as_deref().map_or(true, |d| dirs.insert(dir_key(d))));
                 reports.push(SourceReport { platform, installed: true, count: found.len(), error: None });
                 games.extend(found);
             }
@@ -175,6 +194,16 @@ pub fn scan() -> ScanResult {
 mod tests {
     /// Scan réel de ce PC : `cargo test scan_this_pc -- --ignored --nocapture`
     #[test]
+    fn reads_xml_attributes() {
+        let xml = r#"<Applications><Application Id="Game" Executable="a.exe"/></Applications>
+            <ShellVisuals DefaultDisplayName="Tom &amp; Jerry" StoreLogo="s.png" />"#;
+        assert_eq!(super::xml_attr(xml, "Application", "Id").as_deref(), Some("Game"));
+        assert_eq!(super::xml_attr(xml, "ShellVisuals", "DefaultDisplayName").as_deref(), Some("Tom & Jerry"));
+        assert_eq!(super::xml_attr(xml, "ShellVisuals", "Logo"), None); // pas StoreLogo
+        assert_eq!(super::xml_attr(xml, "Missing", "Id"), None);
+    }
+
+    #[test]
     #[ignore]
     fn scan_this_pc() {
         let result = super::scan();
@@ -184,6 +213,74 @@ mod tests {
         for g in &result.games {
             println!("  [{:?}] {}  ->  {}", g.platform, g.title, g.launch_label);
         }
+    }
+}
+
+/// Clé de comparaison d'un dossier : casse et séparateurs ignorés.
+fn dir_key(dir: &str) -> String {
+    dir.replace('/', "\\").trim_end_matches('\\').to_lowercase()
+}
+
+/// Valeur d'un attribut dans la première balise `<element …>` d'un XML simple
+/// (MicrosoftGame.config, AppxManifest.xml) : pas besoin d'un parseur complet.
+pub(crate) fn xml_attr(xml: &str, element: &str, attr: &str) -> Option<String> {
+    let open = format!("<{element}");
+    let mut from = 0;
+    while let Some(i) = xml[from..].find(&open) {
+        let start = from + i;
+        let after = start + open.len();
+        from = after;
+        if !xml[after..].starts_with(|c: char| c.is_whitespace() || c == '>' || c == '/') {
+            continue; // <Applications> quand on cherche <Application
+        }
+        let tag = &xml[after..after + xml[after..].find('>')?];
+        let key = format!("{attr}=\"");
+        let mut at = 0;
+        while let Some(j) = tag[at..].find(&key) {
+            let k = at + j;
+            at = k + key.len();
+            if k == 0 || tag.as_bytes()[k - 1].is_ascii_whitespace() {
+                let value = &tag[at..at + tag[at..].find('"')?];
+                return Some(
+                    value
+                        .replace("&quot;", "\"")
+                        .replace("&apos;", "'")
+                        .replace("&lt;", "<")
+                        .replace("&gt;", ">")
+                        .replace("&amp;", "&"),
+                );
+            }
+        }
+        return None;
+    }
+    None
+}
+
+/// Lecture du registre Windows, en lecture seule.
+#[cfg(windows)]
+pub(crate) mod reg {
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
+    use winreg::RegKey;
+
+    pub fn hklm(path: &str) -> Option<RegKey> {
+        RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(path, KEY_READ).ok()
+    }
+
+    pub fn hkcu(path: &str) -> Option<RegKey> {
+        RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(path, KEY_READ).ok()
+    }
+
+    /// Sous-clés (nom, clé) d'une clé.
+    pub fn children(key: &RegKey) -> Vec<(String, RegKey)> {
+        key.enum_keys()
+            .flatten()
+            .filter_map(|name| key.open_subkey_with_flags(&name, KEY_READ).ok().map(|k| (name, k)))
+            .collect()
+    }
+
+    /// Valeur texte non vide.
+    pub fn string(key: &RegKey, name: &str) -> Option<String> {
+        key.get_value::<String, _>(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
     }
 }
 

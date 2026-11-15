@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Platform = "steam" | "epic" | "riot";
+export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot";
+
+export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "rockstar", "xbox", "riot"];
 
 export interface Game {
   id: string;
@@ -37,6 +39,10 @@ export interface ScanResult {
 export const PLATFORM_LABEL: Record<Platform, string> = {
   steam: "Steam",
   epic: "Epic Games",
+  gog: "GOG",
+  ubisoft: "Ubisoft",
+  rockstar: "Rockstar",
+  xbox: "Xbox",
   riot: "Riot",
 };
 
