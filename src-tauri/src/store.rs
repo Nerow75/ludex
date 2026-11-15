@@ -1,7 +1,8 @@
 //! Préférences de l'utilisateur, gardées dans un fichier JSON du dossier de données de l'app :
-//! favoris, jeux masqués ou ré-affichés, et date du dernier lancement depuis Ludex.
+//! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex et temps de jeu
+//! mesuré par Ludex.
 
-use crate::library::Game;
+use crate::library::{Game, PlaytimeSource};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -18,6 +19,8 @@ pub struct UserData {
     pub shown: BTreeSet<String>,
     /// Dernier lancement depuis Ludex, en secondes Unix.
     pub launched: BTreeMap<String, u64>,
+    /// Temps de jeu mesuré par Ludex, en secondes, pour les jeux dont le launcher ne compte rien.
+    pub playtime: BTreeMap<String, u64>,
 }
 
 impl UserData {
@@ -64,12 +67,27 @@ impl UserData {
         now
     }
 
+    /// Ajoute une portion de session mesurée par Ludex.
+    pub fn add_playtime(&mut self, id: &str, secs: u64) {
+        if secs > 0 {
+            let total = self.playtime.entry(id.to_string()).or_insert(0);
+            *total = total.saturating_add(secs);
+        }
+    }
+
     /// Reporte les préférences sur un jeu détecté.
     pub fn apply(&self, game: &mut Game) {
         game.favorite = self.favorites.contains(&game.id);
         game.hidden = if game.is_tool { !self.shown.contains(&game.id) } else { self.hidden.contains(&game.id) };
         if let Some(&ts) = self.launched.get(&game.id) {
             game.last_played = Some(game.last_played.map_or(ts, |l| l.max(ts)));
+        }
+        // Le chiffre du launcher prime : celui de Ludex ne s'y ajoute jamais.
+        if game.playtime_source != Some(PlaytimeSource::Launcher)
+            && let Some(&secs) = self.playtime.get(&game.id)
+        {
+            game.playtime_minutes = Some((secs + 30) / 60);
+            game.playtime_source = Some(PlaytimeSource::Ludex);
         }
     }
 }
@@ -132,12 +150,53 @@ mod tests {
     }
 
     #[test]
+    fn ludex_playtime_accumulates_without_overriding_launcher() {
+        let mut data = UserData::default();
+        data.add_playtime("epic:Sugar", 60);
+        data.add_playtime("epic:Sugar", 60);
+        data.add_playtime("epic:Sugar", 29);
+        data.add_playtime("epic:Sugar", 0);
+        assert_eq!(data.playtime.get("epic:Sugar"), Some(&149));
+
+        let mut epic = Game::new(Platform::Epic, "Sugar", "Rocket League", Launch::Uri(String::new()));
+        data.apply(&mut epic);
+        assert_eq!(epic.playtime_minutes, Some(2)); // 149 s arrondies à la minute
+        assert_eq!(epic.playtime_source, Some(PlaytimeSource::Ludex));
+        // Appliquer de nouveau (après une autre session) met le chiffre à jour.
+        data.add_playtime("epic:Sugar", 3600);
+        data.apply(&mut epic);
+        assert_eq!(epic.playtime_minutes, Some(62));
+
+        // Le launcher a son propre chiffre : celui de Ludex est ignoré, jamais additionné.
+        let mut steam = game("730", false);
+        steam.set_launcher_playtime(6230, None);
+        data.add_playtime(&steam.id, 600);
+        data.apply(&mut steam);
+        assert_eq!(steam.playtime_minutes, Some(6230));
+        assert_eq!(steam.playtime_source, Some(PlaytimeSource::Launcher));
+
+        // Jamais mesuré : inconnu.
+        let mut other = game("440", false);
+        data.apply(&mut other);
+        assert_eq!(other.playtime_minutes, None);
+    }
+
+    #[test]
+    fn old_files_without_playtime_still_load() {
+        let data: UserData = serde_json::from_str(r#"{"favorites":["steam:730"],"launched":{"steam:730":1}}"#).unwrap();
+        assert!(data.playtime.is_empty() && data.favorites.contains("steam:730"));
+    }
+
+    #[test]
     fn save_and_load_round_trip() {
         let path = std::env::temp_dir().join(format!("ludex-test-{}.json", std::process::id()));
         let mut data = UserData::default();
         data.set_favorite("steam:730", true);
+        data.add_playtime("epic:Sugar", 4200);
         data.save(&path).unwrap();
-        assert!(UserData::load(&path).favorites.contains("steam:730"));
+        let loaded = UserData::load(&path);
+        assert!(loaded.favorites.contains("steam:730"));
+        assert_eq!(loaded.playtime.get("epic:Sugar"), Some(&4200));
         let _ = fs::remove_file(path);
     }
 }

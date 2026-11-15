@@ -1,12 +1,15 @@
 mod library;
+mod session;
 mod store;
 
-use library::{Game, Launch, ScanResult};
+use library::{Game, Launch, PlaytimeSource, ScanResult};
+use serde::Serialize;
+use session::{Phase, Tracker};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use store::UserData;
 use tauri::http::{header, Response, StatusCode};
-use tauri::{Manager, Runtime, State};
+use tauri::{Emitter, Manager, Runtime, State};
 use tauri_plugin_opener::OpenerExt;
 
 /// Derniers jeux détectés et préférences de l'utilisateur. Le front ne transmet qu'un identifiant :
@@ -15,6 +18,54 @@ struct AppState {
     games: Mutex<Vec<Game>>,
     data: Mutex<UserData>,
     data_path: PathBuf,
+    /// Sessions de jeu lancées depuis Ludex.
+    tracker: Tracker,
+}
+
+/// Événement `game-session` : phase d'une session et, quand Ludex vient d'ajouter du temps,
+/// le nouveau total du jeu.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionEvent {
+    id: String,
+    phase: Phase,
+    playtime_minutes: Option<u64>,
+    playtime_source: Option<PlaytimeSource>,
+}
+
+const SESSION_EVENT: &str = "game-session";
+
+/// Enregistre le temps mesuré (s'il y en a) et prévient le front.
+fn on_session_update<R: Runtime>(app: &tauri::AppHandle<R>, update: session::Update) {
+    let mut event = SessionEvent { id: update.game_id, phase: update.phase, playtime_minutes: None, playtime_source: None };
+    if update.credit_secs > 0
+        && let Some(state) = app.try_state::<AppState>()
+        && let Ok(mut data) = lock(&state.data)
+    {
+        data.add_playtime(&event.id, update.credit_secs);
+        if let Err(e) = data.save(&state.data_path) {
+            eprintln!("Temps de jeu non enregistré : {e}");
+        }
+        if let Ok(mut games) = lock(&state.games)
+            && let Some(g) = games.iter_mut().find(|g| g.id == event.id)
+        {
+            data.apply(g);
+            event.playtime_minutes = g.playtime_minutes;
+            event.playtime_source = g.playtime_source;
+        }
+    }
+    let _ = app.emit(SESSION_EVENT, event);
+}
+
+/// Sessions en cours, pour retrouver l'état « En jeu » après un rechargement de l'interface.
+#[tauri::command]
+fn game_sessions(state: State<'_, AppState>) -> Vec<SessionEvent> {
+    state
+        .tracker
+        .active()
+        .into_iter()
+        .map(|(id, phase)| SessionEvent { id, phase, playtime_minutes: None, playtime_source: None })
+        .collect()
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
@@ -91,6 +142,9 @@ fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) ->
             .map_err(|e| format!("Impossible de démarrer {} : {e}", path.display())),
     }?;
 
+    // Surveille le jeu pour l'état « En jeu » et, si son launcher ne le fait pas, son temps de jeu.
+    state.tracker.start(&game);
+
     let mut data = lock(&state.data)?;
     let now = data.record_launch(&id);
     // Un historique non enregistré ne doit pas faire croire à un échec du lancement.
@@ -140,14 +194,23 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let data_path = store::file_in(dir);
+            let handle = app.handle().clone();
             app.manage(AppState {
                 games: Mutex::default(),
                 data: Mutex::new(UserData::load(&data_path)),
                 data_path,
+                tracker: Tracker::spawn(move |update| on_session_update(&handle, update)),
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![scan_library, launch_game, open_install_dir, set_favorite, set_hidden])
+        .invoke_handler(tauri::generate_handler![
+            scan_library,
+            launch_game,
+            open_install_dir,
+            set_favorite,
+            set_hidden,
+            game_sessions
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
