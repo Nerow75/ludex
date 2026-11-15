@@ -3,6 +3,7 @@ import { launchGame, PLATFORM_LABEL, scanLibrary, type Game, type ScanResult } f
 import { ambientFromImage, titleColor } from "./lib/color";
 import { cleanTitle, norm, relativeTime } from "./lib/format";
 import { GameCard } from "./components/GameCard";
+import { ResumeRow } from "./components/ResumeRow";
 import { RefreshIcon, SearchIcon } from "./components/Icons";
 
 interface Toast { title: string; detail: string; error?: boolean }
@@ -26,6 +27,7 @@ export default function App() {
     const q = norm(query.trim());
     return q ? library.filter((g) => norm(cleanTitle(g.title)).includes(q)) : library;
   }, [library, query]);
+  const recent = useMemo(() => library.filter((g) => g.lastPlayed).slice(0, 4), [library]);
   const selected = library.find((g) => g.id === selectedId) ?? (query ? results[0] : library[0]) ?? null;
 
   const refresh = useCallback(async () => {
@@ -151,6 +153,8 @@ export default function App() {
         ))}
 
         {!scan && !scanError && <div className="loading">Recherche de tes jeux…</div>}
+
+        {scan && !query && <ResumeRow games={recent} onSelect={select} onPlay={play} />}
 
         {scan && (
           <section aria-labelledby="lib-title">
