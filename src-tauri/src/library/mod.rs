@@ -94,6 +94,11 @@ pub struct Game {
     /// Images trouvées dans le cache local du launcher, servies par le protocole `ludex`.
     #[serde(skip)]
     pub local_art: LocalArt,
+    /// Appid Steam : jeu Steam, table Rockstar, ou jeu retrouvé sur la boutique par `art.rs`.
+    #[serde(skip)]
+    pub steam_appid: Option<u32>,
+    /// Genres, studio, éditeur, sortie et description (`metadata.rs`), `None` tant qu'inconnus.
+    pub details: Option<crate::metadata::Details>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -173,6 +178,8 @@ impl Game {
             launch_label: launch.label(),
             launch,
             local_art: LocalArt::default(),
+            steam_appid: None,
+            details: None,
         }
     }
 

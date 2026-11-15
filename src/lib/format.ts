@@ -37,3 +37,11 @@ export function formatSize(bytes: number | null): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;
   return `${Math.max(1, Math.round(bytes / 1e6))} Mo`;
 }
+
+/** Année de sortie (horodatage Unix en secondes), `null` si inconnue. */
+export const releaseYear = (ts: number | null): number | null => (ts ? new Date(ts * 1000).getFullYear() : null);
+
+const fullDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+/** « 10 décembre 2020 ». */
+export const formatDate = (ts: number) => fullDate.format(new Date(ts * 1000));

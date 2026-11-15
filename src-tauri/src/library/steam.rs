@@ -232,6 +232,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
                 game.set_launcher_playtime(t.minutes, t.last_played);
             }
             game.is_tool = is_tool(appid, title);
+            game.steam_appid = appid.parse().ok();
             games.push(game);
         }
     }

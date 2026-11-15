@@ -3,6 +3,7 @@ import {
   gameSessions,
   launchGame,
   onGameArt,
+  onGameDetails,
   onGameSession,
   openInstallDir,
   PLATFORM_LABEL,
@@ -146,6 +147,12 @@ export default function App() {
   // Jaquettes retrouvées en arrière-plan après le scan : elles remplacent la jaquette générée.
   useEffect(() => {
     const unlisten = onGameArt(({ id, coverUrl, heroUrl, logoUrl }) => patchGame(id, { coverUrl, heroUrl, logoUrl }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Fiches (genres, studio, sortie) reçues en arrière-plan après le scan.
+  useEffect(() => {
+    const unlisten = onGameDetails(({ id, details }) => patchGame(id, { details }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 

@@ -58,6 +58,7 @@ fn build(title: &str, dir: &Path) -> Option<Game> {
         game.cover_url = Some(cdn("library_600x900_2x.jpg"));
         game.hero_url = Some(cdn("library_hero.jpg"));
         game.logo_url = Some(cdn("logo.png"));
+        game.steam_appid = appid.parse().ok();
     }
     Some(game)
 }
@@ -99,9 +100,10 @@ mod tests {
         assert_eq!(game.id, "rockstar:grand-theft-auto-v");
         assert!(game.launch_label.starts_with("PlayGTAV.exe"));
         assert!(game.cover_url.unwrap().contains("/271590/"));
+        assert_eq!(game.steam_appid, Some(271590));
 
         let unknown = build("Some Game", &other).unwrap();
-        assert!(unknown.launch_label.starts_with("PlayOther.exe") && unknown.cover_url.is_none());
+        assert!(unknown.launch_label.starts_with("PlayOther.exe") && unknown.cover_url.is_none() && unknown.steam_appid.is_none());
 
         assert!(build("Launcher", &gta).is_none());
         assert!(build("Grand Theft Auto V", &root.join("absent")).is_none());
