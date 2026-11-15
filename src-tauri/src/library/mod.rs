@@ -65,6 +65,14 @@ pub struct Game {
     pub last_played: Option<u64>,
     /// Taille sur le disque en octets, si le launcher la fournit.
     pub size_on_disk: Option<u64>,
+    /// Temps de jeu en minutes. `None` : inconnu (ni le launcher ni Ludex n'ont de chiffre).
+    pub playtime_minutes: Option<u64>,
+    /// Provenance du temps de jeu : jamais additionnée, l'une ou l'autre.
+    pub playtime_source: Option<PlaytimeSource>,
+    /// Le launcher compte lui-même le temps de jeu (Steam, GOG Galaxy) : Ludex ne le mesure pas,
+    /// pour ne jamais compter deux fois une session.
+    #[serde(skip)]
+    pub launcher_tracks_playtime: bool,
     /// Application ou outil plutôt qu'un jeu (masqué par défaut).
     pub is_tool: bool,
     /// Préférences de l'utilisateur, appliquées par `lib.rs` depuis le stockage local.
@@ -76,6 +84,15 @@ pub struct Game {
     /// Images trouvées dans le cache local du launcher, servies par le protocole `ludex`.
     #[serde(skip)]
     pub local_art: LocalArt,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlaytimeSource {
+    /// Chiffre lu dans les fichiers du launcher.
+    Launcher,
+    /// Sessions mesurées par Ludex après un lancement depuis Ludex.
+    Ludex,
 }
 
 /// Fichiers image locaux d'un jeu. Jamais envoyés au front : il ne voit qu'une URL `ludex`.
@@ -130,12 +147,24 @@ impl Game {
             logo_url: None,
             last_played: None,
             size_on_disk: None,
+            playtime_minutes: None,
+            playtime_source: None,
+            launcher_tracks_playtime: false,
             is_tool: false,
             favorite: false,
             hidden: false,
             launch_label: launch.label(),
             launch,
             local_art: LocalArt::default(),
+        }
+    }
+
+    /// Temps de jeu lu chez le launcher, et dernière session si elle est plus récente.
+    pub fn set_launcher_playtime(&mut self, minutes: u64, last_played: Option<u64>) {
+        self.playtime_minutes = Some(minutes);
+        self.playtime_source = Some(PlaytimeSource::Launcher);
+        if let Some(ts) = last_played.filter(|&t| t > 0) {
+            self.last_played = Some(self.last_played.map_or(ts, |l| l.max(ts)));
         }
     }
 }
@@ -210,8 +239,18 @@ mod tests {
         for s in &result.sources {
             println!("{:?}: installé={} jeux={} erreur={:?}", s.platform, s.installed, s.count, s.error);
         }
+        let hours = |g: &super::Game| match (g.playtime_minutes, g.playtime_source) {
+            (Some(m), Some(source)) => format!("{:.1} h ({source:?})", m as f64 / 60.0),
+            _ => "non mesuré".to_string(),
+        };
         for g in &result.games {
-            println!("  [{:?}] {}  ->  {}", g.platform, g.title, g.launch_label);
+            println!("  [{:?}] {}  ->  {}  ·  {}", g.platform, g.title, g.launch_label, hours(g));
+        }
+        let mut most_played: Vec<_> = result.games.iter().filter(|g| g.playtime_minutes.unwrap_or(0) > 0).collect();
+        most_played.sort_by_key(|g| std::cmp::Reverse(g.playtime_minutes));
+        println!("Les plus joués :");
+        for g in most_played.iter().take(5) {
+            println!("  {}  ·  {}", g.title, hours(g));
         }
     }
 }

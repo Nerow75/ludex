@@ -117,6 +117,8 @@ fn parse_obj(tokens: &mut std::iter::Peekable<std::vec::IntoIter<Token>>) -> Vec
 
 /// Retourne la racine du document sous forme d'objet.
 pub fn parse(input: &str) -> Vdf {
+    // Un BOM UTF-8 en tête serait lu comme une clé et décalerait tout le document.
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     let mut tokens = tokenize(input).into_iter().peekable();
     Vdf::Obj(parse_obj(&mut tokens))
 }
@@ -141,5 +143,35 @@ mod tests {
         let first = &lib.entries()[0].1;
         assert_eq!(first.str("path"), Some(r"C:\Program Files (x86)\Steam"));
         assert_eq!(first.get("apps").unwrap().str("730"), Some("123"));
+    }
+
+    #[test]
+    fn ignores_bom_and_key_case() {
+        let doc = parse("\u{feff}\"UserLocalConfigStore\" { \"Software\" { \"Valve\" { \"steam\" { \"Apps\" { \"10\" { \"Playtime\" \"42\" } } } } } }");
+        let apps = doc
+            .get("userlocalconfigstore")
+            .and_then(|d| d.get("software"))
+            .and_then(|d| d.get("valve"))
+            .and_then(|d| d.get("Steam"))
+            .and_then(|d| d.get("apps"))
+            .unwrap();
+        assert_eq!(apps.get("10").unwrap().str("playtime"), Some("42"));
+    }
+
+    #[test]
+    fn parses_large_document_with_escaped_quotes() {
+        // Volume d'un vrai localconfig.vdf : plusieurs centaines de Ko, du JSON échappé dans les valeurs.
+        let mut text = String::from("\"root\"\n{\n\t\"json\"\t\t\"{\\\"a\\\":[1,{\\\"b\\\":2}]}\"\n\t\"apps\"\n\t{\n");
+        for id in 0..20_000 {
+            text.push_str(&format!("\t\t\"{id}\"\n\t\t{{\n\t\t\t\"Playtime\"\t\t\"{id}\"\n\t\t}}\n"));
+        }
+        text.push_str("\t}\n}\n");
+        assert!(text.len() > 400_000);
+        let doc = parse(&text);
+        let root = doc.get("root").unwrap();
+        assert_eq!(root.str("json"), Some(r#"{"a":[1,{"b":2}]}"#));
+        let apps = root.get("apps").unwrap();
+        assert_eq!(apps.entries().len(), 20_000);
+        assert_eq!(apps.get("19999").unwrap().str("Playtime"), Some("19999"));
     }
 }

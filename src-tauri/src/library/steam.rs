@@ -2,7 +2,7 @@
 //! un `appmanifest_<appid>.acf` par jeu installé.
 
 use super::{art_url, vdf, Game, LocalArt, Launch, Platform};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -85,6 +85,78 @@ fn steam_root() -> Option<PathBuf> {
     default.exists().then_some(default)
 }
 
+/// Écart entre un SteamID64 et le numéro de compte (steamid3) qui nomme le dossier `userdata`.
+const STEAMID64_BASE: u64 = 76_561_197_960_265_728;
+
+/// Comptes de `config/loginusers.vdf`, du plus probable au moins probable : `MostRecent` = 1
+/// d'abord, puis le `timestamp` de dernière connexion le plus récent.
+fn account_ids(loginusers: &vdf::Vdf) -> Vec<u64> {
+    let Some(users) = loginusers.get("users") else { return Vec::new() };
+    let mut accounts: Vec<(bool, u64, u64)> = users
+        .entries()
+        .iter()
+        .filter_map(|(id64, user)| {
+            let id3 = id64.parse::<u64>().ok()?.checked_sub(STEAMID64_BASE)?;
+            let most_recent = user.str("MostRecent") == Some("1");
+            let timestamp = user.str("Timestamp").and_then(|t| t.parse().ok()).unwrap_or(0);
+            Some((most_recent, timestamp, id3))
+        })
+        .collect();
+    accounts.sort_by(|a, b| b.cmp(a));
+    accounts.into_iter().map(|(_, _, id3)| id3).collect()
+}
+
+/// `localconfig.vdf` du compte utilisé sur ce PC. Repli si `loginusers.vdf` ne désigne aucun
+/// dossier existant : le `localconfig.vdf` modifié le plus récemment dans `userdata`.
+fn localconfig_path(root: &Path) -> Option<PathBuf> {
+    let userdata = root.join("userdata");
+    let file = |id: &str| userdata.join(id).join("config").join("localconfig.vdf");
+    if let Ok(text) = fs::read_to_string(root.join("config").join("loginusers.vdf")) {
+        if let Some(path) = account_ids(&vdf::parse(&text)).into_iter().map(|id| file(&id.to_string())).find(|p| p.is_file()) {
+            return Some(path);
+        }
+    }
+    fs::read_dir(&userdata)
+        .ok()?
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|name| name != "0" && name.bytes().all(|b| b.is_ascii_digit()))
+        .map(|name| file(&name))
+        .filter_map(|p| Some((fs::metadata(&p).ok()?.modified().ok()?, p)))
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, p)| p)
+}
+
+/// Temps de jeu d'une application dans `localconfig.vdf`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AppTimes {
+    pub minutes: u64,
+    pub last_played: Option<u64>,
+}
+
+/// `UserLocalConfigStore > Software > Valve > Steam > apps > <appid>` : `Playtime` en minutes,
+/// `LastPlayed` en secondes Unix. Steam y garde toutes les applications du compte, installées ou non.
+fn parse_playtimes(doc: &vdf::Vdf) -> HashMap<String, AppTimes> {
+    let apps = ["UserLocalConfigStore", "Software", "Valve", "Steam", "apps"]
+        .iter()
+        .try_fold(doc, |node, key| node.get(key));
+    let Some(apps) = apps else { return HashMap::new() };
+    apps.entries()
+        .iter()
+        .filter(|(appid, _)| appid.bytes().all(|b| b.is_ascii_digit()))
+        .map(|(appid, app)| {
+            let minutes = app.str("Playtime").and_then(|v| v.parse().ok()).unwrap_or(0);
+            (appid.clone(), AppTimes { minutes, last_played: number(app, "LastPlayed") })
+        })
+        .collect()
+}
+
+/// Temps de jeu du compte Steam de ce PC, `None` si le fichier est introuvable ou illisible.
+fn playtimes(root: &Path) -> Option<HashMap<String, AppTimes>> {
+    let text = fs::read_to_string(localconfig_path(root)?).ok()?;
+    Some(parse_playtimes(&vdf::parse(&text)))
+}
+
 fn library_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = vec![root.to_path_buf()];
     let file = root.join("steamapps").join("libraryfolders.vdf");
@@ -113,6 +185,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let mut games = Vec::new();
     let mut seen = HashSet::new();
     let art_cache = root.join("appcache").join("librarycache");
+    let times = playtimes(&root);
 
     for library in library_paths(&root) {
         let steamapps = library.join("steamapps");
@@ -151,6 +224,13 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             game.local_art = art;
             game.last_played = number(app, "LastPlayed");
             game.size_on_disk = number(app, "SizeOnDisk");
+            // Steam compte toutes les sessions, même lancées hors de Ludex : son chiffre fait foi.
+            // Une application absente de localconfig.vdf n'a jamais été lancée.
+            game.launcher_tracks_playtime = true;
+            if let Some(times) = &times {
+                let t = times.get(appid).copied().unwrap_or(AppTimes { minutes: 0, last_played: None });
+                game.set_launcher_playtime(t.minutes, t.last_played);
+            }
             game.is_tool = is_tool(appid, title);
             games.push(game);
         }
@@ -160,8 +240,81 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_tool, local_art};
+    use super::{account_ids, is_tool, local_art, localconfig_path, parse_playtimes, playtimes, AppTimes};
+    use crate::library::vdf;
     use std::fs;
+
+    #[test]
+    fn orders_accounts_most_recent_then_timestamp() {
+        // Steam récent : plus de MostRecent, seulement le timestamp de connexion.
+        let recent = vdf::parse(
+            r#""users" {
+                "76561198013136374" { "AccountName" "a" "timestamp" "1794750893" }
+                "76561199053483185" { "AccountName" "b" "timestamp" "1649598892" }
+                "pas-un-id" { "timestamp" "1999999999" }
+            }"#,
+        );
+        assert_eq!(account_ids(&recent), vec![52_870_646, 1_093_217_457]);
+
+        // Ancien format : MostRecent l'emporte sur un timestamp plus récent.
+        let old = vdf::parse(
+            r#""users" {
+                "76561198013136374" { "MostRecent" "0" "Timestamp" "1794750893" }
+                "76561199053483185" { "MostRecent" "1" "Timestamp" "1649598892" }
+            }"#,
+        );
+        assert_eq!(account_ids(&old), vec![1_093_217_457, 52_870_646]);
+        assert!(account_ids(&vdf::parse("")).is_empty());
+    }
+
+    #[test]
+    fn reads_playtime_from_localconfig() {
+        let doc = vdf::parse(
+            r#""UserLocalConfigStore"
+            {
+                "apps" { "730" { "Playtime" "999999" } }
+                "Software" { "Valve" { "steam" { "apps" {
+                    "730" { "LastPlayed" "1765316763" "Playtime" "6230" "PlaytimeDisconnected" "26" }
+                    "440" { "LastPlayed" "1464464274" }
+                    "Playtime" "pas une appli"
+                } } } }
+            }"#,
+        );
+        let times = parse_playtimes(&doc);
+        assert_eq!(times.get("730"), Some(&AppTimes { minutes: 6230, last_played: Some(1_765_316_763) }));
+        assert_eq!(times.get("440"), Some(&AppTimes { minutes: 0, last_played: Some(1_464_464_274) }));
+        assert_eq!(times.len(), 2);
+        assert!(parse_playtimes(&vdf::parse(r#""UserLocalConfigStore" { }"#)).is_empty());
+    }
+
+    #[test]
+    fn picks_account_folder_with_fallback() {
+        let root = std::env::temp_dir().join(format!("ludex-steam-users-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let config = |id: &str| root.join("userdata").join(id).join("config");
+        for id in ["0", "52870646", "1093217457"] {
+            fs::create_dir_all(config(id)).unwrap();
+        }
+        let local = r#""UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "10" { "Playtime" "90" } } } } } }"#;
+        fs::write(config("1093217457").join("localconfig.vdf"), local).unwrap();
+        fs::write(config("52870646").join("localconfig.vdf"), local.replace("90", "15")).unwrap();
+
+        // Sans loginusers.vdf : le localconfig.vdf le plus récent.
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        fs::File::options().write(true).open(config("52870646").join("localconfig.vdf")).unwrap().set_modified(old).unwrap();
+        assert!(localconfig_path(&root).unwrap().starts_with(root.join("userdata").join("1093217457")));
+
+        // loginusers.vdf désigne le compte, même si un autre dossier est plus récent.
+        fs::create_dir_all(root.join("config")).unwrap();
+        fs::write(root.join("config").join("loginusers.vdf"), r#""users" { "76561198013136374" { "MostRecent" "1" } }"#).unwrap();
+        assert!(localconfig_path(&root).unwrap().starts_with(root.join("userdata").join("52870646")));
+        assert_eq!(playtimes(&root).unwrap().get("10").map(|t| t.minutes), Some(15));
+
+        // Compte désigné sans dossier : repli sur les dossiers existants.
+        fs::write(root.join("config").join("loginusers.vdf"), r#""users" { "76561197960265729" { "MostRecent" "1" } }"#).unwrap();
+        assert!(localconfig_path(&root).is_some());
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn finds_local_art_flat_and_hashed() {
