@@ -25,11 +25,11 @@
   --lx-font-body: "Geist Variable", "Segoe UI", system-ui, sans-serif;
   --lx-font-mono: "Geist Mono Variable", Consolas, ui-monospace, monospace;
 
-  --lx-radius-s: 8px;
-  --lx-radius-m: 12px;
-  --lx-radius-l: 18px;
+  --lx-radius-s: 8px;  /* jaquettes, petits blocs */
+  --lx-radius-m: 10px; /* boutons, contrôles, toast */
+  --lx-radius-l: 12px; /* champ de recherche, tuiles, fiche */
 
-  --lx-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lx-ease: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: dark;
 }
 

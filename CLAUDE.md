@@ -6,7 +6,7 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 
 - Tauri 2 (Rust, edition 2024) dans `src-tauri/`
 - React 19 + TypeScript + Vite dans `src/`
-- Polices embarquées via @fontsource-variable : Bricolage Grotesque (display), Geist (texte), Geist Mono (mono)
+- Polices embarquées via @fontsource-variable : Geist (interface), Geist Mono (chiffres, méta, touches)
 
 ## Commandes
 
@@ -31,7 +31,8 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 
 - Tokens dans `src/styles/tokens.css` (préfixe `--lx-*`), styles dans `src/styles/app.css`.
 - Palette validée : base monochrome (#0B0B0B, #1A1A1A, #242424, #333333, blanc) + accent turquoise #14B8A6. Thème clair via `[data-theme="light"]`. D'autres thèmes viendront plus tard : toujours passer par les tokens, jamais de couleur en dur.
-- `--lx-ambient` : couleur dérivée du jeu sélectionné, utilisée par le voile du haut, les boutons Jouer et le contour de sélection.
+- `--lx-ambient` : couleur dérivée du jeu sélectionné, réservée au contour de sélection. Bouton Jouer en blanc cassé (`--lx-text` sur `--lx-bg`).
+- Passe unslop appliquée : grille de 4px, icônes 18px trait 1.5, graisses 400 à 600, pas de majuscules espacées, chiffres tabulaires, rayons s/m/l = 8/10/12, une seule courbe `--lx-ease`, survol sans déplacement (contour ou voile qui s'éclaircit), léger `scale` au clic.
 
 ## État actuel
 
