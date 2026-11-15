@@ -5,6 +5,7 @@ mod library;
 mod metadata;
 mod session;
 mod store;
+mod tray;
 mod watch;
 
 use library::{Game, Launch, PlaytimeSource, ScanResult};
@@ -16,7 +17,9 @@ use std::sync::{Mutex, MutexGuard, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 use store::UserData;
 use tauri::http::{header, Response, StatusCode};
-use tauri::{Emitter, Manager, Runtime, State};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tauri_plugin_autostart::AutoLaunchManager;
 use tauri_plugin_opener::OpenerExt;
 
 /// Derniers jeux détectés et préférences de l'utilisateur. Le front ne transmet qu'un identifiant :
@@ -46,6 +49,10 @@ struct AppState {
     last_scan: Mutex<Option<Instant>>,
     /// Surveillance des dossiers des launchers, lancée après le premier scan.
     watch: OnceLock<watch::Watch>,
+    /// Dernier menu posé sur l'icône de la zone de notification : reconstruit seulement s'il change.
+    tray_menu: Mutex<Vec<tray::Entry>>,
+    /// Fenêtre sur le point d'être cachée, après l'explication de la première fermeture.
+    hide_pending: AtomicBool,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
@@ -356,6 +363,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     resolve_art(app.clone());
     resolve_images(app.clone());
     resolve_details(app.clone());
+    refresh_tray(app, false);
     Ok((result, changes))
 }
 
@@ -421,7 +429,7 @@ fn auto_rescan(app: &tauri::AppHandle, only_if_stale: bool) -> bool {
 }
 
 /// Modifie les préférences d'un jeu connu, puis les enregistre.
-fn update_data(state: &State<'_, AppState>, id: &str, change: impl FnOnce(&mut UserData, &Game)) -> Result<(), String> {
+fn update_data(state: &AppState, id: &str, change: impl FnOnce(&mut UserData, &Game)) -> Result<(), String> {
     let game = find_game(state, id)?;
     let mut data = lock(&state.data)?;
     change(&mut data, &game);
@@ -438,11 +446,14 @@ fn set_favorite(state: State<'_, AppState>, id: String, value: bool) -> Result<(
 }
 
 #[tauri::command]
-fn set_hidden(state: State<'_, AppState>, id: String, value: bool) -> Result<(), String> {
-    update_data(&state, &id, |data, game| data.set_hidden(game, value))
+fn set_hidden(app: AppHandle, state: State<'_, AppState>, id: String, value: bool) -> Result<(), String> {
+    update_data(&state, &id, |data, game| data.set_hidden(game, value))?;
+    // Un jeu masqué quitte les récents du menu de la zone de notification.
+    refresh_tray(&app, false);
+    Ok(())
 }
 
-fn find_game(state: &State<'_, AppState>, id: &str) -> Result<Game, String> {
+fn find_game(state: &AppState, id: &str) -> Result<Game, String> {
     lock(&state.games)?
         .iter()
         .find(|g| g.id == id)
@@ -462,8 +473,14 @@ fn open_install_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: Strin
 
 /// Lance le jeu et renvoie l'heure du lancement (secondes Unix).
 #[tauri::command]
-fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<u64, String> {
-    let game = find_game(&state, &id)?;
+fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<u64, String> {
+    launch(&app, &state, &id)
+}
+
+/// Lance un jeu connu, démarre son suivi et note la date : commun au front et à la zone de
+/// notification. Renvoie l'heure du lancement (secondes Unix).
+fn launch<R: Runtime>(app: &AppHandle<R>, state: &AppState, id: &str) -> Result<u64, String> {
+    let game = find_game(state, id)?;
 
     match &game.launch {
         Launch::Uri(uri) => app
@@ -482,11 +499,182 @@ fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) ->
     // Surveille le jeu pour l'état « En jeu » et, si son launcher ne le fait pas, son temps de jeu.
     state.tracker.start(&game);
 
-    let mut data = lock(&state.data)?;
-    let now = data.record_launch(&id);
-    // Un historique non enregistré ne doit pas faire croire à un échec du lancement.
-    let _ = data.save(&state.data_path);
+    let now = {
+        let mut data = lock(&state.data)?;
+        let now = data.record_launch(id);
+        // Un historique non enregistré ne doit pas faire croire à un échec du lancement.
+        let _ = data.save(&state.data_path);
+        if let Ok(mut games) = lock(&state.games)
+            && let Some(g) = games.iter_mut().find(|g| g.id == id)
+        {
+            data.apply(g);
+        }
+        now
+    };
+    // Le jeu passe en tête des récents du menu.
+    refresh_tray(app, false);
     Ok(now)
+}
+
+/// Événement `tray-launch` : jeu lancé depuis la zone de notification, pour mettre à jour la date
+/// du dernier lancement côté front, ou afficher l'erreur.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TrayLaunchEvent {
+    id: String,
+    title: String,
+    last_played: Option<u64>,
+    error: Option<String>,
+}
+
+const TRAY_LAUNCH_EVENT: &str = "tray-launch";
+/// Événement `tray-hint` : première fermeture, la fenêtre va se cacher dans la zone de notification.
+const TRAY_HINT_EVENT: &str = "tray-hint";
+/// Temps laissé au toast d'explication avant de cacher la fenêtre.
+const HINT_DELAY: Duration = Duration::from_millis(3200);
+
+/// Affiche la fenêtre principale et la met au premier plan, restaurée si elle était réduite.
+fn show_main<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.hide_pending.store(false, Ordering::SeqCst);
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn autostart_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.try_state::<AutoLaunchManager>().is_some_and(|m| m.is_enabled().unwrap_or(false))
+}
+
+/// Reconstruit le menu de la zone de notification s'il a changé (`force` : toujours, après un
+/// clic sur une case à cocher que Windows a déjà basculée). Aucun verrou n'est tenu pendant la
+/// construction, qui passe par le fil principal.
+fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
+    let (Some(state), Some(icon)) = (app.try_state::<AppState>(), app.tray_by_id(tray::TRAY_ID)) else { return };
+    let keep = lock(&state.data).map(|d| d.settings.keep_in_tray).unwrap_or(true);
+    let autostart = autostart_enabled(app);
+    let Ok(entries) = lock(&state.games).map(|games| tray::entries(&tray::recent(&games, tray::RECENT_COUNT), autostart, keep)) else {
+        return;
+    };
+    match lock(&state.tray_menu) {
+        Ok(mut last) if force || *last != entries => *last = entries.clone(),
+        _ => return,
+    }
+    match tray::build(app, &entries) {
+        Ok(menu) => {
+            if let Err(e) = icon.set_menu(Some(menu)) {
+                eprintln!("Menu de la zone de notification non mis à jour : {e}");
+            }
+        }
+        Err(e) => eprintln!("Menu de la zone de notification non construit : {e}"),
+    }
+}
+
+/// Modifie les réglages de l'application, puis les enregistre.
+fn update_settings<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut store::Settings)) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if let Ok(mut data) = lock(&state.data) {
+        change(&mut data.settings);
+        if let Err(e) = data.save(&state.data_path) {
+            eprintln!("Réglages non enregistrés : {e}");
+        }
+    }
+}
+
+/// Active ou coupe le lancement avec Windows. L'entrée du registre fait foi : le réglage
+/// enregistré reprend son état réel après la modification.
+fn toggle_autostart<R: Runtime>(app: &AppHandle<R>) {
+    let Some(manager) = app.try_state::<AutoLaunchManager>() else { return };
+    let result = if autostart_enabled(app) { manager.disable() } else { manager.enable() };
+    if let Err(e) = result {
+        eprintln!("Lancement avec Windows non modifié : {e}");
+    }
+    let enabled = autostart_enabled(app);
+    update_settings(app, |s| s.launch_at_startup = enabled);
+}
+
+fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
+    match tray::action(id) {
+        Some(tray::Action::Launch(game)) => {
+            let Some(state) = app.try_state::<AppState>() else { return };
+            let title = find_game(&state, &game).map_or_else(|_| "ce jeu".to_string(), |g| g.title);
+            let event = match launch(app, &state, &game) {
+                Ok(ts) => TrayLaunchEvent { id: game, title, last_played: Some(ts), error: None },
+                Err(e) => {
+                    // L'erreur s'affiche dans la fenêtre : elle doit être visible.
+                    show_main(app);
+                    TrayLaunchEvent { id: game, title, last_played: None, error: Some(e) }
+                }
+            };
+            let _ = app.emit(TRAY_LAUNCH_EVENT, event);
+        }
+        Some(tray::Action::Open) => show_main(app),
+        Some(tray::Action::ToggleAutostart) => {
+            toggle_autostart(app);
+            refresh_tray(app, true);
+        }
+        Some(tray::Action::ToggleKeepInTray) => {
+            update_settings(app, |s| s.keep_in_tray = !s.keep_in_tray);
+            refresh_tray(app, true);
+        }
+        Some(tray::Action::Quit) => app.exit(0),
+        None => {}
+    }
+}
+
+/// Pose l'icône dans la zone de notification. Clic gauche : la fenêtre ; clic droit : le menu.
+fn create_tray(app: &tauri::App) -> tauri::Result<()> {
+    let mut builder = TrayIconBuilder::with_id(tray::TRAY_ID)
+        .tooltip("Ludex")
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| on_tray_menu(app, event.id().as_ref()))
+        .on_tray_icon_event(|icon, event| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                show_main(icon.app_handle());
+            }
+        });
+    if let Some(image) = app.default_window_icon() {
+        builder = builder.icon(image.clone());
+    }
+    builder.build(app)?;
+    refresh_tray(app.handle(), true);
+    Ok(())
+}
+
+/// Fermeture de la fenêtre avec « garder dans la zone de notification » actif : la fenêtre est
+/// cachée, Ludex continue (suivi des parties compris). La première fois, le front explique ce qui
+/// se passe avant que la fenêtre ne disparaisse.
+fn hide_to_tray<R: Runtime>(window: &tauri::Window<R>, state: &AppState) {
+    let first = lock(&state.data).is_ok_and(|mut data| {
+        let first = !data.settings.tray_hint_shown;
+        if first {
+            data.settings.tray_hint_shown = true;
+            if let Err(e) = data.save(&state.data_path) {
+                eprintln!("Réglages non enregistrés : {e}");
+            }
+        }
+        first
+    });
+    if !first || window.emit(TRAY_HINT_EVENT, ()).is_err() {
+        let _ = window.hide();
+        return;
+    }
+    state.hide_pending.store(true, Ordering::SeqCst);
+    let window = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(HINT_DELAY);
+        // Fenêtre ré-affichée entre-temps (icône, nouvelle instance) : elle reste visible.
+        if window.app_handle().try_state::<AppState>().is_some_and(|s| s.hide_pending.swap(false, Ordering::SeqCst)) {
+            let _ = window.hide();
+        }
+    });
+}
+
+fn keep_in_tray(state: &AppState) -> bool {
+    lock(&state.data).map(|d| d.settings.keep_in_tray).unwrap_or(true)
 }
 
 /// Version d'un fichier pour l'en-tête `ETag` : taille et date de modification.
@@ -544,6 +732,10 @@ fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_matc
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // En premier : relancer Ludex alors qu'il tourne ramène la fenêtre existante.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        // Utilisé depuis Rust seulement (menu de la zone de notification) : aucune permission au front.
+        .plugin(tauri_plugin_autostart::Builder::new().arg(tray::MINIMIZED_ARG).build())
         .plugin(tauri_plugin_opener::init())
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
@@ -570,19 +762,36 @@ pub fn run() {
                 scan_lock: Mutex::new(()),
                 last_scan: Mutex::new(None),
                 watch: OnceLock::new(),
+                tray_menu: Mutex::default(),
+                hide_pending: AtomicBool::new(false),
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
+            // Le réglage enregistré reprend l'état réel du registre (entrée retirée par Windows…).
+            let enabled = autostart_enabled(app.handle());
+            update_settings(app.handle(), |s| s.launch_at_startup = enabled);
+            create_tray(app)?;
+            // Fenêtre créée cachée : lancé avec Windows, Ludex reste dans la zone de notification.
+            if !std::env::args().any(|a| a == tray::MINIMIZED_ARG) {
+                show_main(app.handle());
+            }
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match event {
             // Retour sur Ludex après un long moment : relit les launchers sans surveillance.
-            if let tauri::WindowEvent::Focused(true) = event
-                && window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s))
-            {
+            tauri::WindowEvent::Focused(true) if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) => {
                 let app = window.app_handle().clone();
                 std::thread::spawn(move || auto_rescan(&app, true));
             }
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                if let Some(state) = window.app_handle().try_state::<AppState>()
+                    && keep_in_tray(&state)
+                {
+                    api.prevent_close();
+                    hide_to_tray(window, &state);
+                }
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             scan_library,

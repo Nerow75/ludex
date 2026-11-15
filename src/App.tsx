@@ -6,6 +6,8 @@ import {
   onGameDetails,
   onGameSession,
   onLibraryChanged,
+  onTrayHint,
+  onTrayLaunch,
   openInstallDir,
   PLATFORM_LABEL,
   PLATFORMS,
@@ -163,6 +165,22 @@ export default function App() {
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [showToast]);
+
+  // Zone de notification : jeu lancé depuis son menu, et explication à la première fermeture
+  // (la fenêtre se cache quelques secondes après).
+  useEffect(() => {
+    const launched = onTrayLaunch(({ id, title, lastPlayed, error }) => {
+      if (lastPlayed !== null) patchGame(id, { lastPlayed });
+      if (error) showToast({ title: `Impossible de lancer ${title}`, detail: error, error: true }, 6000);
+    });
+    const hint = onTrayHint(() =>
+      showToast({ title: "Ludex reste ouvert dans la zone de notification", detail: "Le temps de jeu continue d'être mesuré. Clic droit sur l'icône, puis Quitter, pour le fermer." }, 3600),
+    );
+    return () => {
+      launched.then((stop) => stop()).catch(() => {});
+      hint.then((stop) => stop()).catch(() => {});
+    };
+  }, [patchGame, showToast]);
 
   // Fiches (genres, studio, sortie) reçues en arrière-plan après le scan.
   useEffect(() => {

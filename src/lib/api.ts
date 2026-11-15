@@ -151,3 +151,14 @@ export interface LibraryEvent {
 }
 export const onLibraryChanged = (handler: (event: LibraryEvent) => void): Promise<UnlistenFn> =>
   listen<LibraryEvent>("library-changed", (e) => handler(e.payload));
+/** Jeu lancé depuis le menu de la zone de notification : date du lancement, ou erreur. */
+export interface TrayLaunchEvent {
+  id: string;
+  title: string;
+  lastPlayed: number | null;
+  error: string | null;
+}
+export const onTrayLaunch = (handler: (event: TrayLaunchEvent) => void): Promise<UnlistenFn> =>
+  listen<TrayLaunchEvent>("tray-launch", (e) => handler(e.payload));
+/** Première fermeture de la fenêtre : Ludex se cache dans la zone de notification. */
+export const onTrayHint = (handler: () => void): Promise<UnlistenFn> => listen("tray-hint", () => handler());
