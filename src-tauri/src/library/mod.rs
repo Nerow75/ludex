@@ -65,6 +65,39 @@ pub struct Game {
     pub launch_label: String,
     #[serde(skip)]
     pub launch: Launch,
+    /// Images trouvées dans le cache local du launcher, servies par le protocole `ludex`.
+    #[serde(skip)]
+    pub local_art: LocalArt,
+}
+
+/// Fichiers image locaux d'un jeu. Jamais envoyés au front : il ne voit qu'une URL `ludex`.
+#[derive(Clone, Debug, Default)]
+pub struct LocalArt {
+    pub cover: Option<PathBuf>,
+    pub hero: Option<PathBuf>,
+    pub logo: Option<PathBuf>,
+}
+
+impl LocalArt {
+    pub fn get(&self, kind: &str) -> Option<&PathBuf> {
+        match kind {
+            "cover" => self.cover.as_ref(),
+            "hero" => self.hero.as_ref(),
+            "logo" => self.logo.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+/// Origine du protocole `ludex` dans la WebView (Windows : `http://<schéma>.localhost`).
+#[cfg(windows)]
+pub const ART_ORIGIN: &str = "http://ludex.localhost";
+#[cfg(not(windows))]
+pub const ART_ORIGIN: &str = "ludex://localhost";
+
+/// URL d'une image locale : `/<plateforme>/<id plateforme>/<type>`, résolue côté Rust depuis l'état.
+pub fn art_url(game: &Game, kind: &str) -> String {
+    format!("{ART_ORIGIN}/{}/{kind}", game.id.replacen(':', "/", 1))
 }
 
 impl Game {
@@ -90,6 +123,7 @@ impl Game {
             hidden: false,
             launch_label: launch.label(),
             launch,
+            local_art: LocalArt::default(),
         }
     }
 }

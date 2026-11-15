@@ -1,7 +1,7 @@
 //! Steam : bibliothèques listées dans `steamapps/libraryfolders.vdf`,
 //! un `appmanifest_<appid>.acf` par jeu installé.
 
-use super::{vdf, Game, Launch, Platform};
+use super::{art_url, vdf, Game, LocalArt, Launch, Platform};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,6 +21,42 @@ fn is_tool(appid: &str, title: &str) -> bool {
 /// Champ numérique d'un manifeste, `None` si absent ou nul.
 fn number(app: &vdf::Vdf, key: &str) -> Option<u64> {
     app.str(key).and_then(|v| v.parse().ok()).filter(|&n| n > 0)
+}
+
+/// Noms de fichiers du cache d'images de Steam, du meilleur au moins bon.
+const COVER_FILES: &[&str] = &["library_600x900_2x.jpg", "library_600x900.jpg", "library_capsule.jpg"];
+const HERO_FILES: &[&str] = &["library_hero.jpg"];
+const LOGO_FILES: &[&str] = &["logo.png"];
+
+/// Images d'un jeu dans `appcache/librarycache/<appid>/`. Steam les range soit à plat,
+/// soit (jeux récents) dans des sous-dossiers nommés par un hash : on regarde les deux.
+fn local_art(cache: &Path, appid: &str) -> LocalArt {
+    let dir = cache.join(appid);
+    let mut files: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Ok(sub) = fs::read_dir(&path) {
+                    files.extend(sub.flatten().map(|e| e.path()).filter(|p| p.is_file()));
+                }
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    let pick = |names: &[&str]| -> Option<PathBuf> {
+        names.iter().find_map(|name| {
+            // Plusieurs versions possibles d'une même image : la plus récente gagne.
+            files
+                .iter()
+                .filter(|p| p.file_name().is_some_and(|n| n.eq_ignore_ascii_case(name)))
+                .filter(|p| fs::metadata(p).is_ok_and(|m| m.len() > 0))
+                .max_by_key(|p| fs::metadata(p).and_then(|m| m.modified()).ok())
+                .cloned()
+        })
+    };
+    LocalArt { cover: pick(COVER_FILES), hero: pick(HERO_FILES), logo: pick(LOGO_FILES) }
 }
 
 fn steam_root() -> Option<PathBuf> {
@@ -76,6 +112,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let Some(root) = steam_root() else { return Ok(None) };
     let mut games = Vec::new();
     let mut seen = HashSet::new();
+    let art_cache = root.join("appcache").join("librarycache");
 
     for library in library_paths(&root) {
         let steamapps = library.join("steamapps");
@@ -104,9 +141,14 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             game.install_dir = app
                 .str("installdir")
                 .map(|d| steamapps.join("common").join(d).to_string_lossy().into_owned());
-            game.cover_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_600x900_2x.jpg"));
-            game.hero_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_hero.jpg"));
-            game.logo_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/logo.png"));
+            // Cache local de Steam d'abord (hors ligne, et seule source pour les jeux récents
+            // dont les images ont une URL hachée sur le CDN), sinon l'URL classique du CDN.
+            let art = local_art(&art_cache, appid);
+            let cdn = |file: &str| format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/{file}");
+            game.cover_url = Some(if art.cover.is_some() { art_url(&game, "cover") } else { cdn("library_600x900_2x.jpg") });
+            game.hero_url = Some(if art.hero.is_some() { art_url(&game, "hero") } else { cdn("library_hero.jpg") });
+            game.logo_url = Some(if art.logo.is_some() { art_url(&game, "logo") } else { cdn("logo.png") });
+            game.local_art = art;
             game.last_played = number(app, "LastPlayed");
             game.size_on_disk = number(app, "SizeOnDisk");
             game.is_tool = is_tool(appid, title);
@@ -118,7 +160,36 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_tool;
+    use super::{is_tool, local_art};
+    use std::fs;
+
+    #[test]
+    fn finds_local_art_flat_and_hashed() {
+        let cache = std::env::temp_dir().join(format!("ludex-art-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&cache);
+        // Ancien rangement : fichiers à plat.
+        fs::create_dir_all(cache.join("10")).unwrap();
+        fs::write(cache.join("10").join("library_600x900.jpg"), b"x").unwrap();
+        fs::write(cache.join("10").join("logo.png"), b"x").unwrap();
+        // Rangement récent : sous-dossiers nommés par un hash, jaquette appelée library_capsule.
+        fs::create_dir_all(cache.join("20").join("abc")).unwrap();
+        fs::create_dir_all(cache.join("20").join("def")).unwrap();
+        fs::write(cache.join("20").join("abc").join("library_capsule.jpg"), b"x").unwrap();
+        fs::write(cache.join("20").join("def").join("library_hero.jpg"), b"x").unwrap();
+        fs::write(cache.join("20").join("def").join("logo.png"), b"").unwrap(); // vide : ignoré
+
+        let flat = local_art(&cache, "10");
+        assert!(flat.cover.as_ref().unwrap().ends_with("10/library_600x900.jpg"));
+        assert!(flat.logo.is_some() && flat.hero.is_none());
+
+        let hashed = local_art(&cache, "20");
+        assert!(hashed.cover.as_ref().unwrap().ends_with("abc/library_capsule.jpg"));
+        assert!(hashed.hero.as_ref().unwrap().ends_with("def/library_hero.jpg"));
+        assert!(hashed.logo.is_none());
+
+        assert!(local_art(&cache, "30").cover.is_none());
+        let _ = fs::remove_dir_all(&cache);
+    }
 
     #[test]
     fn detects_tools() {

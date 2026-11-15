@@ -5,7 +5,8 @@ use library::{Game, Launch, ScanResult};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use store::UserData;
-use tauri::{Manager, State};
+use tauri::http::{header, Response, StatusCode};
+use tauri::{Manager, Runtime, State};
 use tauri_plugin_opener::OpenerExt;
 
 /// Derniers jeux détectés et préférences de l'utilisateur. Le front ne transmet qu'un identifiant :
@@ -95,10 +96,45 @@ fn launch_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) ->
     Ok(now)
 }
 
+/// Sert une image locale d'un jeu connu. L'URL n'est jamais lue comme un chemin :
+/// `/<plateforme>/<id plateforme>/<type>` désigne un jeu de l'état, qui fournit le fichier.
+fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str) -> Response<Vec<u8>> {
+    let not_found = || Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap();
+    let mut parts = uri_path.trim_start_matches('/').splitn(3, '/');
+    let (Some(platform), Some(platform_id), Some(kind)) = (parts.next(), parts.next(), parts.next()) else {
+        return not_found();
+    };
+    let id = format!("{platform}:{platform_id}");
+    let Some(state) = app.try_state::<AppState>() else { return not_found() };
+    let file = match lock(&state.games) {
+        Ok(games) => games.iter().find(|g| g.id == id).and_then(|g| g.local_art.get(kind).cloned()),
+        Err(_) => None,
+    };
+    let Some(file) = file else { return not_found() };
+    let Ok(bytes) = std::fs::read(&file) else { return not_found() };
+    let mime = match file.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        _ => "image/jpeg",
+    };
+    Response::builder()
+        .header(header::CONTENT_TYPE, mime)
+        // Lecture des pixels (couleur du jeu) depuis un canvas.
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(header::CACHE_CONTROL, "max-age=86400")
+        .body(bytes)
+        .unwrap_or_else(|_| not_found())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            let path = request.uri().path().to_string();
+            tauri::async_runtime::spawn_blocking(move || responder.respond(serve_art(&app, &path)));
+        })
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let data_path = store::file_in(dir);
