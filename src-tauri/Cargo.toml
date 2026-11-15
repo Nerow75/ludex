@@ -26,6 +26,7 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 sysinfo = { version = "0.40.3", default-features = false, features = ["system"] }
 
 [target.'cfg(windows)'.dependencies]
+pelite = "0.10"
 winreg = "0.55"
 
 

@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot";
+export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "other";
 export type PlaytimeSource = "launcher" | "ludex";
 /** `detecting` : lancé, le jeu n'est pas encore visible ; `running` : en jeu ; `ended` : terminé. */
 export type SessionPhase = "detecting" | "running" | "ended";
 
-export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "rockstar", "xbox", "riot"];
+export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "other"];
 
 export interface Game {
   id: string;
@@ -60,6 +60,9 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   rockstar: "Rockstar",
   xbox: "Xbox",
   riot: "Riot",
+  battlenet: "Battle.net",
+  ea: "EA",
+  other: "Autres",
 };
 
 export const scanLibrary = () => invoke<ScanResult>("scan_library");

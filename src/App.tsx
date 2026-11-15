@@ -410,7 +410,7 @@ export default function App() {
             title="Aucun jeu trouvé sur ce PC"
             action={<button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>}
           >
-            Ludex lit les jeux installés par Steam, Epic Games, GOG, Ubisoft, Rockstar, Xbox et Riot, sans connexion à tes comptes.
+            Ludex lit les jeux installés par Steam, Epic Games, GOG, Ubisoft, EA, Battle.net, Rockstar, Xbox et Riot, ainsi que les dossiers « Jeux » et « Games » de tes disques, sans connexion à tes comptes.
             Installe un jeu avec l'un d'eux, puis relance un scan.
             <span className="empty__sources">
               {scan.sources.map((s) => (

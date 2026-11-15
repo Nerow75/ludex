@@ -1,8 +1,11 @@
 //! Détection des jeux installés, launcher par launcher.
 //! Chaque source lit uniquement des fichiers locaux : aucune connexion à un compte n'est nécessaire.
 
+mod battlenet;
+mod ea;
 mod epic;
 mod gog;
+mod local;
 mod riot;
 mod rockstar;
 mod steam;
@@ -23,6 +26,10 @@ pub enum Platform {
     Ubisoft,
     Rockstar,
     Xbox,
+    Battlenet,
+    Ea,
+    /// Lanceurs tiers et jeux sans launcher, trouvés dans les dossiers de jeux.
+    Other,
 }
 
 /// Comment demander au launcher de lancer le jeu.
@@ -135,6 +142,9 @@ impl Game {
             Platform::Ubisoft => "ubisoft",
             Platform::Rockstar => "rockstar",
             Platform::Xbox => "xbox",
+            Platform::Battlenet => "battlenet",
+            Platform::Ea => "ea",
+            Platform::Other => "other",
         };
         Game {
             id: format!("{prefix}:{platform_id}"),
@@ -191,23 +201,36 @@ type SourceFn = fn() -> Result<Option<Vec<Game>>, String>;
 
 pub fn scan() -> ScanResult {
     // Ordre = priorité : un jeu vu par deux launchers (même dossier) reste au premier.
-    let sources: [(Platform, SourceFn); 7] = [
+    // « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
+    let sources: [(Platform, SourceFn); 10] = [
         (Platform::Steam, steam::scan),
         (Platform::Epic, epic::scan),
         (Platform::Gog, gog::scan),
         (Platform::Ubisoft, ubisoft::scan),
+        (Platform::Ea, ea::scan),
+        (Platform::Battlenet, battlenet::scan),
         (Platform::Rockstar, rockstar::scan),
         (Platform::Xbox, xbox::scan),
         (Platform::Riot, riot::scan),
+        (Platform::Other, local::scan),
     ];
 
     let mut games = Vec::new();
     let mut reports = Vec::new();
-    let mut dirs = std::collections::HashSet::new();
+    let mut dirs: Vec<String> = Vec::new();
     for (platform, source) in sources {
         match source() {
             Ok(Some(mut found)) => {
-                found.retain(|g| g.install_dir.as_deref().is_none_or(|d| dirs.insert(dir_key(d))));
+                found.retain(|g| {
+                    let Some(dir) = g.install_dir.as_deref() else { return true };
+                    let key = dir_key(dir);
+                    // Même dossier, ou dossier qui contient (ou est contenu dans) un jeu déjà vu.
+                    let overlaps = dirs.iter().any(|d| d == &key || is_inside(&key, d) || is_inside(d, &key));
+                    if !overlaps {
+                        dirs.push(key);
+                    }
+                    !overlaps
+                });
                 reports.push(SourceReport { platform, installed: true, count: found.len(), error: None });
                 games.extend(found);
             }
@@ -233,6 +256,13 @@ mod tests {
     }
 
     #[test]
+    fn nested_folders_overlap() {
+        assert!(super::is_inside(r"d:\jeux ssd\gta v\grand theft auto v", r"d:\jeux ssd\gta v"));
+        assert!(!super::is_inside(r"d:\jeux ssd\gta v2", r"d:\jeux ssd\gta v"));
+        assert!(!super::is_inside(r"d:\jeux ssd\gta v", r"d:\jeux ssd\gta v"));
+    }
+
+    #[test]
     #[ignore]
     fn scan_this_pc() {
         let result = super::scan();
@@ -253,6 +283,11 @@ mod tests {
             println!("  {}  ·  {}", g.title, hours(g));
         }
     }
+}
+
+/// `dir` est-il un sous-dossier de `parent` ? (clés de `dir_key`)
+fn is_inside(dir: &str, parent: &str) -> bool {
+    dir.len() > parent.len() && dir.starts_with(parent) && dir.as_bytes()[parent.len()] == b'\\'
 }
 
 /// Clé de comparaison d'un dossier : casse et séparateurs ignorés.
