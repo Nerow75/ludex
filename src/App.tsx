@@ -20,9 +20,11 @@ export default function App() {
   const [ambient, setAmbient] = useState<string | null>(null);
   const toastTimer = useRef<number>(undefined);
 
-  const games = scan?.games ?? [];
+  // Les applis masquées (Wallpaper Engine…) restent dans le scan mais sortent de la bibliothèque.
+  const games = useMemo(() => (scan?.games ?? []).filter((g) => !g.hidden), [scan]);
   const visible = useMemo(() => (filter === "all" ? games : games.filter((g) => g.platform === filter)), [games, filter]);
-  const selected = games.find((g) => g.id === selectedId) ?? visible[0] ?? null;
+  const lastPlayed = useMemo(() => games.reduce<Game | null>((best, g) => ((g.lastPlayed ?? 0) > (best?.lastPlayed ?? 0) ? g : best), null), [games]);
+  const selected = games.find((g) => g.id === selectedId) ?? lastPlayed ?? visible[0] ?? null;
 
   const refresh = useCallback(async () => {
     setScanning(true);
@@ -157,7 +159,7 @@ export default function App() {
               </button>
               {installedSources.map((s) => (
                 <button key={s.platform} type="button" className="chip" aria-pressed={filter === s.platform} onClick={() => setFilter(s.platform)}>
-                  {PLATFORM_LABEL[s.platform]} <span>{s.count}</span>
+                  {PLATFORM_LABEL[s.platform]} <span>{games.filter((g) => g.platform === s.platform).length}</span>
                 </button>
               ))}
             </div>

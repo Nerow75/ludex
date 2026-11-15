@@ -52,6 +52,16 @@ pub struct Game {
     pub install_dir: Option<String>,
     pub cover_url: Option<String>,
     pub hero_url: Option<String>,
+    pub logo_url: Option<String>,
+    /// Dernière session connue du launcher (secondes Unix).
+    pub last_played: Option<u64>,
+    /// Taille sur le disque en octets, si le launcher la fournit.
+    pub size_on_disk: Option<u64>,
+    /// Application ou outil plutôt qu'un jeu (masqué par défaut).
+    pub is_tool: bool,
+    /// Préférences de l'utilisateur, appliquées par `lib.rs` depuis le stockage local.
+    pub favorite: bool,
+    pub hidden: bool,
     pub launch_label: String,
     #[serde(skip)]
     pub launch: Launch,
@@ -72,6 +82,12 @@ impl Game {
             install_dir: None,
             cover_url: None,
             hero_url: None,
+            logo_url: None,
+            last_played: None,
+            size_on_disk: None,
+            is_tool: false,
+            favorite: false,
+            hidden: false,
             launch_label: launch.label(),
             launch,
         }

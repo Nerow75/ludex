@@ -10,6 +10,15 @@ export interface Game {
   installDir: string | null;
   coverUrl: string | null;
   heroUrl: string | null;
+  logoUrl: string | null;
+  /** Dernière session (secondes Unix), launcher ou Ludex. */
+  lastPlayed: number | null;
+  /** Taille sur le disque, en octets. */
+  sizeOnDisk: number | null;
+  /** Application plutôt qu'un jeu (masquée par défaut). */
+  isTool: boolean;
+  favorite: boolean;
+  hidden: boolean;
   launchLabel: string;
 }
 
@@ -32,5 +41,8 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
 };
 
 export const scanLibrary = () => invoke<ScanResult>("scan_library");
-export const launchGame = (id: string) => invoke<void>("launch_game", { id });
+/** Renvoie l'heure du lancement (secondes Unix). */
+export const launchGame = (id: string) => invoke<number>("launch_game", { id });
+export const setFavorite = (id: string, value: boolean) => invoke<void>("set_favorite", { id, value });
+export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidden", { id, value });
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });

@@ -10,6 +10,19 @@ use std::path::{Path, PathBuf};
 const EXCLUDED_APPIDS: &[&str] = &["228980", "1070560", "1391110", "1628350", "1826330", "250820"];
 const EXCLUDED_PREFIXES: &[&str] = &["Proton", "Steam Linux Runtime", "Steamworks Common"];
 
+/// Applications installées via Steam qui ne sont pas des jeux : gardées, mais masquées par défaut.
+const TOOL_APPIDS: &[&str] = &["431960"]; // Wallpaper Engine
+const TOOL_SUFFIXES: &[&str] = &[" Editor", " Dedicated Server", " SDK", " Soundtrack"];
+
+fn is_tool(appid: &str, title: &str) -> bool {
+    TOOL_APPIDS.contains(&appid) || TOOL_SUFFIXES.iter().any(|s| title.ends_with(s))
+}
+
+/// Champ numérique d'un manifeste, `None` si absent ou nul.
+fn number(app: &vdf::Vdf, key: &str) -> Option<u64> {
+    app.str(key).and_then(|v| v.parse().ok()).filter(|&n| n > 0)
+}
+
 fn steam_root() -> Option<PathBuf> {
     #[cfg(windows)]
     {
@@ -93,8 +106,24 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
                 .map(|d| steamapps.join("common").join(d).to_string_lossy().into_owned());
             game.cover_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_600x900_2x.jpg"));
             game.hero_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/library_hero.jpg"));
+            game.logo_url = Some(format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/logo.png"));
+            game.last_played = number(app, "LastPlayed");
+            game.size_on_disk = number(app, "SizeOnDisk");
+            game.is_tool = is_tool(appid, title);
             games.push(game);
         }
     }
     Ok(Some(games))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_tool;
+
+    #[test]
+    fn detects_tools() {
+        assert!(is_tool("431960", "Wallpaper Engine"));
+        assert!(is_tool("1624110", "Football Manager 2022 Editor"));
+        assert!(!is_tool("730", "Counter-Strike 2"));
+    }
 }

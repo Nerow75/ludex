@@ -65,6 +65,7 @@ fn parse_item(item: &Value) -> Option<Game> {
 
     let mut game = Game::new(Platform::Epic, app_name, title, Launch::Uri(uri));
     game.install_dir = (!install.is_empty()).then(|| install.to_string());
+    game.size_on_disk = item.get("InstallSize").and_then(Value::as_u64).filter(|&n| n > 0);
     Some(game)
 }
 

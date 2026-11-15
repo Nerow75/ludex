@@ -18,7 +18,7 @@ export function Hero({ game, onPlay, onOpenFolder }: Props) {
       <span className="hero__glow" aria-hidden />
       {showHero && (
         <img
-          key={game.id}
+          key={`art-${game.id}`}
           className="hero__art"
           src={game.heroUrl!}
           alt=""
@@ -41,7 +41,7 @@ export function Hero({ game, onPlay, onOpenFolder }: Props) {
           )}
         </div>
       </div>
-      <Cover key={game.id} game={game} className="hero__cover" />
+      <Cover key={`cover-${game.id}`} game={game} className="hero__cover" />
     </section>
   );
 }
