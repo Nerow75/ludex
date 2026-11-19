@@ -26,12 +26,13 @@ export function relativeTime(ts: number | null): string {
   const d = Math.max(0, now() - ts);
   const days = Math.floor(d / 86400);
   if (d < 60) return "à l'instant";
-  if (d < 3600) return `il y a ${Math.round(d / 60)} min`;
-  if (d < 86400) return `il y a ${Math.round(d / 3600)} h`;
+  // Arrondi plafonné : 59 min 50 s reste « 59 min », pas « 60 min ».
+  if (d < 3600) return `il y a ${Math.min(59, Math.round(d / 60))} min`;
+  if (d < 86400) return `il y a ${Math.min(23, Math.round(d / 3600))} h`;
   if (days < 2) return "hier";
   if (days < 30) return `il y a ${days} jours`;
-  const months = Math.round(days / 30.4);
-  return months < 12 ? `il y a ${months} mois` : "il y a plus d'un an";
+  // Moins d'un an : 11 mois au plus (350 jours n'est pas « plus d'un an »).
+  return days < 365 ? `il y a ${Math.min(11, Math.round(days / 30.4))} mois` : "il y a plus d'un an";
 }
 
 const hoursFine = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });

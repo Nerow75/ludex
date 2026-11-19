@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rapport JSON écrit par le proxy RTK quand il lance Vitest
+.vitest
