@@ -4,6 +4,7 @@ mod images;
 mod library;
 mod metadata;
 mod recap;
+mod screenshots;
 mod session;
 mod showcase;
 mod store;
@@ -59,6 +60,8 @@ struct AppState {
     tray_menu: Mutex<Vec<tray::Entry>>,
     /// Fenêtre sur le point d'être cachée, après l'explication de la première fermeture.
     hide_pending: AtomicBool,
+    /// Captures envoyées au front, retrouvées par leur empreinte pour être servies.
+    shots: Mutex<screenshots::Index>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
@@ -973,7 +976,6 @@ fn read_art(file: &std::path::Path, kind: &str) -> Option<(Vec<u8>, &'static str
 /// fournit le fichier. `no-cache` + `ETag` : la WebView revalide (réponse 304 sans lecture du
 /// fichier) et voit tout de suite une image remplacée sous la même URL.
 fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_match: Option<&str>) -> Response<Vec<u8>> {
-    let not_found = || Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap();
     let mut parts = uri_path.trim_start_matches('/').splitn(3, '/');
     let (Some(platform), Some(platform_id), Some(kind)) = (parts.next(), parts.next(), parts.next()) else {
         return not_found();
@@ -985,7 +987,16 @@ fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_matc
         Err(_) => None,
     };
     let Some(file) = file else { return not_found() };
-    let tag = etag(&file);
+    serve_file(&file, if_none_match, |f| read_art(f, kind))
+}
+
+fn not_found() -> Response<Vec<u8>> {
+    Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap_or_default()
+}
+
+/// Réponse pour un fichier local, revalidée par `ETag` (304 sans lecture du fichier).
+fn serve_file(file: &Path, if_none_match: Option<&str>, read: impl FnOnce(&Path) -> Option<(Vec<u8>, &'static str)>) -> Response<Vec<u8>> {
+    let tag = etag(file);
     let builder = Response::builder()
         // Lecture des pixels (couleur du jeu) depuis un canvas.
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
@@ -997,8 +1008,111 @@ fn serve_art<R: Runtime>(app: &tauri::AppHandle<R>, uri_path: &str, if_none_matc
     if tag.is_some() && tag.as_deref() == if_none_match {
         return builder.status(StatusCode::NOT_MODIFIED).body(Vec::new()).unwrap_or_else(|_| not_found());
     }
-    let Some((bytes, mime)) = read_art(&file, kind) else { return not_found() };
+    let Some((bytes, mime)) = read(file) else { return not_found() };
     builder.header(header::CONTENT_TYPE, mime).body(bytes).unwrap_or_else(|_| not_found())
+}
+
+/// Sert une capture : `/capture/<empreinte>/<thumb|full>`. L'empreinte doit venir d'un relevé
+/// (`game_screenshots`, `all_screenshots`) et le fichier être encore dans un dossier de captures
+/// connu (`screenshots::Index::file`). Jamais de chemin dans l'URL.
+fn serve_capture<R: Runtime>(app: &tauri::AppHandle<R>, rest: &str, if_none_match: Option<&str>, range: Option<&str>) -> Response<Vec<u8>> {
+    let mut parts = rest.split('/');
+    let (Some(key), Some(kind), None) = (parts.next(), parts.next(), parts.next()) else { return not_found() };
+    if !screenshots::valid_key(key) || !matches!(kind, "thumb" | "full") {
+        return not_found();
+    }
+    let Some(state) = app.try_state::<AppState>() else { return not_found() };
+    let Some(file) = lock(&state.shots).ok().and_then(|index| index.file(key, kind == "thumb")) else { return not_found() };
+    if file.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4")) {
+        return serve_video(&file, range);
+    }
+    serve_file(&file, if_none_match, |f| {
+        let bytes = std::fs::read(f).ok()?;
+        let mime = screenshots::mime(f, &bytes);
+        Some((bytes, mime))
+    })
+}
+
+/// Vidéo servie par morceaux (`Range`) : la lecture et le déplacement dans la vidéo ne chargent
+/// jamais le fichier entier en mémoire.
+fn serve_video(file: &Path, range: Option<&str>) -> Response<Vec<u8>> {
+    let Ok(len) = std::fs::metadata(file).map(|m| m.len()) else { return not_found() };
+    let Some((start, end)) = screenshots::byte_range(range, len) else {
+        return Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header(header::CONTENT_RANGE, format!("bytes */{len}"))
+            .body(Vec::new())
+            .unwrap_or_else(|_| not_found());
+    };
+    let Some(bytes) = screenshots::read_range(file, start, end) else { return not_found() };
+    let partial = range.is_some() || end + 1 < len;
+    let mut builder = Response::builder()
+        .status(if partial { StatusCode::PARTIAL_CONTENT } else { StatusCode::OK })
+        .header(header::CONTENT_TYPE, "video/mp4")
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CACHE_CONTROL, "no-cache");
+    if partial {
+        builder = builder.header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"));
+    }
+    builder.body(bytes).unwrap_or_else(|_| not_found())
+}
+
+/// Jeux de l'état et dossiers de captures, pour un relevé hors du verrou des jeux.
+fn screenshot_context(state: &AppState) -> Result<(Vec<Game>, screenshots::Roots), String> {
+    Ok((lock(&state.games)?.clone(), screenshots::Roots::this_pc()))
+}
+
+/// Captures d'un jeu, la plus récente d'abord.
+#[tauri::command]
+async fn game_screenshots(app: tauri::AppHandle, id: String) -> Result<Vec<screenshots::Shot>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        find_game(&state, &id)?;
+        let (games, roots) = screenshot_context(&state)?;
+        let shots = screenshots::collect(&roots, &games, Some(&id));
+        lock(&state.shots)?.remember(&roots, &shots, false);
+        Ok(shots)
+    })
+    .await
+}
+
+/// Toutes les captures, groupées par jeu (« Autres captures » en dernier).
+#[tauri::command]
+async fn all_screenshots(app: tauri::AppHandle) -> Result<Vec<screenshots::Group>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let (games, roots) = screenshot_context(&state)?;
+        let shots = screenshots::collect(&roots, &games, None);
+        lock(&state.shots)?.remember(&roots, &shots, true);
+        Ok(screenshots::group(shots, &games))
+    })
+    .await
+}
+
+/// Montre une capture dans l'Explorateur. `id` : jeu de la capture, `None` pour « Autres captures ».
+/// Le chemin est retrouvé par un nouveau relevé côté Rust, jamais reçu du front.
+#[tauri::command]
+async fn show_screenshot(app: tauri::AppHandle, id: Option<String>, key: String) -> Result<(), String> {
+    if !screenshots::valid_key(&key) {
+        return Err("Capture inconnue.".into());
+    }
+    blocking(move || {
+        let state = app.state::<AppState>();
+        if let Some(id) = &id {
+            find_game(&state, id)?;
+        }
+        let (games, roots) = screenshot_context(&state)?;
+        let path = screenshots::collect(&roots, &games, id.as_deref())
+            .into_iter()
+            .find(|s| s.key == key && s.game_id == id)
+            .map(|s| s.path)
+            .filter(|p| screenshots::allowed(p, &roots))
+            .ok_or("Cette capture n'est plus dans son dossier.")?;
+        app.opener()
+            .reveal_item_in_dir(&path)
+            .map_err(|e| format!("Impossible d'ouvrir le dossier de la capture : {e}"))
+    })
+    .await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1017,8 +1131,16 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
-            let if_none_match = request.headers().get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()).map(String::from);
-            tauri::async_runtime::spawn_blocking(move || responder.respond(serve_art(&app, &path, if_none_match.as_deref())));
+            let text = |name| request.headers().get(name).and_then(|v| v.to_str().ok()).map(String::from);
+            let if_none_match = text(header::IF_NONE_MATCH);
+            let range = text(header::RANGE);
+            tauri::async_runtime::spawn_blocking(move || {
+                let response = match path.strip_prefix("/capture/") {
+                    Some(rest) => serve_capture(&app, rest, if_none_match.as_deref(), range.as_deref()),
+                    None => serve_art(&app, &path, if_none_match.as_deref()),
+                };
+                responder.respond(response)
+            });
         })
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -1042,6 +1164,7 @@ pub fn run() {
                 watch: OnceLock::new(),
                 tray_menu: Mutex::default(),
                 hide_pending: AtomicBool::new(false),
+                shots: Mutex::default(),
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
@@ -1090,7 +1213,10 @@ pub fn run() {
             add_game,
             change_executable,
             rename_game,
-            remove_game
+            remove_game,
+            game_screenshots,
+            all_screenshots,
+            show_screenshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

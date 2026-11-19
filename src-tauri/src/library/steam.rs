@@ -196,6 +196,12 @@ fn localconfig_path(root: &Path) -> Option<PathBuf> {
         .map(|(_, p)| p)
 }
 
+/// Dossier `userdata/<compte>` du compte retenu pour le temps de jeu (captures d'écran : `760`).
+pub fn account_dir() -> Option<PathBuf> {
+    let localconfig = localconfig_path(&steam_root()?)?;
+    localconfig.parent()?.parent().map(Path::to_path_buf)
+}
+
 /// Numéro de compte (steamid3) du dossier `userdata/<compte>/config/localconfig.vdf`.
 fn account_of(localconfig: &Path) -> Option<u64> {
     localconfig.parent()?.parent()?.file_name()?.to_str()?.parse().ok()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { gameHistory, MAX_TITLE, PLATFORM_LABEL, type Game, type PastSession } from "../lib/api";
+import { gameHistory, gameScreenshots, MAX_TITLE, PLATFORM_LABEL, type Game, type PastSession, type Screenshot } from "../lib/api";
 import {
   formatAchievements,
   formatDate,
@@ -12,6 +12,7 @@ import {
 } from "../lib/format";
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
+import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
 
 interface Props {
@@ -120,6 +121,52 @@ export function lastSessionText(game: Game, last: PastSession | null): { text: s
   return { text: `${relativeTime(Math.max(end, launcherDate))}, ${formatDuration(last.secs)}`, title };
 }
 
+/** Vignettes montrées dans la fiche ; la dernière annonce les suivantes (« +12 »). */
+const STRIP_SHOTS = 6;
+
+/** Captures du jeu (Steam, Xbox Game Bar), relues à l'ouverture de la fiche et à la fin d'une partie. */
+function useScreenshots(id: string, playing: boolean): Screenshot[] {
+  const [shots, setShots] = useState<{ id: string; list: Screenshot[] }>({ id, list: [] });
+  useEffect(() => {
+    let alive = true;
+    gameScreenshots(id)
+      .then((list) => alive && setShots({ id, list }))
+      .catch(() => alive && setShots({ id, list: [] })); // sans captures lisibles, la section reste cachée
+    return () => {
+      alive = false;
+    };
+  }, [id, playing]);
+  return shots.id === id ? shots.list : [];
+}
+
+/** Section « Captures » de la fiche : rien tant que le jeu n'en a pas. */
+function StripScreenshots({ game, playing }: { game: Game; playing: boolean }) {
+  const shots = useScreenshots(game.id, playing);
+  const [open, setOpen] = useState<number | null>(null);
+  if (shots.length === 0) return null;
+  const shown = shots.slice(0, STRIP_SHOTS);
+  const rest = shots.length - shown.length;
+  return (
+    <div className="strip__shots">
+      <p className="strip__shots-head">Captures <span className="eyebrow">{shots.length}</span></p>
+      <div className="shots-row shots-row--strip">
+        {shown.map((s, i) => (
+          <ShotTile
+            key={s.key}
+            shot={s}
+            label={`Capture ${i + 1} de ${game.title}`}
+            more={i === shown.length - 1 && rest > 0 ? rest : undefined}
+            onOpen={() => setOpen(i)}
+          />
+        ))}
+      </div>
+      {open !== null && open < shots.length && (
+        <ScreenshotViewer shots={shots} index={open} title={game.title} onIndex={setOpen} onClose={() => setOpen(null)} />
+      )}
+    </div>
+  );
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
@@ -202,6 +249,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
             </button>
           )}
         </div>
+        <StripScreenshots key={game.id} game={game} playing={playing} />
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
         <AchievementList key={game.id} game={game} />
       </div>
