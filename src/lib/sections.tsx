@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import type { Game } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
-import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, StarIcon } from "../components/Icons";
+import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, StarIcon, TrophyIcon } from "../components/Icons";
 import { RecapView } from "../components/RecapView";
+import { ShowcaseView } from "../components/ShowcaseView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -47,6 +48,8 @@ export const SECTIONS: readonly Section[] = [
   { id: "favorites", label: "Favoris", icon: () => <StarIcon />, scope: (g) => g.favorite, filters: launchersOnly },
   { id: "history", label: "Historique", icon: ClockIcon, render: (ctx) => <HistoryList {...ctx} /> },
   { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
+  // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
+  { id: "showcase", label: "Vitrine", icon: TrophyIcon, render: (ctx) => <ShowcaseView {...ctx} /> },
 ];
 
 export const SECTION_IDS = SECTIONS.map((s) => s.id);

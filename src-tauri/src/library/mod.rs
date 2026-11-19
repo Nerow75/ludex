@@ -296,6 +296,26 @@ pub fn watched_dirs() -> WatchedDirs {
     WatchedDirs { steamapps: steam::steamapps_dirs(), epic: epic::manifests_dir(), riot: riot::root_dir(), libraries: local::library_dirs() }
 }
 
+pub use achievements::Achievement;
+
+/// Lecture à la demande du détail des succès Steam de ce PC (jamais pendant le scan).
+pub struct SteamStats {
+    dir: PathBuf,
+    account: u64,
+}
+
+impl SteamStats {
+    /// `None` : Steam absent ou aucun compte connu.
+    pub fn locate() -> Option<Self> {
+        steam::stats_location().map(|(dir, account)| SteamStats { dir, account })
+    }
+
+    /// Tous les succès d'un jeu Steam (appid), dans l'ordre du schéma, sans pourcentage mondial.
+    pub fn details(&self, appid: &str) -> Option<Vec<Achievement>> {
+        achievements::details(&self.dir, self.account, appid)
+    }
+}
+
 pub use epic::item_installed;
 pub use steam::manifest_installed;
 

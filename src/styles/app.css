@@ -319,6 +319,65 @@ kbd {
 .stats dt { font-size: 12px; color: var(--lx-text-3); }
 .stats dd { margin: 2px 0 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- Succès (fiche) et Vitrine ---------- */
+.ach-icon {
+  flex: none; width: 32px; height: 32px; border-radius: 6px; overflow: hidden;
+  display: grid; place-items: center; background: var(--lx-surface-2); color: var(--lx-text-3);
+}
+.ach-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ach-icon--l { width: 56px; height: 56px; border-radius: var(--lx-radius-s); }
+.achs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.achs__toggle {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m); background: transparent; color: var(--lx-text-2); font-size: 13px;
+}
+.achs__toggle:hover { background: var(--lx-surface-2); color: var(--lx-text); }
+.achs__note { font-size: 13px; color: var(--lx-text-3); }
+.achs__list { list-style: none; margin: 0; padding: 0 8px 0 0; max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.ach { display: flex; align-items: center; gap: 12px; padding: 4px 0; min-width: 0; }
+.ach__text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ach__name, .ach__desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach__name { font-size: 14px; font-weight: 500; }
+.ach:not(.is-unlocked) .ach__name { color: var(--lx-text-2); }
+.ach__desc { font-size: 12px; color: var(--lx-text-3); }
+.ach__side {
+  flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  font: 12px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums;
+}
+.ach__when { color: var(--lx-text-2); }
+
+.vitrine { display: flex; flex-direction: column; max-width: 960px; }
+.vitrine__h { font-size: 16px; font-weight: 500; margin: 32px 0 12px; }
+.vitrine__h span { font: 12px var(--lx-font-mono); color: var(--lx-text-3); margin-left: 8px; }
+.vitrine__note { font-size: 14px; color: var(--lx-text-3); }
+.podium { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.podium__item {
+  width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 12px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface); color: inherit; text-align: center;
+  transition: border-color .15s var(--lx-ease);
+}
+.podium__item:hover, .podium__item:focus-visible { border-color: var(--lx-text-3); }
+.podium__item:active { transform: scale(.98); }
+.podium__rank { align-self: flex-start; margin-bottom: -16px; font: 12px var(--lx-font-mono); color: var(--lx-text-3); }
+.podium__name {
+  font-size: 14px; font-weight: 500; line-height: 20px;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.podium__game { max-width: 100%; font-size: 12px; color: var(--lx-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.podium__pct { font: 500 16px var(--lx-font-mono); color: var(--lx-accent-text); font-variant-numeric: tabular-nums; }
+.vitrine__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.vitrine__row {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  border: 0; border-radius: var(--lx-radius-m); background: none; color: inherit; text-align: left; transition: background-color .15s;
+}
+.vitrine__row:hover, .vitrine__row:focus-visible { background: var(--lx-surface); }
+.vitrine__rank { flex: none; width: 20px; text-align: right; font: 12px var(--lx-font-mono); color: var(--lx-text-3); }
+.vitrine__name { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vitrine__meta { flex: 0 1 240px; min-width: 0; font-size: 13px; color: var(--lx-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vitrine__side { flex: none; min-width: 88px; text-align: right; font: 12px var(--lx-font-mono); color: var(--lx-text-2); font-variant-numeric: tabular-nums; }
+.vitrine__cover { flex: none; width: 32px; border-radius: 4px; font-size: 6px; }
+.vitrine__cover .cover__title { display: none; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; right: 24px; bottom: 56px; z-index: 20; display: flex; gap: 12px; align-items: center;
