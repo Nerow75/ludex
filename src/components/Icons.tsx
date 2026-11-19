@@ -141,3 +141,7 @@ export const JournalIcon = () => (
 export const CheckIcon = () => (
   <svg {...base}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
 );
+/** Réglages : trois curseurs. */
+export const SlidersIcon = () => (
+  <svg {...base}><path d="M4 7h9m4 0h3M4 17h3m4 0h9M4 12h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /><circle cx="9" cy="12" r="2" /></svg>
+);

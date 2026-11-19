@@ -5,6 +5,9 @@ import "@fontsource-variable/geist-mono";
 import "./styles/tokens.css";
 import "./styles/app.css";
 import App from "./App";
+import { startTheme } from "./lib/theme";
+
+startTheme();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

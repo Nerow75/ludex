@@ -132,6 +132,8 @@ export interface SourceReport {
   installed: boolean;
   count: number;
   error: string | null;
+  /** Désactivé dans les Paramètres : ses jeux (`count`) sont écartés de la bibliothèque. */
+  disabled: boolean;
 }
 
 export interface ScanResult {
@@ -602,3 +604,45 @@ export const minimizeWindow = () => invoke<void>("window_minimize");
 export const toggleMaximizeWindow = () => invoke<void>("window_toggle_maximize");
 /** Même chemin que Alt+F4 : cachée dans la zone de notification si le réglage le demande. */
 export const closeWindow = () => invoke<void>("window_close");
+
+/** « Revoir l'écran de premier lancement » (Paramètres) : l'écran redevient dû. */
+export const welcomeAgain = () => invoke<WelcomeInfo>("welcome_again");
+
+/** Thème de l'interface ; `system` suit Windows. */
+export type Theme = "dark" | "light" | "system";
+export const THEMES: readonly Theme[] = ["dark", "light", "system"];
+export const THEME_LABEL: Record<Theme, string> = { dark: "Sombre", light: "Clair", system: "Comme Windows" };
+
+/** Réglages de l'écran Paramètres (`settings.rs`). */
+export interface SettingsInfo {
+  theme: Theme;
+  /** Format du plugin (« Alt+Space »), vide si désactivé. */
+  quickShortcut: string;
+  /** Le même, lisible (« Alt+Espace », « Désactivé »). */
+  quickShortcutLabel: string;
+  launchAtStartup: boolean;
+  keepInTray: boolean;
+  /** Dossier des copies de sauvegardes (affichage seulement). */
+  savesDir: string;
+  autoSaves: boolean;
+  disabledSources: Platform[];
+  /** Jeux masqués par l'utilisateur (outils masqués d'office non compris). */
+  hiddenGames: number;
+  version: string;
+}
+export const settings = () => invoke<SettingsInfo>("settings");
+export const setTheme = (theme: Theme) => invoke<SettingsInfo>("set_theme", { theme });
+/** Texte au format du plugin (`Ctrl+Shift+KeyL`), validé et enregistré côté Rust ; vide : désactivé. */
+export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quick_shortcut", { text });
+/** Coupe le raccourci actuel pendant sa saisie (`true`), puis le remet (`false`). */
+export const pauseQuickShortcut = (paused: boolean) => invoke<void>("pause_quick_shortcut", { paused });
+export const setLaunchAtStartup = (value: boolean) => invoke<SettingsInfo>("set_launch_at_startup", { value });
+export const setKeepInTray = (value: boolean) => invoke<SettingsInfo>("set_keep_in_tray", { value });
+/** Active ou désactive un launcher, puis rescanne : bibliothèque relue. */
+export const setSourceEnabled = (platform: Platform, value: boolean) => invoke<ScanResult>("set_source_enabled", { platform, value });
+/** Ré-affiche les jeux masqués par l'utilisateur ; renvoie leurs ids. */
+export const showAllHidden = () => invoke<string[]>("show_all_hidden");
+/** Recherche une mise à jour tout de suite ; `null` : Ludex est à jour. */
+export const checkUpdate = () => invoke<UpdateInfo | null>("check_update");
+export const onSettingsChanged = (handler: (event: SettingsInfo) => void): Promise<UnlistenFn> =>
+  listen<SettingsInfo>("settings-changed", (e) => handler(e.payload));

@@ -8,6 +8,7 @@ const source = (platform: Platform, installed: boolean, count: number, error: st
   installed,
   count,
   error,
+  disabled: false,
 });
 
 describe("sourceList", () => {

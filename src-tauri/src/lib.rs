@@ -13,6 +13,7 @@ mod saves;
 mod moods;
 mod quick;
 mod session;
+mod settings;
 mod showcase;
 mod storage;
 mod store;
@@ -877,7 +878,9 @@ fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
 /// images et fiches manquantes. Le verrou `scanning` (pris par l'appelant) empêche deux scans à la
 /// fois. Renvoie aussi les jeux apparus et disparus depuis le scan précédent.
 fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>) -> Result<(ScanResult, watch::Changes), String> {
-    let mut result = library::scan();
+    // Launchers désactivés dans les Paramètres : lus, mais leurs jeux écartés.
+    let disabled = lock(&state.data)?.settings.disabled_sources.clone();
+    let mut result = library::scan_except(&disabled);
     let mut originals = covers::Originals::new();
     {
         let data = lock(&state.data)?;
@@ -1576,16 +1579,14 @@ fn update_settings<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut stor
     }
 }
 
-/// Active ou coupe le lancement avec Windows. L'entrée du registre fait foi : le réglage
-/// enregistré reprend son état réel après la modification.
-fn toggle_autostart<R: Runtime>(app: &AppHandle<R>) {
-    let Some(manager) = app.try_state::<AutoLaunchManager>() else { return };
-    let result = if autostart_enabled(app) { manager.disable() } else { manager.enable() };
-    if let Err(e) = result {
-        eprintln!("Lancement avec Windows non modifié : {e}");
-    }
+/// Active ou coupe le lancement avec Windows (menu de la zone de notification, Paramètres).
+/// L'entrée du registre fait foi : le réglage enregistré reprend son état réel après la modification.
+fn set_autostart<R: Runtime>(app: &AppHandle<R>, value: bool) -> Result<(), String> {
+    let manager = app.try_state::<AutoLaunchManager>().ok_or("Lancement avec Windows indisponible.")?;
+    let result = if value { manager.enable() } else { manager.disable() };
     let enabled = autostart_enabled(app);
     update_settings(app, |s| s.launch_at_startup = enabled);
+    result.map_err(|e| format!("Lancement avec Windows non modifié : {e}"))
 }
 
 fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
@@ -1605,12 +1606,17 @@ fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         Some(tray::Action::Open) => show_main(app),
         Some(tray::Action::ToggleAutostart) => {
-            toggle_autostart(app);
+            if let Err(e) = set_autostart(app, !autostart_enabled(app)) {
+                eprintln!("{e}");
+            }
             refresh_tray(app, true);
+            // La page Paramètres, si elle est ouverte, suit.
+            let _ = settings::publish(app);
         }
         Some(tray::Action::ToggleKeepInTray) => {
             update_settings(app, |s| s.keep_in_tray = !s.keep_in_tray);
             refresh_tray(app, true);
+            let _ = settings::publish(app);
         }
         Some(tray::Action::Quit) => app.exit(0),
         None => {}
@@ -1904,6 +1910,9 @@ pub fn run() {
             let enabled = autostart_enabled(app.handle());
             update_settings(app.handle(), |s| s.launch_at_startup = enabled);
             create_tray(app)?;
+            // Thème choisi dans les Paramètres (la fenêtre est créée sombre par `tauri.conf.json`).
+            let theme = lock(&app.state::<AppState>().data).map(|d| d.settings.theme).unwrap_or_default();
+            settings::apply_theme(app.handle(), theme);
             let shortcut = lock(&app.state::<AppState>().data).map(|d| d.settings.quick_shortcut.clone()).unwrap_or_default();
             quick::setup(app.handle(), &shortcut);
             // Fenêtre créée cachée : lancé avec Windows, Ludex reste dans la zone de notification.
@@ -1986,7 +1995,17 @@ pub fn run() {
             welcome::welcome_done,
             window_controls::window_minimize,
             window_controls::window_toggle_maximize,
-            window_controls::window_close
+            window_controls::window_close,
+            welcome::welcome_again,
+            update::check_update,
+            settings::settings,
+            settings::set_theme,
+            settings::set_quick_shortcut,
+            settings::pause_quick_shortcut,
+            settings::set_launch_at_startup,
+            settings::set_keep_in_tray,
+            settings::set_source_enabled,
+            settings::show_all_hidden
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
