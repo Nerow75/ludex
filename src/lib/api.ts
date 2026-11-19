@@ -142,9 +142,62 @@ export interface PastSession {
   secs: number;
   /** Steam ou GOG Galaxy : le temps de jeu de référence reste celui du launcher. */
   launcher: boolean;
+  /** Plusieurs sessions d'un même jour regroupées (historique très long) : heure de début inconnue. */
+  merged?: boolean;
 }
 /** Historique d'un jeu, la session la plus récente d'abord. */
 export const gameHistory = (id: string) => invoke<PastSession[]>("game_history", { id });
+/** Dernière session de chaque jeu de l'historique, la plus récente d'abord. */
+export const lastSessions = () => invoke<PastSession[]>("last_sessions");
+/** Temps de jeu des derniers jours, tiré de l'historique (sessions terminées, chacune comptée une fois). */
+export interface RecentPlaytime {
+  days: number;
+  secs: number;
+  sessions: number;
+  games: number;
+}
+export const recentPlaytime = () => invoke<RecentPlaytime>("recent_playtime");
+/** Période du récap : valeur fermée, seule chose (avec un recul entier) que le front envoie. */
+export type RecapPeriod = "week" | "month" | "year";
+export interface RecapGame {
+  gameId: string;
+  secs: number;
+  sessions: number;
+}
+/** Récap d'une période, calculé côté Rust depuis l'historique (fuseau local, sessions comptées une fois). */
+export interface Recap {
+  period: RecapPeriod;
+  /** Périodes en arrière (0 = en cours). */
+  back: number;
+  /** Premier et dernier jour, dates locales `AAAA-MM-JJ` comprises. */
+  start: string;
+  end: string;
+  elapsedDays: number;
+  totalSecs: number;
+  previousSecs: number;
+  /** Période précédente, sur autant de jours que ceux déjà écoulés ici. */
+  previousToDateSecs: number;
+  sessions: number;
+  games: number;
+  top: RecapGame[];
+  longest: { gameId: string; start: number; secs: number } | null;
+  bestStreak: number;
+  currentStreak: number;
+  /** Lundi d'abord. */
+  weekdaySecs: number[];
+  favoriteWeekday: number | null;
+  /** Nuit, matin, après-midi, soir. */
+  momentSecs: number[];
+  favoriteMoment: number | null;
+  /** Temps de chaque jour de la période. */
+  days: number[];
+  newGames: { gameId: string; firstPlayed: number }[];
+  achievements: number;
+  achievementGames: { gameId: string; count: number }[];
+  historySessions: number;
+  historySince: number | null;
+}
+export const recap = (period: RecapPeriod, back: number) => invoke<Recap>("recap", { period, back });
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
 export interface ArtEvent {
   id: string;

@@ -142,7 +142,7 @@ pub fn close_stale(open: &OpenSession) -> (Option<PastSession>, u64) {
     if played < MIN_SESSION.as_secs() {
         return (None, 0);
     }
-    let past = PastSession { game_id: open.game_id.clone(), start: open.start, secs: played, launcher: !open.record };
+    let past = PastSession { game_id: open.game_id.clone(), start: open.start, secs: played, launcher: !open.record, merged: false };
     let credit = if open.record { played.saturating_sub(open.credited) } else { 0 };
     (Some(past), credit)
 }
@@ -233,6 +233,7 @@ impl Session {
             start: self.first_seen.unwrap_or_else(|| self.unix(self.started)),
             secs: self.played.as_secs(),
             launcher: !self.record,
+            merged: false,
         })
     }
 
@@ -410,6 +411,22 @@ impl Tracker {
     /// Sessions terminées d'un jeu, la plus récente d'abord.
     pub fn history(&self, game_id: &str) -> Vec<PastSession> {
         crate::history::sessions_of(&self.history, game_id)
+    }
+
+    /// Temps de jeu des derniers jours (sessions terminées).
+    pub fn recent_playtime(&self) -> crate::history::RecentPlaytime {
+        let sessions = self.history.lock().map(|all| all.clone()).unwrap_or_default();
+        crate::history::recent_playtime(&sessions, unix_now(), crate::history::RECENT_DAYS)
+    }
+
+    /// Toutes les sessions terminées (récap).
+    pub fn sessions(&self) -> Vec<PastSession> {
+        self.history.lock().map(|all| all.clone()).unwrap_or_default()
+    }
+
+    /// Dernière session de chaque jeu, la plus récente d'abord.
+    pub fn last_sessions(&self) -> Vec<PastSession> {
+        self.history.lock().map(|all| crate::history::last_sessions(&all)).unwrap_or_default()
     }
 
     /// Commence à suivre un jeu qui vient d'être lancé. Sans dossier connu, ou déjà suivi : rien.

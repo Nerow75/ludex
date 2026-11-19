@@ -140,13 +140,17 @@ pub enum InstallState {
 }
 
 /// Progression des succès d'un jeu, lue chez le launcher.
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Achievements {
     pub unlocked: u32,
     pub total: u32,
     /// Date du dernier succès débloqué (secondes Unix), si le launcher la garde.
     pub last_unlocked: Option<u64>,
+    /// Date de chaque succès débloqué qui en a une (secondes Unix, croissantes), pour le récap.
+    /// Jamais envoyé au front : il n'a besoin que des compteurs.
+    #[serde(skip)]
+    pub unlock_times: Vec<u64>,
 }
 
 /// Fichiers image locaux d'un jeu. Jamais envoyés au front : il ne voit qu'une URL `ludex`.
@@ -409,7 +413,7 @@ mod tests {
             println!("  {}  ·  {}", g.title, hours(g));
         }
         let steam: Vec<_> = result.games.iter().filter(|g| g.platform == super::Platform::Steam).collect();
-        let with: Vec<_> = steam.iter().filter_map(|g| Some((g, g.achievements?))).collect();
+        let with: Vec<_> = steam.iter().filter_map(|g| Some((g, g.achievements.as_ref()?))).collect();
         println!("Succès : {} jeux Steam sur {}", with.len(), steam.len());
         for (g, a) in &with {
             let last = a.last_unlocked.map_or("aucun".to_string(), |t| format!("{t}"));

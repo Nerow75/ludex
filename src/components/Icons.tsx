@@ -62,6 +62,31 @@ export const TrashIcon = () => (
 export const CloseIcon = () => (
   <svg {...base}><path d="M6 6l12 12M18 6 6 18" /></svg>
 );
+/* Barre latérale : une icône par section, et le bouton qui la replie. */
+export const HomeIcon = () => (
+  <svg {...base}><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" /></svg>
+);
+export const GridIcon = () => (
+  <svg {...base}><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></svg>
+);
+export const DriveIcon = () => (
+  <svg {...base}><path d="M4 14.5 6.3 6.2A1.5 1.5 0 0 1 7.7 5h8.6a1.5 1.5 0 0 1 1.4 1.2L20 14.5" /><rect x="4" y="14.5" width="16" height="5" rx="1.5" /><path d="M16.5 17h.01" /></svg>
+);
+export const ClockIcon = () => (
+  <svg {...base}><circle cx="12" cy="12" r="8" /><path d="M12 7.5V12l3 2" /></svg>
+);
+export const ChartIcon = () => (
+  <svg {...base}><path d="M4.5 19.5h15M7.5 16v-4M12 16V8M16.5 16v-6" /></svg>
+);
+export const ChevronLeftIcon = () => (
+  <svg {...base}><path d="m15 5-7 7 7 7" /></svg>
+);
+export const ChevronRightIcon = () => (
+  <svg {...base}><path d="m9 5 7 7-7 7" /></svg>
+);
+export const SidebarIcon = () => (
+  <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
+);
 export const GamepadIcon = () => (
   <svg {...base}>
     <path d="M7 9h4M9 7v4M15.5 9.5h.01M17.5 11.5h.01" />

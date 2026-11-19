@@ -3,6 +3,7 @@ mod history;
 mod images;
 mod library;
 mod metadata;
+mod recap;
 mod session;
 mod store;
 mod update;
@@ -326,6 +327,37 @@ fn game_sessions(state: State<'_, AppState>) -> Vec<SessionEvent> {
 #[tauri::command]
 fn game_history(state: State<'_, AppState>, id: String) -> Vec<history::PastSession> {
     state.tracker.history(&id)
+}
+
+/// Temps de jeu des 14 derniers jours, tiré de l'historique (bas de la barre latérale).
+#[tauri::command]
+fn recent_playtime(state: State<'_, AppState>) -> history::RecentPlaytime {
+    state.tracker.recent_playtime()
+}
+
+/// Dernière session de chaque jeu, la plus récente d'abord (section « Historique »).
+#[tauri::command]
+fn last_sessions(state: State<'_, AppState>) -> Vec<history::PastSession> {
+    state.tracker.last_sessions()
+}
+
+/// Récap d'une semaine, d'un mois ou d'une année (`back` périodes en arrière, 0 par défaut).
+/// Valeurs fermées seulement : tout est calculé depuis l'historique et l'état.
+#[tauri::command]
+fn recap(state: State<'_, AppState>, period: recap::Period, back: Option<u32>) -> recap::Recap {
+    let unlocks: Vec<(String, Vec<u64>)> = state
+        .games
+        .lock()
+        .map(|games| {
+            games
+                .iter()
+                .filter_map(|g| Some((g.id.clone(), g.achievements.as_ref()?.unlock_times.clone())))
+                .filter(|(_, times)| !times.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    recap::compute(&state.tracker.sessions(), &unlocks, now, period, back.unwrap_or(0), &recap::LocalZone)
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
@@ -971,6 +1003,9 @@ pub fn run() {
             set_hidden,
             game_sessions,
             game_history,
+            recent_playtime,
+            last_sessions,
+            recap,
             update::available_update,
             update::install_update,
             add_game,
