@@ -155,6 +155,57 @@ export interface RecentPlaytime {
   games: number;
 }
 export const recentPlaytime = () => invoke<RecentPlaytime>("recent_playtime");
+/** Un succès Steam avec la progression du compte (liste lue à la demande, pas pendant le scan). */
+export interface Achievement {
+  /** Nom interne, clé des pourcentages mondiaux. */
+  apiName: string;
+  /** Vide pour un succès caché pas encore débloqué (rien ne le dévoile). */
+  name: string;
+  description: string | null;
+  /** Icône en couleur et grisée, sur le CDN de Steam. */
+  icon: string | null;
+  iconGray: string | null;
+  hidden: boolean;
+  unlocked: boolean;
+  /** Date du déblocage (secondes Unix). */
+  unlockedAt: number | null;
+  /** Part des joueurs Steam qui l'ont débloqué, en %. */
+  globalPercent: number | null;
+}
+/** Succès d'un jeu : non débloqués les plus faciles d'abord, puis débloqués, le plus récent d'abord. */
+export const gameAchievements = (id: string) => invoke<Achievement[]>("game_achievements", { id });
+/** Succès débloqué montré par la vitrine. */
+export interface ShowcaseUnlock {
+  gameId: string;
+  gameTitle: string;
+  apiName: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  percent: number | null;
+  unlockedAt: number | null;
+}
+export interface PerfectGame {
+  gameId: string;
+  gameTitle: string;
+  total: number;
+  /** Dernier déblocage, donc date du 100 %. */
+  completedAt: number | null;
+}
+/** Section « Vitrine » (jeux Steam non masqués). */
+export interface Showcase {
+  unlocked: number;
+  total: number;
+  /** Jeux avec des succès. */
+  games: number;
+  /** Le plus récemment terminé d'abord. */
+  perfect: PerfectGame[];
+  /** Les dix plus rares, le plus rare d'abord ; vide sans pourcentages mondiaux (hors ligne). */
+  rarest: ShowcaseUnlock[];
+  /** Les dix derniers déblocages. */
+  recent: ShowcaseUnlock[];
+}
+export const showcase = () => invoke<Showcase>("showcase");
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
 export interface ArtEvent {
   id: string;

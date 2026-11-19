@@ -201,6 +201,14 @@ fn account_of(localconfig: &Path) -> Option<u64> {
     localconfig.parent()?.parent()?.file_name()?.to_str()?.parse().ok()
 }
 
+/// Dossier `appcache/stats` et compte de ce PC (le même que pour le temps de jeu et le scan),
+/// pour lire le détail des succès à la demande.
+pub fn stats_location() -> Option<(PathBuf, u64)> {
+    let root = steam_root()?;
+    let account = localconfig_path(&root).as_deref().and_then(account_of)?;
+    Some((root.join("appcache").join("stats"), account))
+}
+
 /// Temps de jeu d'une application dans `localconfig.vdf`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AppTimes {

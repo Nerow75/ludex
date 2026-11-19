@@ -53,6 +53,10 @@ export const PlusIcon = () => (
 export const FileIcon = () => (
   <svg {...base}><path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v15A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7z" /><path d="M14 3v4h4M10 12l-2 2 2 2M14 12l2 2-2 2" /></svg>
 );
+/** Coupe : succès et vitrine. */
+export const TrophyIcon = () => (
+  <svg {...base}><path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H5.5A1.5 1.5 0 0 0 4 7.5 3.5 3.5 0 0 0 7.5 11H8.3M16 6h2.5A1.5 1.5 0 0 1 20 7.5a3.5 3.5 0 0 1-3.5 3.5h-.8M12 14v3M8.5 20h7M10 17h4l.5 3h-5z" /></svg>
+);
 export const PencilIcon = () => (
   <svg {...base}><path d="M15.5 5.5l3 3M4 20l1-4L16.2 4.8a2.1 2.1 0 0 1 3 3L8 19z" /></svg>
 );

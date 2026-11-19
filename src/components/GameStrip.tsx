@@ -10,6 +10,7 @@ import {
   relativeTime,
   releaseYear,
 } from "../lib/format";
+import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
 
@@ -202,6 +203,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           )}
         </div>
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
+        <AchievementList key={game.id} game={game} />
       </div>
       <button type="button" className="strip__close" aria-label="Fermer la fiche" title="Fermer (Échap)" onClick={onClose}>
         <CloseIcon />

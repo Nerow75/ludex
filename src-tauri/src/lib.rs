@@ -4,6 +4,7 @@ mod images;
 mod library;
 mod metadata;
 mod session;
+mod showcase;
 mod store;
 mod update;
 mod tray;
@@ -45,6 +46,8 @@ struct AppState {
     images: Mutex<images::ImageCache>,
     /// Un téléchargement d'images tourne déjà.
     images_busy: AtomicBool,
+    /// Pourcentages mondiaux des succès Steam (`showcase.rs`), lus à la demande.
+    global: Mutex<showcase::GlobalCache>,
     /// Tenu pendant un scan : jamais deux scans à la fois.
     scan_lock: Mutex<()>,
     /// Fin du dernier scan.
@@ -475,6 +478,79 @@ fn find_game(state: &AppState, id: &str) -> Result<Game, String> {
         .find(|g| g.id == id)
         .cloned()
         .ok_or_else(|| "Ce jeu n'est plus dans la bibliothèque. Relance un scan.".to_string())
+}
+
+/// Demande les pourcentages mondiaux manquants ou vieux de plus de 7 jours, sans tenir le verrou
+/// pendant les requêtes. Une erreur réseau laisse simplement les pourcentages inconnus.
+fn refresh_global(state: &AppState, appids: &[u32]) {
+    let Ok(todo) = lock(&state.global).map(|c| c.to_fetch(appids)) else { return };
+    if todo.is_empty() {
+        return;
+    }
+    let fetched = showcase::fetch(&todo);
+    if fetched.is_empty() {
+        return;
+    }
+    if let Ok(mut cache) = lock(&state.global) {
+        cache.record(fetched);
+        if let Err(e) = cache.save() {
+            eprintln!("Pourcentages des succès non enregistrés : {e}");
+        }
+    }
+}
+
+/// Liste complète des succès d'un jeu Steam, lue à la demande (jamais pendant le scan), avec les
+/// pourcentages mondiaux : non débloqués les plus faciles d'abord, puis débloqués. Vide si le jeu
+/// n'a pas de succès connus.
+#[tauri::command]
+async fn game_achievements(app: AppHandle, id: String) -> Result<Vec<library::Achievement>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        if game.platform != Platform::Steam || game.achievements.is_none() {
+            return Ok(Vec::new());
+        }
+        let Some(mut list) = library::SteamStats::locate().and_then(|s| s.details(&game.platform_id)) else { return Ok(Vec::new()) };
+        // Une seule requête, demandée en ouvrant la liste : utile aussi sans succès débloqué
+        // (les plus faciles en tête).
+        if let Ok(appid) = game.platform_id.parse::<u32>() {
+            refresh_global(&state, &[appid]);
+            lock(&state.global)?.apply(appid, &mut list);
+        }
+        showcase::sort_for_display(&mut list);
+        Ok(list)
+    })
+    .await
+}
+
+/// Section « Vitrine » : total des succès, jeux à 100 %, dix plus rares, derniers déblocages.
+/// Jeux Steam non masqués ; détail et pourcentages lus seulement pour ceux qui ont débloqué
+/// au moins un succès.
+#[tauri::command]
+async fn showcase(app: AppHandle) -> Result<showcase::Showcase, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let games: Vec<Game> = lock(&state.games)?
+            .iter()
+            .filter(|g| g.platform == Platform::Steam && !g.hidden && g.achievements.is_some())
+            .cloned()
+            .collect();
+        let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.is_some_and(|a| a.unlocked > 0)).collect();
+        let appids: Vec<u32> = unlocked.iter().filter_map(|g| g.platform_id.parse().ok()).collect();
+        refresh_global(&state, &appids);
+        let Some(stats) = library::SteamStats::locate() else { return Ok(showcase::build(&games, &[])) };
+        let cache = lock(&state.global)?;
+        let details: Vec<(&Game, Vec<library::Achievement>)> = unlocked
+            .iter()
+            .filter_map(|&g| {
+                let mut list = stats.details(&g.platform_id)?;
+                cache.apply(g.platform_id.parse().ok()?, &mut list);
+                Some((g, list))
+            })
+            .collect();
+        Ok(showcase::build(&games, &details))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -936,6 +1012,7 @@ pub fn run() {
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 images: Mutex::new(images::ImageCache::load(dir.join("images"))),
+                global: Mutex::new(showcase::GlobalCache::load(&dir)),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
@@ -985,6 +1062,8 @@ pub fn run() {
             game_history,
             recent_playtime,
             last_sessions,
+            game_achievements,
+            showcase,
             update::available_update,
             update::install_update,
             add_game,

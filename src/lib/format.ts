@@ -40,6 +40,15 @@ export function formatAchievements(unlocked: number, total: number): string {
   return `${integer.format(unlocked)} / ${integer.format(total)}`;
 }
 
+const percentFine = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+const percentRound = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+
+/** Part des joueurs : « 0,3 % », « 12 % », « moins de 0,1 % ». */
+export function formatPercent(p: number): string {
+  if (p < 0.1) return "moins de 0,1 %";
+  return `${(p < 10 ? percentFine : percentRound).format(p)} %`;
+}
+
 /** Durée d'une session : « 45 min », « 1 h 20 », « 3 h ». */
 export function formatDuration(secs: number): string {
   const minutes = Math.round(secs / 60);
