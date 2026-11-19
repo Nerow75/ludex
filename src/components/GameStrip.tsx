@@ -14,6 +14,7 @@ import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
+import { SavesPanel } from "./SavesPanel";
 
 interface Props {
   game: Game;
@@ -167,6 +168,17 @@ function StripScreenshots({ game, playing }: { game: Game; playing: boolean }) {
   );
 }
 
+/** Section « Sauvegardes » repliée : les dossiers ne sont lus qu'à l'ouverture. */
+function SavesSection({ gameId, playing }: { gameId: string; playing: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="strip__saves" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Sauvegardes</summary>
+      {open && <SavesPanel gameId={gameId} playing={playing} />}
+    </details>
+  );
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
@@ -252,6 +264,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         <StripScreenshots key={game.id} game={game} playing={playing} />
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
         <AchievementList key={game.id} game={game} />
+        <SavesSection key={game.id} gameId={game.id} playing={playing} />
       </div>
       <button type="button" className="strip__close" aria-label="Fermer la fiche" title="Fermer (Échap)" onClick={onClose}>
         <CloseIcon />

@@ -297,6 +297,83 @@ export interface TrayLaunchEvent {
 }
 export const onTrayLaunch = (handler: (event: TrayLaunchEvent) => void): Promise<UnlistenFn> =>
   listen<TrayLaunchEvent>("tray-launch", (e) => handler(e.payload));
+/** Base des sauvegardes (Ludusavi) : `loading` au premier téléchargement, `unavailable` hors ligne sans copie locale. */
+export type SavesStatus = "loading" | "ready" | "unavailable";
+/** `auto` : fin d'une partie ; `manual` : « Sauvegarder maintenant » ; `before_restore` : état remplacé par une restauration. */
+export type BackupReason = "auto" | "manual" | "before_restore";
+/** Copie des sauvegardes d'un jeu. `id` : seul identifiant renvoyé à Rust. */
+export interface SavesCopy {
+  id: string;
+  /** Date de la copie (secondes Unix). */
+  created: number;
+  reason: BackupReason;
+  size: number;
+  files: number;
+}
+/** Emplacement de sauvegarde trouvé sur ce PC (affichage seulement). */
+export interface SavesLocation {
+  path: string;
+  size: number;
+  files: number;
+}
+export interface GameSaves {
+  status: SavesStatus;
+  /** Nom du jeu dans la base, `null` : jeu inconnu de la base. */
+  name: string | null;
+  /** Le jeu garde aussi des données dans le registre, non copiées. */
+  registry: boolean;
+  locations: SavesLocation[];
+  /** La plus récente d'abord. */
+  copies: SavesCopy[];
+  /** Dossier des copies (affichage seulement). */
+  dir: string;
+  auto: boolean;
+}
+export interface BackupOutcome {
+  copy: SavesCopy;
+  /** Rien n'a changé depuis la copie précédente : aucune nouvelle copie. */
+  unchanged: boolean;
+}
+export interface RestoreOutcome {
+  restored: number;
+  /** Copie de l'état remplacé, `null` s'il n'y avait rien à copier. */
+  safety: SavesCopy | null;
+}
+export interface SavesSummary {
+  id: string;
+  title: string;
+  locations: number;
+  size: number;
+  copies: number;
+  lastCopy: number | null;
+  registry: boolean;
+}
+export interface SavesOverview {
+  status: SavesStatus;
+  dir: string;
+  auto: boolean;
+  games: SavesSummary[];
+}
+/** Emplacements trouvés, copies et réglages d'un jeu. */
+export const gameSaves = (id: string) => invoke<GameSaves>("game_saves", { id });
+export const backupSaves = (id: string) => invoke<BackupOutcome>("backup_saves", { id });
+/** Refusée si le jeu tourne. L'état actuel est copié avant d'être remplacé. */
+export const restoreSaves = (id: string, backupId: string) => invoke<RestoreOutcome>("restore_saves", { id, backupId });
+/** Sélecteur de dossier natif (côté Rust). Renvoie le dossier choisi à afficher, `null` : annulé. */
+export const chooseSavesDir = () => invoke<string | null>("choose_saves_dir");
+export const setAutoSaves = (value: boolean) => invoke<void>("set_auto_saves", { value });
+/** Jeux avec des sauvegardes trouvées ou des copies, par titre. */
+export const savesOverview = () => invoke<SavesOverview>("saves_overview");
+/** Copie automatique faite (ou ratée) à la fin d'une partie. */
+export interface SavesEvent {
+  id: string;
+  title: string;
+  copy: SavesCopy | null;
+  unchanged: boolean;
+  error: string | null;
+}
+export const onSavesBackup = (handler: (event: SavesEvent) => void): Promise<UnlistenFn> =>
+  listen<SavesEvent>("saves-backup", (e) => handler(e.payload));
 /** Première fermeture de la fenêtre : Ludex se cache dans la zone de notification. */
 export const onTrayHint = (handler: () => void): Promise<UnlistenFn> => listen("tray-hint", () => handler());
 /** Capture d'écran d'un jeu (Steam ou Xbox Game Bar). Aucun chemin : une empreinte et des URL `ludex`. */

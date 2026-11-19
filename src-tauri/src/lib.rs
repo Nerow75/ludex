@@ -5,6 +5,7 @@ mod library;
 mod metadata;
 mod recap;
 mod screenshots;
+mod saves;
 mod session;
 mod showcase;
 mod store;
@@ -62,6 +63,12 @@ struct AppState {
     hide_pending: AtomicBool,
     /// Captures envoyées au front, retrouvées par leur empreinte pour être servies.
     shots: Mutex<screenshots::Index>,
+    /// Entrées de la base des sauvegardes (Ludusavi) pour les jeux de la bibliothèque.
+    saves: Mutex<saves::Known>,
+    /// Une lecture de la base des sauvegardes tourne déjà.
+    saves_busy: AtomicBool,
+    /// Tenu pendant une copie ou une restauration : jamais deux à la fois.
+    saves_lock: Mutex<()>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
@@ -283,6 +290,269 @@ fn resolve_details(app: tauri::AppHandle) {
     });
 }
 
+/// Lit la base des sauvegardes (téléchargée au plus une fois par semaine) et garde les entrées des
+/// jeux de la bibliothèque. Recommence si la bibliothèque a changé pendant la lecture.
+fn resolve_saves(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let needed = match (lock(&state.saves), lock(&state.games)) {
+        (Ok(known), Ok(games)) => known.needs_lookup(&games),
+        _ => false,
+    };
+    if !needed || state.saves_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let dir = state.data_dir.clone();
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        match saves::refresh_manifest(&dir) {
+            Ok(manifest) => {
+                for _ in 0..3 {
+                    // Jeux copiés avant de verrouiller la base : même ordre que partout ailleurs.
+                    let games = lock(&state.games).map(|g| g.clone()).unwrap_or_default();
+                    let Ok(mut known) = lock(&state.saves) else { break };
+                    if !known.needs_lookup(&games) {
+                        break;
+                    }
+                    known.select(&manifest, &games);
+                }
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                if let Ok(mut known) = lock(&state.saves) {
+                    known.status = saves::Status::Unavailable;
+                }
+            }
+        }
+        state.saves_busy.store(false, Ordering::SeqCst);
+    });
+}
+
+/// Dossier des copies de sauvegardes : réglage, sinon `Documents\Ludex\Sauvegardes`.
+fn saves_root(state: &AppState) -> PathBuf {
+    lock(&state.data).ok().and_then(|d| d.settings.saves_dir.clone()).unwrap_or_else(saves::default_dir)
+}
+
+/// Entrée de la base des sauvegardes d'un jeu, et état de la base.
+fn saves_entry(state: &AppState, id: &str) -> Result<(saves::Status, Option<saves::Entry>), String> {
+    let known = lock(&state.saves)?;
+    Ok((known.status.clone(), known.entry(id).cloned()))
+}
+
+/// Emplacements des sauvegardes d'un jeu sur ce PC, reconstruits depuis la base (jamais depuis le front).
+fn saves_scope(state: &AppState, game: &Game) -> Result<saves::Scope, String> {
+    match saves_entry(state, &game.id)? {
+        (_, Some(entry)) => Ok(saves::Scope::new(&entry, game, &saves::Env::system())),
+        (saves::Status::Loading, None) => Err("La base des sauvegardes est en cours de téléchargement : réessaie dans un instant.".into()),
+        (saves::Status::Unavailable, None) => Err("Base des sauvegardes indisponible (hors ligne ?) : emplacements inconnus.".into()),
+        (saves::Status::Ready, None) => Err(format!("{} n'est pas dans la base des sauvegardes : emplacement inconnu.", game.title)),
+    }
+}
+
+/// Copie les sauvegardes d'un jeu, puis ne garde que les copies les plus récentes.
+fn backup_game(state: &AppState, game: &Game, reason: saves::Reason) -> Result<saves::Outcome, String> {
+    let root = saves_root(state);
+    let scope = saves_scope(state, game)?;
+    let _busy = lock(&state.saves_lock)?;
+    let outcome = saves::backup(&root, &game.id, &game.title, &scope.locate(Some(&root)), reason, &saves::Stamp::now())?;
+    if !outcome.unchanged {
+        saves::rotate(&root, &game.id, saves::KEEP, &[&outcome.copy.id]);
+    }
+    Ok(outcome)
+}
+
+/// Événement `saves-backup` : copie automatique faite (ou ratée) à la fin d'une partie.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavesEvent {
+    id: String,
+    title: String,
+    copy: Option<saves::CopySummary>,
+    /// Rien n'avait changé depuis la copie précédente.
+    unchanged: bool,
+    error: Option<String>,
+}
+
+const SAVES_EVENT: &str = "saves-backup";
+
+/// Copie automatique à la fin d'une partie d'une minute au moins, si le réglage est actif et le jeu
+/// connu de la base. Appelée hors du fil des sessions.
+fn auto_backup<R: Runtime>(app: &AppHandle<R>, game_id: &str) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if !lock(&state.data).is_ok_and(|d| d.settings.auto_saves) {
+        return;
+    }
+    let Ok(game) = find_game(&state, game_id) else { return };
+    if !lock(&state.saves).is_ok_and(|k| k.entry(game_id).is_some()) {
+        return; // jeu inconnu de la base, ou base pas encore lue
+    }
+    let event = match backup_game(&state, &game, saves::Reason::Auto) {
+        Ok(o) => SavesEvent { id: game.id, title: game.title, copy: Some(o.copy), unchanged: o.unchanged, error: None },
+        Err(e) if e == saves::NOTHING_FOUND => return,
+        Err(e) => {
+            eprintln!("Copie des sauvegardes de {} impossible : {e}", game.title);
+            SavesEvent { id: game.id, title: game.title, copy: None, unchanged: false, error: Some(e) }
+        }
+    };
+    let _ = app.emit(SAVES_EVENT, event);
+}
+
+/// Sauvegardes d'un jeu : emplacements trouvés sur ce PC, copies existantes et réglages.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GameSaves {
+    status: saves::Status,
+    /// Nom du jeu dans la base, `None` : jeu inconnu de la base.
+    name: Option<String>,
+    /// Le jeu garde aussi des données dans le registre, non copiées.
+    registry: bool,
+    locations: Vec<saves::Location>,
+    copies: Vec<saves::CopySummary>,
+    /// Dossier des copies (affichage seulement).
+    dir: String,
+    auto: bool,
+}
+
+#[tauri::command]
+async fn game_saves(app: tauri::AppHandle, id: String) -> Result<GameSaves, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let root = saves_root(&state);
+        let (status, entry) = saves_entry(&state, &id)?;
+        let scope = entry.as_ref().map(|e| saves::Scope::new(e, &game, &saves::Env::system()));
+        let locations = scope.as_ref().map(|s| saves::measure(&s.locate(Some(&root)), Some(&root))).unwrap_or_default();
+        Ok(GameSaves {
+            status,
+            name: entry.map(|e| e.name),
+            registry: scope.is_some_and(|s| s.registry),
+            locations,
+            copies: saves::list(&root, &id),
+            dir: root.display().to_string(),
+            auto: lock(&state.data)?.settings.auto_saves,
+        })
+    })
+    .await
+}
+
+/// « Sauvegarder maintenant ».
+#[tauri::command]
+async fn backup_saves(app: tauri::AppHandle, id: String) -> Result<saves::Outcome, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        backup_game(&state, &game, saves::Reason::Manual)
+    })
+    .await
+}
+
+/// Restaure une copie, après une copie de sécurité de l'état actuel. Refusée si le jeu tourne.
+#[tauri::command]
+async fn restore_saves(app: tauri::AppHandle, id: String, backup_id: String) -> Result<saves::Restored, String> {
+    if !saves::valid_copy_id(&backup_id) {
+        return Err("Copie inconnue.".into());
+    }
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        if state.tracker.active().iter().any(|(g, _)| *g == id) || session::game_running(&game) {
+            return Err(format!("{} est ouvert : ferme le jeu avant de restaurer ses sauvegardes.", game.title));
+        }
+        let root = saves_root(&state);
+        let scope = saves_scope(&state, &game)?;
+        let _busy = lock(&state.saves_lock)?;
+        saves::restore(&root, &game.id, &game.title, &backup_id, &scope, &saves::Stamp::now())
+    })
+    .await
+}
+
+/// Choisit le dossier des copies avec le sélecteur natif. Le chemin reste côté Rust ; le front ne
+/// reçoit que son texte, pour l'afficher. `None` : annulé.
+#[tauri::command]
+async fn choose_saves_dir(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Option<String>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let current = saves_root(&state);
+        let mut dialog = window.dialog().file().set_title("Dossier des copies de sauvegardes").set_parent(&window);
+        if let Some(start) = current.ancestors().find(|d| d.is_dir()) {
+            dialog = dialog.set_directory(start);
+        }
+        let Some(picked) = dialog.blocking_pick_folder().and_then(|f| f.into_path().ok()) else { return Ok(None) };
+        let dir = saves::check_dir(&picked)?;
+        let shown = dir.display().to_string();
+        let mut data = lock(&state.data)?;
+        data.settings.saves_dir = Some(dir);
+        data.save(&state.data_path)?;
+        Ok(Some(shown))
+    })
+    .await
+}
+
+/// Active ou coupe la copie automatique à la fin des parties.
+#[tauri::command]
+fn set_auto_saves(app: AppHandle, value: bool) {
+    update_settings(&app, |s| s.auto_saves = value);
+}
+
+/// Jeu de la bibliothèque qui a des sauvegardes sur ce PC, ou des copies.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavesSummary {
+    id: String,
+    title: String,
+    locations: usize,
+    size: u64,
+    copies: usize,
+    /// Date de la copie la plus récente (secondes Unix).
+    last_copy: Option<u64>,
+    registry: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavesOverview {
+    status: saves::Status,
+    dir: String,
+    auto: bool,
+    games: Vec<SavesSummary>,
+}
+
+/// Page « Sauvegardes » : jeux avec des sauvegardes trouvées ou des copies, par titre.
+#[tauri::command]
+async fn saves_overview(app: tauri::AppHandle) -> Result<SavesOverview, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let root = saves_root(&state);
+        let games = lock(&state.games)?.clone();
+        let (status, entries): (saves::Status, Vec<Option<saves::Entry>>) = {
+            let known = lock(&state.saves)?;
+            (known.status.clone(), games.iter().map(|g| known.entry(&g.id).cloned()).collect())
+        };
+        let mut copies = saves::list_all(&root);
+        let env = saves::Env::system();
+        let mut out = Vec::new();
+        for (game, entry) in games.into_iter().zip(entries) {
+            let scope = entry.map(|e| saves::Scope::new(&e, &game, &env));
+            let locations = scope.as_ref().map(|s| saves::measure(&s.locate(Some(&root)), Some(&root))).unwrap_or_default();
+            let game_copies = copies.remove(&game.id).unwrap_or_default();
+            if locations.is_empty() && game_copies.is_empty() {
+                continue;
+            }
+            out.push(SavesSummary {
+                id: game.id,
+                title: game.title,
+                locations: locations.len(),
+                size: locations.iter().map(|l| l.size).sum(),
+                copies: game_copies.len(),
+                last_copy: game_copies.first().map(|c| c.created),
+                registry: scope.is_some_and(|s| s.registry),
+            });
+        }
+        out.sort_by_key(|s| s.title.to_lowercase());
+        Ok(SavesOverview { status, dir: root.display().to_string(), auto: lock(&state.data)?.settings.auto_saves, games: out })
+    })
+    .await
+}
+
 /// Événement `game-session` : phase d'une session et, quand Ludex vient d'ajouter du temps,
 /// le nouveau total du jeu.
 #[derive(Clone, Serialize)]
@@ -298,6 +568,11 @@ const SESSION_EVENT: &str = "game-session";
 
 /// Enregistre le temps mesuré (s'il y en a) et prévient le front.
 fn on_session_update<R: Runtime>(app: &tauri::AppHandle<R>, update: session::Update) {
+    // Partie d'une minute au moins terminée : copie des sauvegardes, hors du fil des sessions.
+    if update.finished.is_some() {
+        let (app, id) = (app.clone(), update.game_id.clone());
+        std::thread::spawn(move || auto_backup(&app, &id));
+    }
     let mut event = SessionEvent { id: update.game_id, phase: update.phase, playtime_minutes: None, playtime_source: None };
     if update.credit_secs > 0
         && let Some(state) = app.try_state::<AppState>()
@@ -405,6 +680,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     resolve_art(app.clone());
     resolve_images(app.clone());
     resolve_details(app.clone());
+    resolve_saves(app.clone());
     refresh_tray(app, false);
     Ok((result, changes))
 }
@@ -1165,6 +1441,9 @@ pub fn run() {
                 tray_menu: Mutex::default(),
                 hide_pending: AtomicBool::new(false),
                 shots: Mutex::default(),
+                saves: Mutex::default(),
+                saves_busy: AtomicBool::new(false),
+                saves_lock: Mutex::new(()),
             });
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
@@ -1216,7 +1495,13 @@ pub fn run() {
             remove_game,
             game_screenshots,
             all_screenshots,
-            show_screenshot
+            show_screenshot,
+            game_saves,
+            backup_saves,
+            restore_saves,
+            choose_saves_dir,
+            set_auto_saves,
+            saves_overview
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
