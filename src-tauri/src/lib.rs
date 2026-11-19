@@ -20,6 +20,7 @@ mod update;
 mod tray;
 mod watch;
 mod welcome;
+mod window_controls;
 
 use library::{manual, Game, Launch, Platform, PlaytimeSource, ScanResult};
 use serde::Serialize;
@@ -1982,7 +1983,10 @@ pub fn run() {
             quick_games,
             hide_quick,
             welcome::welcome,
-            welcome::welcome_done
+            welcome::welcome_done,
+            window_controls::window_minimize,
+            window_controls::window_toggle_maximize,
+            window_controls::window_close
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

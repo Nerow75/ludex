@@ -110,7 +110,7 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <header className="viewer__bar">
+      <header className="viewer__bar" data-tauri-drag-region="deep">
         <span className="viewer__title">{title}</span>
         <span className="viewer__count">{index + 1} / {shots.length}</span>
         <button type="button" className="btn-icon" aria-label="Ouvrir le dossier" title="Ouvrir le dossier de la capture" onClick={reveal}>
