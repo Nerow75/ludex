@@ -68,16 +68,20 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
 
   return (
     <nav className="side" aria-label="Sections">
-      <button
-        type="button"
-        className="side__toggle"
-        onClick={onToggle}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-        title={`${collapsed ? "Déplier" : "Replier"} la barre (Ctrl+B)`}
-      >
-        <SidebarIcon />
-      </button>
+      {/* Haut de la barre : fait partie de la barre de titre (déplace la fenêtre). Pas toute la
+          barre : un clic sur sa barre de défilement déplacerait la fenêtre au lieu de défiler. */}
+      <div className="side__top" data-tauri-drag-region>
+        <button
+          type="button"
+          className="side__toggle"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+          title={`${collapsed ? "Déplier" : "Replier"} la barre (Ctrl+B)`}
+        >
+          <SidebarIcon />
+        </button>
+      </div>
       <ul className="side__list">{fixed.map(item)}</ul>
       {groups.map((group) => (
         <div key={group} className="side__group" role="group" aria-label={group}>

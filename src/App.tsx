@@ -88,6 +88,7 @@ import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
+import { WindowControls } from "./components/WindowControls";
 
 interface Toast {
   title: string;
@@ -1050,8 +1051,11 @@ export default function App() {
         onCreateCollection={(name) => newCollection(name, null)}
       />
 
-      <header className="top">
-        <span className="brand"><LudexMark />Ludex</span>
+      {/* Barre de titre : le fond de la rangée du haut et de l'indication déplace la fenêtre,
+          double clic = agrandir ou restaurer ; boutons de la fenêtre dans le coin (WindowControls). */}
+      <WindowControls />
+      <header className="top" data-tauri-drag-region>
+        <span className="brand" data-tauri-drag-region="deep"><LudexMark />Ludex</span>
         <label className="search">
           <SearchIcon />
           <input
@@ -1098,7 +1102,7 @@ export default function App() {
           </button>
         </div>
       </header>
-      <p className="hint" aria-live="polite">
+      <p className="hint" aria-live="polite" data-tauri-drag-region="deep">
         {!scan
           ? "Recherche de tes jeux dans tous tes launchers"
           : query && selected

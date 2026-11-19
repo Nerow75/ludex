@@ -19,6 +19,9 @@
   --lx-warning: #F3BD55;
   --lx-danger: #FF7A7A;
   --lx-overlay: rgba(6, 6, 6, 0.6);
+  /* Bouton Fermer de la barre de titre au survol : le rouge de Windows 11, dans les deux thèmes. */
+  --lx-caption-close: #C42B1C;
+  --lx-on-caption-close: #FFFFFF;
 
   /* Couleur du jeu sélectionné, remplacée à la volée : contour de sélection uniquement. */
   --lx-ambient: #D8B35A;

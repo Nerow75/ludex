@@ -595,3 +595,10 @@ export interface WelcomeInfo {
 export const welcome = () => invoke<WelcomeInfo | null>("welcome");
 /** « C'est parti » : l'écran ne reviendra plus. */
 export const welcomeDone = () => invoke<void>("welcome_done");
+
+/* Barre de titre maison : commandes sans argument, la fenêtre visée est celle qui appelle
+   (fenêtre principale seulement, refus côté Rust pour les autres). */
+export const minimizeWindow = () => invoke<void>("window_minimize");
+export const toggleMaximizeWindow = () => invoke<void>("window_toggle_maximize");
+/** Même chemin que Alt+F4 : cachée dans la zone de notification si le réglage le demande. */
+export const closeWindow = () => invoke<void>("window_close");
