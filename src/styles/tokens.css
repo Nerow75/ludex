@@ -1,7 +1,9 @@
 /* Ludex · design system
    Base monochrome, turquoise Ludex pour le focus et l'action secondaire,
    couleur du jeu sélectionné réservée au contour de sélection.
-   Thème sombre par défaut ; [data-theme="light"] sur <html> pour le clair. */
+   Thème sombre par défaut ; sur <html>, [data-theme="light"] pour le clair, [data-theme="oled"]
+   pour le noir OLED et [data-theme="contrast"] pour le contraste élevé (règles en plus à la fin
+   d'app.css). Aucune couleur en dur ailleurs : tout passe par ces tokens. */
 :root {
   --lx-bg: #0B0B0B;
   --lx-surface: #1A1A1A;
@@ -14,7 +16,8 @@
   --lx-accent-deep: #0E8F81; /* flanc de la touche du logo */
   --lx-on-accent: #0B0B0B;
   --lx-accent-text: #2DD4BF;
-  --lx-accent-soft: #99F6E4;
+  /* Fond d'une pastille cochée, sous --lx-text : teinte sombre de l'accent. */
+  --lx-accent-soft: #0F3B36;
   --lx-success: #5EE08F;
   --lx-warning: #F3BD55;
   --lx-danger: #FF7A7A;
@@ -22,6 +25,16 @@
   /* Bouton Fermer de la barre de titre au survol : le rouge de Windows 11, dans les deux thèmes. */
   --lx-caption-close: #C42B1C;
   --lx-on-caption-close: #FFFFFF;
+
+  /* Sur les images (jaquettes, visuels larges) : mêmes valeurs dans tous les thèmes, l'image reste
+     sombre sous le texte. Base des jaquettes générées, texte, voile, pastilles et ombres. */
+  --lx-art-base: #0B0B0B;
+  --lx-art-deep: #050505;
+  --lx-on-art: #FFFFFF;
+  --lx-on-art-2: rgba(255, 255, 255, 0.75);
+  --lx-art-scrim: rgba(0, 0, 0, 0.78);
+  --lx-art-badge: rgba(0, 0, 0, 0.7);
+  --lx-shadow: #000000;
 
   /* Couleur du jeu sélectionné, remplacée à la volée : contour de sélection uniquement. */
   --lx-ambient: #D8B35A;
@@ -55,4 +68,48 @@
   --lx-danger: #DC2626;
   --lx-overlay: rgba(255, 255, 255, 0.6);
   color-scheme: light;
+}
+
+/* Noir OLED : fond noir pur (pixels éteints), surfaces à peine levées, aucun gris moyen en grand
+   aplat ; mêmes textes et même turquoise que le sombre. */
+[data-theme="oled"] {
+  --lx-bg: #000000;
+  --lx-surface: #0A0A0A;
+  --lx-surface-2: #161616;
+  --lx-border: #2A2A2A;
+  --lx-on-accent: #000000;
+  --lx-accent-soft: #0A2E2A;
+  --lx-overlay: rgba(0, 0, 0, 0.72);
+  --lx-art-base: #000000;
+  --lx-art-deep: #000000;
+  color-scheme: dark;
+}
+
+/* Contraste élevé (sombre) : textes à 7:1 au moins (WCAG AAA) sur le fond comme sur les surfaces,
+   contours clairs (plus de 3:1) pour tout ce qui se clique, turquoise plus lumineux. Rapports
+   calculés : --lx-text-3 #BDBDBD = 11,2:1 sur #000 et 8,8:1 sur --lx-surface-2, --lx-accent-text
+   #5EEAD4 = 14,2:1 sur #000, --lx-accent #2DD4BF = 11,3:1, --lx-danger #FF9B9B = 10,4:1. */
+[data-theme="contrast"] {
+  --lx-bg: #000000;
+  --lx-surface: #0F0F0F;
+  --lx-surface-2: #1F1F1F;
+  --lx-border: #A3A3A3;
+  --lx-text: #FFFFFF;
+  --lx-text-2: #EDEDED;
+  --lx-text-3: #BDBDBD;
+  --lx-accent: #2DD4BF;
+  --lx-accent-deep: #14B8A6;
+  --lx-on-accent: #000000;
+  --lx-accent-text: #5EEAD4;
+  --lx-accent-soft: #003D36;
+  --lx-success: #7CF5A8;
+  --lx-warning: #FFD27A;
+  --lx-danger: #FF9B9B;
+  --lx-overlay: rgba(0, 0, 0, 0.88);
+  --lx-art-base: #000000;
+  --lx-art-deep: #000000;
+  --lx-on-art-2: #FFFFFF;
+  --lx-art-scrim: rgba(0, 0, 0, 0.92);
+  --lx-art-badge: #000000;
+  color-scheme: dark;
 }

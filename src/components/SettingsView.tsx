@@ -224,10 +224,12 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
         <>
           <section className="set__group" aria-labelledby="set-look">
             <h3 id="set-look">Apparence</h3>
-            <div className="set__row">
+            <div className="set__row set__row--stack">
               <span className="set__text">
                 <span>Thème</span>
-                <small>« Comme Windows » suit le mode clair ou sombre de Windows.</small>
+                <small>
+                  « Comme Windows » suit le mode clair ou sombre de Windows. « Noir OLED » éteint le fond des écrans OLED, « Contraste élevé » renforce textes et contours.
+                </small>
               </span>
               <div className="seg" role="radiogroup" aria-label="Thème">
                 {THEMES.map((t) => (

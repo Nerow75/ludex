@@ -90,7 +90,8 @@ pub struct Settings {
     pub disabled_sources: Vec<Platform>,
 }
 
-/// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, ou celui de Windows.
+/// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, celui de
+/// Windows, noir OLED (fond #000) ou contraste élevé (texte AAA, contours partout).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
@@ -98,6 +99,8 @@ pub enum Theme {
     Dark,
     Light,
     System,
+    Oled,
+    Contrast,
 }
 
 /// Valeur relue en gardant la valeur par défaut si elle est illisible (fichier d'une version future).
@@ -561,6 +564,16 @@ mod tests {
         assert!(!future.settings.auto_saves && future.favorites.contains("steam:730"));
         let text = serde_json::to_string(&read.settings).unwrap();
         assert!(text.contains(r#""theme":"system""#) && text.contains(r#""disabledSources":["epic","riot"]"#), "{text}");
+        // Noir OLED et contraste élevé : relus et réécrits sous leur nom.
+        for (name, theme) in [("oled", Theme::Oled), ("contrast", Theme::Contrast)] {
+            let read: UserData = serde_json::from_str(&format!(r#"{{"settings":{{"theme":"{name}"}}}}"#)).unwrap();
+            assert_eq!(read.settings.theme, theme);
+            let text = serde_json::to_string(&read.settings).unwrap();
+            assert!(text.contains(&format!(r#""theme":"{name}""#)), "{text}");
+        }
+        // Casse différente : inconnu, donc le défaut.
+        let upper: UserData = serde_json::from_str(r#"{"settings":{"theme":"OLED"}}"#).unwrap();
+        assert_eq!(upper.settings.theme, Theme::Dark);
     }
 
     #[test]

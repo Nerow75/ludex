@@ -8,19 +8,26 @@ const LIGHT = "(prefers-color-scheme: light)";
 
 let current: Theme = "dark";
 
+/** Thème relu (localStorage, version future…) : un thème connu, sinon le sombre. */
+export function knownTheme(value: unknown): Theme {
+  return typeof value === "string" && (THEMES as readonly string[]).includes(value) ? (value as Theme) : "dark";
+}
+
+/**
+ * Valeur de `data-theme` sur `<html>` : `null` pour le sombre (tokens par défaut), « Comme Windows »
+ * selon la préférence que Windows donne à la WebView, les autres thèmes sous leur nom.
+ */
+export function themeAttribute(theme: Theme, prefersLight: boolean): string | null {
+  if (theme === "system") return prefersLight ? "light" : null;
+  return theme === "dark" ? null : theme;
+}
+
 function remembered(): Theme {
   try {
-    const v = localStorage.getItem(KEY) as Theme | null;
-    return v && THEMES.includes(v) ? v : "dark";
+    return knownTheme(localStorage.getItem(KEY));
   } catch {
     return "dark";
   }
-}
-
-/** Thème réellement affiché : « Comme Windows » suit la préférence que Windows donne à la WebView. */
-export function resolvedTheme(theme: Theme): "dark" | "light" {
-  if (theme !== "system") return theme;
-  return window.matchMedia?.(LIGHT).matches ? "light" : "dark";
 }
 
 /** Pose `data-theme` sur `<html>` (aucun attribut : sombre, les tokens par défaut). */
@@ -31,7 +38,8 @@ export function applyTheme(theme: Theme) {
   } catch {
     // stockage indisponible : le réglage reste côté Rust
   }
-  if (resolvedTheme(theme) === "light") document.documentElement.dataset.theme = "light";
+  const value = themeAttribute(theme, window.matchMedia?.(LIGHT).matches ?? false);
+  if (value) document.documentElement.dataset.theme = value;
   else delete document.documentElement.dataset.theme;
 }
 

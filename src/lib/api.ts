@@ -617,9 +617,15 @@ export const closeWindow = () => invoke<void>("window_close");
 export const welcomeAgain = () => invoke<WelcomeInfo>("welcome_again");
 
 /** Thème de l'interface ; `system` suit Windows. */
-export type Theme = "dark" | "light" | "system";
-export const THEMES: readonly Theme[] = ["dark", "light", "system"];
-export const THEME_LABEL: Record<Theme, string> = { dark: "Sombre", light: "Clair", system: "Comme Windows" };
+export type Theme = "dark" | "light" | "system" | "oled" | "contrast";
+export const THEMES: readonly Theme[] = ["dark", "light", "system", "oled", "contrast"];
+export const THEME_LABEL: Record<Theme, string> = {
+  dark: "Sombre",
+  light: "Clair",
+  system: "Comme Windows",
+  oled: "Noir OLED",
+  contrast: "Contraste élevé",
+};
 
 /** Réglages de l'écran Paramètres (`settings.rs`). */
 export interface SettingsInfo {

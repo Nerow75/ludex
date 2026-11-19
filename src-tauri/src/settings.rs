@@ -65,10 +65,15 @@ pub fn publish<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
     Ok(info)
 }
 
-/// Thème des fenêtres natives (barre de titre, couleur préférée de la WebView). `None` : celui de Windows.
+/// Thème des fenêtres natives (couleur préférée de la WebView, barres de défilement, fond avant
+/// le premier rendu). `None` : celui de Windows.
+///
+/// Noir OLED et contraste élevé sont deux palettes sombres (fond noir) : la fenêtre est donc
+/// sombre, quel que soit Windows. Suivre Windows en contraste élevé donnerait, Windows en clair,
+/// un éclair blanc à l'ouverture et des contrôles natifs clairs sur un fond noir.
 pub fn window_theme(theme: Theme) -> Option<tauri::Theme> {
     match theme {
-        Theme::Dark => Some(tauri::Theme::Dark),
+        Theme::Dark | Theme::Oled | Theme::Contrast => Some(tauri::Theme::Dark),
         Theme::Light => Some(tauri::Theme::Light),
         Theme::System => None,
     }
@@ -194,6 +199,8 @@ mod tests {
         assert_eq!(window_theme(Theme::Dark), Some(tauri::Theme::Dark));
         assert_eq!(window_theme(Theme::Light), Some(tauri::Theme::Light));
         assert_eq!(window_theme(Theme::System), None);
+        assert_eq!(window_theme(Theme::Oled), Some(tauri::Theme::Dark));
+        assert_eq!(window_theme(Theme::Contrast), Some(tauri::Theme::Dark));
     }
 
     #[test]
