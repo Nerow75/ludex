@@ -11,6 +11,7 @@ export type MenuAction =
   | { kind: "collection"; id: string; value: boolean }
   | { kind: "newCollection" }
   | { kind: "folder" }
+  | { kind: "shortcut" }
   | { kind: "rename" }
   | { kind: "hide" };
 
@@ -22,7 +23,7 @@ export type MenuEntry =
 
 /**
  * Entrées du menu d'un jeu, dans l'ordre affiché. « Ouvrir le dossier » seulement si le jeu en a
- * un ; « Masquer » devient « Afficher » pour un jeu masqué ; le sous-menu des collections liste les
+ * un ; « Créer un raccourci sur le Bureau » pour tous ; « Masquer » devient « Afficher » pour un jeu masqué ; le sous-menu des collections liste les
  * collections perso (cochées si le jeu y est) puis « Nouvelle collection… ».
  */
 export function gameMenu(game: Game, collections: readonly Collection[]): MenuEntry[] {
@@ -52,6 +53,7 @@ export function gameMenu(game: Game, collections: readonly Collection[]): MenuEn
   ];
   if (game.installDir) entries.push({ kind: "item", key: "folder", label: "Ouvrir le dossier", action: { kind: "folder" } });
   entries.push(
+    { kind: "item", key: "shortcut", label: "Créer un raccourci sur le Bureau", action: { kind: "shortcut" } },
     { kind: "item", key: "rename", label: "Renommer", action: { kind: "rename" } },
     { kind: "item", key: "hide", label: game.hidden ? "Afficher" : "Masquer", action: { kind: "hide" } },
   );

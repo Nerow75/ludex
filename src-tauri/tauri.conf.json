@@ -79,6 +79,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["ludex"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlGMzdGNkM5MzMxNzZCMUIKUldRYmF4Y3p5ZlkzbjdNUWlIcEtaMlFhdEtkUkRFeWVmQTRRQ2NneWlRM0VJVlJMZjNPdkpYajcK",
       "endpoints": ["https://github.com/Nerow75/ludex/releases/latest/download/latest.json"],

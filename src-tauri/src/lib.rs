@@ -1,10 +1,12 @@
 mod art;
 mod collections;
 mod covers;
+mod deeplink;
 mod history;
 mod hltb;
 mod images;
 mod journal;
+mod jumplist;
 mod launch_args;
 mod library;
 mod metadata;
@@ -15,6 +17,7 @@ mod moods;
 mod quick;
 mod session;
 mod settings;
+mod shortcut;
 mod showcase;
 mod storage;
 mod store;
@@ -36,6 +39,7 @@ use tauri::http::{header, Response, StatusCode};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tauri_plugin_autostart::AutoLaunchManager;
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -81,6 +85,8 @@ struct AppState {
     watch: OnceLock<watch::Watch>,
     /// Dernier menu posé sur l'icône de la zone de notification : reconstruit seulement s'il change.
     tray_menu: Mutex<Vec<tray::Entry>>,
+    /// Jump List de la barre des tâches (jeux récents), posée par son propre fil.
+    jump_list: jumplist::JumpList,
     /// Fenêtre sur le point d'être cachée, après l'explication de la première fermeture.
     hide_pending: AtomicBool,
     /// Captures envoyées au front, retrouvées par leur empreinte pour être servies.
@@ -1562,7 +1568,12 @@ fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
     let (Some(state), Some(_)) = (app.try_state::<AppState>(), app.tray_by_id(tray::TRAY_ID)) else { return };
     let keep = lock(&state.data).map(|d| d.settings.keep_in_tray).unwrap_or(true);
     let autostart = autostart_enabled(app);
-    let Ok(entries) = lock(&state.games).map(|games| tray::entries(&tray::recent(&games, tray::RECENT_COUNT), autostart, keep)) else {
+    let Ok(entries) = lock(&state.games).map(|games| {
+        let recent = tray::recent(&games, tray::RECENT_COUNT);
+        // Mêmes jeux dans la Jump List (son fil ne la repose que si elle change).
+        state.jump_list.set(&recent);
+        tray::entries(&recent, autostart, keep)
+    }) else {
         return;
     };
     match lock(&state.tray_menu) {
@@ -1639,6 +1650,81 @@ fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         Some(tray::Action::Quit) => app.exit(0),
         None => {}
     }
+}
+
+/// Délai laissé au premier scan quand Ludex est démarré par un lien.
+const FIRST_SCAN_WAIT: Duration = Duration::from_secs(120);
+
+/// Attend la fin du premier scan (bibliothèque vide avant). `false` : toujours rien après le délai.
+fn wait_first_scan(state: &AppState) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < FIRST_SCAN_WAIT {
+        if lock(&state.last_scan).is_ok_and(|last| last.is_some()) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    false
+}
+
+/// Liens `ludex://` reçus (au démarrage ou relayés par l'instance unique), traités hors du fil
+/// appelant : le premier scan peut se faire attendre.
+fn open_links<R: Runtime>(app: &AppHandle<R>, urls: Vec<String>) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        for url in urls {
+            open_link(&app, &url);
+        }
+    });
+}
+
+/// Lance le jeu d'un lien `ludex://launch/<id>`, par le même chemin que la zone de notification
+/// (`launch`, puis `tray-launch` pour le front). Lien refusé ou jeu inconnu : message console, et
+/// toast seulement si la fenêtre est déjà visible (un lien peut venir de n'importe où). Échec du
+/// lancement d'un jeu connu : la fenêtre s'affiche avec l'erreur, comme depuis la zone de notification.
+fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let refuse = |id: String, error: String| {
+        eprintln!("Lien {link} refusé : {error}");
+        if app.get_webview_window(MAIN_WINDOW).is_some_and(|w| w.is_visible().unwrap_or(false)) {
+            let event = TrayLaunchEvent { id, title: "ce jeu".to_string(), last_played: None, error: Some(error) };
+            let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
+        }
+    };
+    let id = match deeplink::parse(link) {
+        Ok(id) => id,
+        Err(e) => return refuse(String::new(), e.to_string()),
+    };
+    if !wait_first_scan(&state) {
+        return refuse(id, "Bibliothèque pas encore lue.".to_string());
+    }
+    let Ok(game) = find_game(&state, &id) else {
+        return refuse(id, "Ce jeu n'est pas dans la bibliothèque (désinstallé, masqué par un launcher désactivé ?).".to_string());
+    };
+    let event = match launch(app, &state, &id) {
+        Ok(ts) => TrayLaunchEvent { id, title: game.title, last_played: Some(ts), error: None },
+        Err(e) => {
+            show_main(app);
+            TrayLaunchEvent { id, title: game.title, last_played: None, error: Some(e) }
+        }
+    };
+    let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
+}
+
+/// Crée sur le Bureau un raccourci `.url` qui lance le jeu par `ludex://launch/<id>`. Le chemin et
+/// le contenu sont construits ici depuis le jeu de l'état ; renvoie le nom du fichier créé.
+#[tauri::command]
+async fn create_shortcut(app: AppHandle, id: String) -> Result<String, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let desktop = dirs::desktop_dir().ok_or("Bureau introuvable.")?;
+        let ludex = std::env::current_exe().ok();
+        let icon = shortcut::icon_for(&game, ludex.as_deref());
+        let text = shortcut::contents(&deeplink::launch_url(&game.id), icon.as_deref());
+        shortcut::write(&desktop, &shortcut::file_stem(&game.title), &text)
+    })
+    .await
 }
 
 /// Pose l'icône dans la zone de notification. Clic gauche : la fenêtre ; clic droit : le menu.
@@ -1858,9 +1944,20 @@ async fn show_screenshot(app: tauri::AppHandle, id: Option<String>, key: String)
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Avant toute fenêtre : même identifiant que les raccourcis de l'installeur (Jump List).
+    jumplist::set_process_app_id();
     tauri::Builder::default()
-        // En premier : relancer Ludex alors qu'il tourne ramène la fenêtre existante.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        // En premier : relancer Ludex alors qu'il tourne ramène la fenêtre existante. Avec la fonction
+        // `deep-link`, un lien `ludex://` passé à la seconde instance est d'abord relayé au plugin
+        // deep-link (événement écouté dans `setup`) : la fenêtre reste alors comme elle est.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !deeplink::is_link_launch(&args) {
+                show_main(app);
+            }
+        }))
+        // Lien `ludex://launch/<id>` (`deeplink.rs`), utilisé depuis Rust seulement : aucune
+        // permission `deep-link` côté front.
+        .plugin(tauri_plugin_deep_link::init())
         // Utilisé depuis Rust seulement (menu de la zone de notification) : aucune permission au front.
         .plugin(tauri_plugin_autostart::Builder::new().arg(tray::MINIMIZED_ARG).build())
         .plugin(tauri_plugin_opener::init())
@@ -1912,6 +2009,7 @@ pub fn run() {
                 last_scan: Mutex::new(None),
                 watch: OnceLock::new(),
                 tray_menu: Mutex::default(),
+                jump_list: jumplist::JumpList::spawn(std::env::current_exe().ok()),
                 hide_pending: AtomicBool::new(false),
                 shots: Mutex::default(),
                 saves: Mutex::default(),
@@ -1933,6 +2031,17 @@ pub fn run() {
             settings::apply_theme(app.handle(), theme);
             let shortcut = lock(&app.state::<AppState>().data).map(|d| d.settings.quick_shortcut.clone()).unwrap_or_default();
             quick::setup(app.handle(), &shortcut);
+            // Liens `ludex://` : schéma enregistré par l'installeur ; en debug, vers cet exécutable.
+            #[cfg(debug_assertions)]
+            if let Err(e) = app.deep_link().register_all() {
+                eprintln!("Schéma ludex:// non enregistré : {e}");
+            }
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| open_links(&handle, event.urls().iter().map(|u| u.to_string()).collect()));
+            // Ludex démarré par un lien : le jeu est lancé après le premier scan.
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                open_links(app.handle(), urls.iter().map(|u| u.to_string()).collect());
+            }
             // Fenêtre créée cachée : lancé avec Windows, Ludex reste dans la zone de notification.
             if !std::env::args().any(|a| a == tray::MINIMIZED_ARG) {
                 show_main(app.handle());
@@ -2024,7 +2133,8 @@ pub fn run() {
             settings::set_launch_at_startup,
             settings::set_keep_in_tray,
             settings::set_source_enabled,
-            settings::show_all_hidden
+            settings::show_all_hidden,
+            create_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

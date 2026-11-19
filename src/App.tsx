@@ -20,6 +20,7 @@ import {
   onTrayHint,
   onTrayLaunch,
   openInstallDir,
+  createShortcut,
   MOOD_LABEL,
   PLATFORM_LABEL,
   PLATFORMS,
@@ -602,6 +603,15 @@ export default function App() {
     }
   }, [showToast]);
 
+  const makeShortcut = useCallback(async (game: Game) => {
+    try {
+      const name = await createShortcut(game.id);
+      showToast({ title: "Raccourci créé sur le Bureau", detail: name });
+    } catch (e) {
+      showToast({ title: "Raccourci non créé", detail: String(e), error: true }, 5000);
+    }
+  }, [showToast]);
+
   /** Bibliothèque relue par une commande (ajout, correction) : remplace le scan et sélectionne le jeu. */
   const applyUpdate = useCallback((u: LibraryUpdate) => {
     setScan(u.scan);
@@ -766,6 +776,8 @@ export default function App() {
         return showFiche(game, "collection");
       case "folder":
         return void openFolder(game);
+      case "shortcut":
+        return void makeShortcut(game);
       case "rename":
         return showFiche(game, "rename");
       case "hide":
@@ -1323,6 +1335,7 @@ export default function App() {
                   onFavorite={toggleFavorite}
                   onHide={toggleHidden}
                   onOpenFolder={openFolder}
+                  onShortcut={makeShortcut}
                   onChangeExe={changeExe}
                   onRename={rename}
                   onChooseArt={chooseArt}
