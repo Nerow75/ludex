@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { gameHistory, MAX_TITLE, PLATFORM_LABEL, type Game, type PastSession } from "../lib/api";
+import { gameHistory, MAX_TITLE, MOOD_LABEL, PLATFORM_LABEL, type Game, type Mood, type PastSession } from "../lib/api";
 import {
   formatAchievements,
   formatDate,
@@ -29,6 +29,9 @@ interface Props {
   onRename: (game: Game, title: string) => void;
   /** Jeux ajoutés à la main seulement. */
   onRemove: (game: Game) => void;
+  /** Montre les jeux d'un tag, ou d'une ambiance, dans « Tous les jeux ». */
+  onTag: (tag: string) => void;
+  onMood: (mood: Mood) => void;
   onClose: () => void;
 }
 
@@ -120,10 +123,13 @@ export function lastSessionText(game: Game, last: PastSession | null): { text: s
 }
 
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
-export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
+export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onTag, onMood, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
   const details = detailsLine(game);
   const description = game.details?.description;
+  const moods = game.details?.moods ?? [];
+  const tags = game.details?.tags ?? [];
+  const controller = game.details?.controller;
   const lastSession = lastSessionText(game, useLastSession(game.id, playing));
   const install = installNote(game.installState, PLATFORM_LABEL[game.platform]);
   return (
@@ -140,6 +146,20 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         {renaming ? <TitleEditor game={game} onRename={onRename} onDone={() => setRenaming(false)} /> : <h2>{game.title}</h2>}
         {details && <p className="strip__meta" title={details.title}>{details.line}</p>}
         {description && <p className="strip__desc" title={description}>{description}</p>}
+        {(moods.length > 0 || tags.length > 0) && (
+          <ul className="chips" aria-label="Ambiances et tags Steam">
+            {moods.map((m) => (
+              <li key={m}>
+                <button type="button" className="chip is-mood" title={`Jeux de l'ambiance « ${MOOD_LABEL[m]} »`} onClick={() => onMood(m)}>{MOOD_LABEL[m]}</button>
+              </li>
+            ))}
+            {tags.map((t) => (
+              <li key={t}>
+                <button type="button" className="chip" title={`Jeux du tag « ${t} »`} onClick={() => onTag(t)}>{t}</button>
+              </li>
+            ))}
+          </ul>
+        )}
         <dl className="stats">
           <div title={playtimeOrigin(game)}><dt>Temps de jeu</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
           {game.achievements && (
@@ -150,6 +170,11 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           <div title={lastSession.title}><dt>Dernière session</dt><dd>{lastSession.text}</dd></div>
           <div><dt>Taille</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
           <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
+          {controller && (
+            <div title="Prise en charge annoncée par la boutique Steam">
+              <dt>Manette</dt><dd>{controller === "full" ? "Complète" : "Partielle"}</dd>
+            </div>
+          )}
         </dl>
         <div className="strip__acts">
           <button type="button" className="btn-play" onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>

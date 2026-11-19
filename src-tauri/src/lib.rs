@@ -3,6 +3,7 @@ mod history;
 mod images;
 mod library;
 mod metadata;
+mod moods;
 mod session;
 mod store;
 mod update;

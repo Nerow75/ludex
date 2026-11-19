@@ -78,6 +78,9 @@ export const ClockIcon = () => (
 export const SidebarIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
 );
+export const TagIcon = () => (
+  <svg {...base}><path d="M3.5 4.5a1 1 0 0 1 1-1h7.1a1 1 0 0 1 .7.3l8 8a1 1 0 0 1 0 1.4l-7.1 7.1a1 1 0 0 1-1.4 0l-8-8a1 1 0 0 1-.3-.7z" /><circle cx="8" cy="8" r="1.5" /></svg>
+);
 export const GamepadIcon = () => (
   <svg {...base}>
     <path d="M7 9h4M9 7v4M15.5 9.5h.01M17.5 11.5h.01" />
