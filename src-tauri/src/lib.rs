@@ -794,6 +794,19 @@ fn last_sessions(state: State<'_, AppState>) -> Vec<history::PastSession> {
     state.tracker.last_sessions()
 }
 
+/// Date d'installation de chaque jeu (création de son dossier, secondes Unix), pour « Ta pile » de
+/// « Pour toi ». Un jeu sans dossier ou dont la date est illisible n'y est pas.
+#[tauri::command]
+async fn install_dates(app: AppHandle) -> Result<std::collections::HashMap<String, i64>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let dirs: Vec<(String, String)> =
+            lock(&state.games)?.iter().filter_map(|g| Some((g.id.clone(), g.install_dir.clone()?))).collect();
+        Ok(dirs.into_iter().filter_map(|(id, dir)| Some((id, library::install_date(&dir)?))).collect())
+    })
+    .await
+}
+
 /// Récap d'une semaine, d'un mois ou d'une année (`back` périodes en arrière, 0 par défaut).
 /// Valeurs fermées seulement : tout est calculé depuis l'historique et l'état.
 #[tauri::command]
@@ -1889,6 +1902,7 @@ pub fn run() {
             game_history,
             recent_playtime,
             last_sessions,
+            install_dates,
             recap,
             journal,
             game_achievements,

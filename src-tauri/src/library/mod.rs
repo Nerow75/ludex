@@ -399,8 +399,27 @@ fn add_icon(game: &mut Game) {
     }
 }
 
+/// Date de création du dossier d'un jeu (secondes Unix) : son installation, sa copie sur ce disque ou
+/// l'ajout du dossier. `None` si le dossier est illisible ou si le système ne garde pas cette date.
+pub fn install_date(dir: &str) -> Option<i64> {
+    let created = std::fs::metadata(dir).ok()?.created().ok()?;
+    let secs = created.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    i64::try_from(secs).ok().filter(|&s| s > 0)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn install_date_of_a_folder() {
+        let dir = std::env::temp_dir().join(format!("ludex-install-date-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+        let date = super::install_date(dir.to_str().unwrap()).expect("date de création lue");
+        assert!((date - now).abs() < 3600, "date {date}, maintenant {now}");
+        std::fs::remove_dir(&dir).unwrap();
+        assert_eq!(super::install_date(dir.to_str().unwrap()), None); // dossier disparu
+    }
+
     /// Scan réel de ce PC : `cargo test scan_this_pc -- --ignored --nocapture`
     #[test]
     fn reads_xml_attributes() {

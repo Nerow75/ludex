@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { CollectionsInfo, Game, Mood, Status } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
+import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
 import { BoardIcon, ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { JournalView } from "../components/JournalView";
@@ -34,7 +35,8 @@ export interface SectionContext {
 /**
  * Section de la barre latérale. Deux sortes :
  * - avec `render` : un écran à elle (Historique…). Ses éléments navigables au clavier et à la
- *   manette portent l'attribut `data-nav` (flèches haut/bas, gauche vers la barre) ;
+ *   manette portent l'attribut `data-nav` (flèches haut/bas, gauche vers la barre) ; dans un
+ *   conteneur `data-nav-2d` (« Pour toi »), les flèches suivent l'écran : rangées à gauche et à droite ;
  * - sans `render` : la bibliothèque (grille, filtres, tri, fiche), restreinte par `scope`.
  * Taper une recherche affiche toujours les résultats, quelle que soit la section.
  */
@@ -47,8 +49,6 @@ export interface Section {
   scope?: (game: Game) => boolean;
   /** Filtres proposés au-dessus de la grille (tous par défaut). */
   filters?: (filter: Filter) => boolean;
-  /** Rangée « Reprendre » au-dessus de la grille. */
-  resume?: boolean;
   /** Titre sous lequel la barre range la section (« Mes collections »…), aucun pour les fixes. */
   group?: string;
   /** Section d'une collection : `mine` se renomme et se supprime, `steam` est en lecture seule. */
@@ -62,7 +62,8 @@ const launchersOnly = (f: Filter) => f !== "favorites" && f !== "hidden";
 
 /** Sections fixes, dans l'ordre de la barre (et des raccourcis Ctrl+1, Ctrl+2…). Nouvelle section : une entrée ici. */
 export const SECTIONS: readonly Section[] = [
-  { id: "for-you", label: "Pour toi", icon: HomeIcon, resume: true },
+  // Accueil : bannière « Ce soir », Reprendre, idées par ambiance, pile des jeux pas commencés.
+  { id: "for-you", label: "Pour toi", icon: HomeIcon, render: (ctx) => <HomeView {...ctx} /> },
   { id: "all", label: "Tous les jeux", icon: GridIcon, filters: (f) => f !== "favorites" },
   // Ludex ne liste que des jeux installés : ici, ceux qui se lancent sans mise à jour ni installation à finir.
   {

@@ -9,10 +9,12 @@ interface Props {
   playing: ReadonlySet<string>;
   onSelect: (game: Game) => void;
   onPlay: (game: Game) => void;
+  /** Tuiles navigables d'une section à elle (`data-nav`, « Pour toi »). */
+  nav?: boolean;
 }
 
 /** Les derniers jeux joués, en tuiles larges : le premier est mis en avant. */
-export function ResumeRow({ games, playing, onSelect, onPlay }: Props) {
+export function ResumeRow({ games, playing, onSelect, onPlay, nav = false }: Props) {
   if (games.length === 0) return null;
   return (
     <section className="resume" aria-labelledby="resume-title">
@@ -25,6 +27,7 @@ export function ResumeRow({ games, playing, onSelect, onPlay }: Props) {
               <button
                 type="button"
                 className="tile__hit"
+                data-nav={nav || undefined}
                 onClick={() => onSelect(g)}
                 onDoubleClick={() => onPlay(g)}
                 aria-label={`${g.title}, ${live ? "en jeu" : relativeTime(g.lastPlayed)}`}

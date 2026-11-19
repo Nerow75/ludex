@@ -255,6 +255,68 @@ kbd {
 .tile .card__play { right: 12px; bottom: 12px; }
 .tile:hover .card__play, .tile--first .card__play { opacity: 1; transform: none; }
 
+/* ---------- Pour toi : bannière « Ce soir », ligne d'infos, rangées ---------- */
+/* Sobre, à reprendre avec les thèmes. Texte de la bannière sur un fondu de --lx-bg : lisible en clair comme en sombre. */
+.home { display: flex; flex-direction: column; gap: 32px; padding-bottom: 24px; }
+.tonight {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end;
+  min-height: clamp(260px, 38vh, 380px); border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface);
+}
+.tonight__art { z-index: -2; }
+.tonight::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background:
+    linear-gradient(90deg, var(--lx-bg) 0%, color-mix(in srgb, var(--lx-bg) 80%, transparent) 35%, transparent 75%),
+    linear-gradient(0deg, color-mix(in srgb, var(--lx-bg) 70%, transparent), transparent 50%);
+}
+.tonight__body { display: flex; flex-direction: column; gap: 12px; max-width: min(560px, 100%); padding: 32px; }
+.tonight__eyebrow { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--lx-text-2); }
+.tonight__eyebrow > span:first-child { font-size: 14px; font-weight: 600; color: var(--lx-text); }
+.tonight__logo { height: 96px; max-width: 420px; }
+.tonight .game-logo__text { font-size: 36px; color: var(--lx-text); text-shadow: none; }
+.tonight__facts { font-size: 14px; color: var(--lx-text-2); }
+.tonight__acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.tonight__acts .btn-ghost { height: 44px; background: color-mix(in srgb, var(--lx-bg) 60%, transparent); }
+.tonight__acts .btn-ghost:hover { background: var(--lx-surface-2); }
+.tonight__acts .live { font-size: 12px; }
+.facts { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 0; font-size: 13px; color: var(--lx-text-3); }
+.tonight + .facts { margin-top: -16px; }
+.facts li, .facts button { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+.facts b { font-weight: 500; color: var(--lx-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facts button {
+  margin: -4px -8px; padding: 4px 8px; border: 0; border-radius: var(--lx-radius-s); background: none; color: inherit; text-align: left;
+  transition: background-color .15s;
+}
+.facts button:hover { background: var(--lx-surface); }
+.shelf__bar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.shelf__title { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 500; }
+.shelf__title em { font: normal 12px var(--lx-font-mono); color: var(--lx-text-3); }
+.shelf__title svg { color: var(--lx-text-3); }
+.shelf__title.is-link {
+  height: 32px; margin-left: -8px; padding: 0 8px; border: 0; border-radius: var(--lx-radius-s); background: none;
+  transition: background-color .15s;
+}
+.shelf__title.is-link:hover { background: var(--lx-surface); }
+.shelf__note { font-size: 13px; color: var(--lx-text-3); }
+/* Rangée qui défile en largeur ; la marge de 4 px garde le contour de focus visible. */
+.shelf__row {
+  list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: 132px; gap: 16px;
+  margin: 0 -4px; padding: 4px; overflow-x: auto; scroll-padding-inline: 4px; scrollbar-width: thin;
+}
+.shelf__item { min-width: 0; }
+.shelf__hit {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 0; border: 0; border-radius: var(--lx-radius-s);
+  background: none; text-align: left; transition: transform .12s var(--lx-ease);
+}
+.shelf__hit:active { transform: scale(.98); }
+.shelf__hit:focus-visible { outline: none; }
+.shelf__hit .cover { margin-bottom: 4px; font-size: 12px; outline: 2px solid transparent; outline-offset: 2px; transition: outline-color .15s; }
+.shelf__hit:hover .cover { outline-color: var(--lx-border); }
+.shelf__hit:focus-visible .cover { outline-color: var(--lx-accent); }
+.shelf__name, .shelf__meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shelf__name { font-size: 13px; font-weight: 500; }
+.shelf__meta { font-size: 12px; color: var(--lx-text-3); }
+
 /* ---------- Jaquettes ---------- */
 .cover {
   position: relative; aspect-ratio: 2 / 3; width: 100%; max-width: 100%; overflow: hidden;
