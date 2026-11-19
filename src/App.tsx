@@ -76,7 +76,7 @@ import {
 import { collectionSections, SECTIONS, type Section, type SectionContext } from "./lib/sections";
 import { gameMenu, type MenuAction, type Point } from "./lib/contextMenu";
 import { ContextMenu } from "./components/ContextMenu";
-import { GameStrip, type FicheEdit } from "./components/GameStrip";
+import { ficheNext, GameStrip, type FicheEdit } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
@@ -766,6 +766,16 @@ export default function App() {
 
   /** Flèche ou croix : barre latérale, élément `[data-nav]` d'une section à elle, ou grille. */
   const navigate = (dir: "up" | "down" | "left" | "right") => {
+    const current = document.activeElement as HTMLElement | null;
+    // Dans la fiche à onglets : onglet voisin, élément voisin, retour à la jaquette ou rangée suivante.
+    const fiche = live.current.custom ? null : current?.closest<HTMLElement>(".strip");
+    if (fiche && current) {
+      const next = ficheNext(fiche, current, dir);
+      if (next === "card") focusCard(live.current.selected?.id);
+      else if (next === "out") moveSelection("down");
+      else next?.focus();
+      return;
+    }
     if (inSidebar()) {
       if (dir === "right") focusContent();
       else if (dir !== "left") stepSection(dir === "down" ? 1 : -1);
@@ -793,6 +803,10 @@ export default function App() {
     const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
     const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
     if (dir === "left" && i % cols === 0) return focusSidebar();
+    // Fiche ouverte sous la rangée : bas y entre (Jouer) avant la rangée suivante.
+    const fromFiche = !!document.activeElement?.closest(".strip");
+    const ficheStart = s.open && !fromFiche ? scrollRef.current?.querySelector<HTMLElement>(".strip [data-nav]") : null;
+    if (dir === "down" && ficheStart) return void ficheStart.focus();
     const step = { left: -1, right: 1, up: -cols, down: cols }[dir];
     const next = s.results[Math.min(s.results.length - 1, Math.max(0, i + step))];
     setSelectedId(next.id);
@@ -802,8 +816,11 @@ export default function App() {
   /** Échap ou B : replie la fiche, sinon efface la recherche, sinon retire le tag et l'ambiance. */
   const back = () => {
     const s = live.current;
-    if (s.open) setOpen(false);
-    else if (s.query) setQuery("");
+    if (s.open) {
+      // Le focus était dans la fiche : il revient sur la jaquette au lieu de se perdre.
+      if (document.activeElement?.closest(".strip")) focusCard(s.selected?.id);
+      setOpen(false);
+    } else if (s.query) setQuery("");
     else if (!s.custom && hasFacets(s.facets)) s.changeFacets(NO_FACETS);
   };
 
@@ -952,6 +969,8 @@ export default function App() {
         // Dans la barre : entrer dans la section. Dans une section à elle : l'élément choisi (fiche du jeu).
         if (inSidebar()) focusContent();
         else if (s.custom) (document.activeElement?.closest<HTMLElement>("[data-nav]") ?? null)?.click();
+        // Dans la fiche, A agit sur l'élément choisi (onglet, statut, action) ; X la referme toujours.
+        else if (action === "confirm" && document.activeElement?.closest(".strip [data-nav]")) (document.activeElement as HTMLElement).click();
         else if (action === "confirm" && s.selected) s.play(s.selected);
         else if (s.selected) setOpen((o) => !o);
         break;

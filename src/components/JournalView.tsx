@@ -26,8 +26,8 @@ function achievementTitle(a: Achievement): string {
   return [a.name, a.description, [when, percent].filter(Boolean).join(" · ")].filter(Boolean).join("\n");
 }
 
-/** Résumé d'un jeu dans un jour : « 2 sessions · 3 succès · 1 capture ». */
-function gameSummary(g: JournalGame): string {
+/** Résumé d'un jeu dans un jour : « 2 sessions · 3 succès · 1 capture » (aussi dans l'onglet Journal de la fiche). */
+export function gameSummary(g: JournalGame): string {
   const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
   return [
     g.sessions.length > 0 && plural(g.sessions.length, "session"),
