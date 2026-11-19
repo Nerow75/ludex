@@ -178,9 +178,11 @@ function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["o
           label={`Options de lancement de ${game.title}`}
           placeholder={argsExample(game.platform)}
           onSubmit={submit}
+          // Appelé juste après `onSubmit` : un refus arrive plus tard et rouvre le champ avec son message.
           onDone={() => {
             setEditing(false);
             setDraft(null);
+            setError(null);
           }}
         />
       ) : (
