@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import type { Game, Mood } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
-import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, SaveIcon, StarIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, SaveIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
 import { RecapView } from "../components/RecapView";
 import { ShowcaseView } from "../components/ShowcaseView";
 import { TagsView } from "../components/TagsView";
+import { StorageView } from "../components/StorageView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -73,6 +74,7 @@ export const SECTIONS: readonly Section[] = [
   },
   // Copies de sécurité des sauvegardes (base Ludusavi).
   { id: "saves", label: "Sauvegardes", icon: SaveIcon, render: () => <SavesPage /> },
+  { id: "storage", label: "Stockage", icon: StorageIcon, render: (ctx) => <StorageView {...ctx} /> },
 ];
 
 export const SECTION_IDS = SECTIONS.map((s) => s.id);

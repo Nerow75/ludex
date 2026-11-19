@@ -89,7 +89,7 @@ fn normalize(path: &str) -> String {
 
 /// Dossier racine terminé par `\`. Refuse une racine trop large (lecteur entier, `Program Files`…)
 /// qui ferait passer n'importe quel programme pour le jeu.
-fn root_key(dir: &str) -> Option<String> {
+pub(crate) fn root_key(dir: &str) -> Option<String> {
     let dir = normalize(dir);
     let dir = dir.trim_end_matches('\\');
     let parts: Vec<&str> = dir.split('\\').filter(|p| !p.is_empty()).collect();

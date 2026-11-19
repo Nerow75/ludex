@@ -262,6 +262,60 @@ export interface Showcase {
   recent: ShowcaseUnlock[];
 }
 export const showcase = () => invoke<Showcase>("showcase");
+/** Place prise par les jeux d'un launcher sur un disque. */
+export interface PlatformShare {
+  platform: Platform;
+  bytes: number;
+  games: number;
+}
+/** Disque qui porte au moins un jeu de Ludex. Octets partout. */
+export interface DiskUsage {
+  /** « C: », ou le point de montage. */
+  letter: string;
+  /** Nom du volume, vide s'il n'en a pas. */
+  name: string;
+  total: number;
+  free: number;
+  /** Place des jeux de taille connue. */
+  gamesBytes: number;
+  games: number;
+  /** Jeux dont la taille n'est pas encore connue. */
+  unknown: number;
+  /** La plus grosse part d'abord. */
+  platforms: PlatformShare[];
+  /** Moins de 10 % d'espace libre. */
+  low: boolean;
+}
+/** Jeu pas lancé depuis six mois, ou jamais lancé. */
+export interface UninstallCandidate {
+  id: string;
+  title: string;
+  platform: Platform;
+  bytes: number;
+  lastPlayed: number | null;
+  /** Le launcher note les lancements (Steam, GOG Galaxy) ; sinon seuls ceux de Ludex sont connus. */
+  launcherDates: boolean;
+  drive: string | null;
+  /** Le launcher a une désinstallation que Ludex sait ouvrir (Steam) ; sinon, le dossier. */
+  uninstall: boolean;
+}
+export interface StorageReport {
+  disks: DiskUsage[];
+  /** Le plus gros d'abord. */
+  candidates: UninstallCandidate[];
+  /** Des dossiers sont en cours de mesure : le relevé va encore bouger. */
+  measuring: boolean;
+}
+export const storageReport = () => invoke<StorageReport>("storage");
+/** Ouvre la désinstallation chez le launcher (Steam, qui demande confirmation). Ludex ne supprime rien. */
+export const uninstallGame = (id: string) => invoke<void>("uninstall_game", { id });
+/** Taille d'un jeu mesurée par Ludex (dossier d'installation), après le scan. */
+export interface SizeEvent {
+  id: string;
+  sizeOnDisk: number;
+}
+export const onGameSize = (handler: (event: SizeEvent) => void): Promise<UnlistenFn> =>
+  listen<SizeEvent>("game-size", (e) => handler(e.payload));
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
 export interface ArtEvent {
   id: string;

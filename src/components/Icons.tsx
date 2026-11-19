@@ -88,6 +88,9 @@ export const ChevronLeftIcon = () => (
 export const ChevronRightIcon = () => (
   <svg {...base}><path d="m9 5 7 7-7 7" /></svg>
 );
+export const StorageIcon = () => (
+  <svg {...base}><ellipse cx="12" cy="6" rx="7" ry="2.5" /><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" /></svg>
+);
 export const SidebarIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
 );
