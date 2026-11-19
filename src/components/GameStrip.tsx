@@ -29,7 +29,7 @@ import {
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StackIcon, StarIcon, TrashIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StackIcon, StarIcon, TrashIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
 
@@ -52,6 +52,8 @@ interface Props {
   /** Montre les jeux d'un tag, ou d'une ambiance, dans « Tous les jeux ». */
   onTag: (tag: string) => void;
   onMood: (mood: Mood) => void;
+  /** Journal de ce jeu (section « Journal » restreinte). */
+  onJournal?: (game: Game) => void;
   onClose: () => void;
   /** Collections de l'utilisateur, pour y ajouter le jeu ou l'en retirer. */
   collections: Collection[];
@@ -222,6 +224,7 @@ export function GameStrip({
   onRemove,
   onTag,
   onMood,
+  onJournal,
   onClose,
   collections,
   onStatus,
@@ -412,6 +415,11 @@ export function GameStrip({
           member.length > 0 && <p className="strip__member">Dans {member.map((c) => `« ${c.name} »`).join(", ")}</p>
         )}
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
+        {onJournal && (
+          <button type="button" className="strip__journal" onClick={() => onJournal(game)}>
+            <JournalIcon /> Voir son journal
+          </button>
+        )}
         <AchievementList key={`achs-${game.id}`} game={game} />
         <SavesSection key={`saves-${game.id}`} gameId={game.id} playing={playing} />
       </div>

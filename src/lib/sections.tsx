@@ -3,7 +3,8 @@ import type { CollectionsInfo, Game, Mood, Status } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { ProgressBoard } from "../components/ProgressBoard";
-import { BoardIcon, ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { BoardIcon, ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
 import { RecapView } from "../components/RecapView";
@@ -24,6 +25,10 @@ export interface SectionContext {
   showMood: (mood: Mood) => void;
   /** Change le statut de progression (`null` : aucun), avec « Annuler » dans le toast. */
   setStatus: (game: Game, status: Status | null) => void;
+  /** Journal restreint à un jeu (« Voir son journal » de la fiche), `null` : tout le journal. */
+  journalGame: Game | null;
+  /** Revient au journal complet. */
+  showWholeJournal: () => void;
 }
 
 /**
@@ -79,6 +84,8 @@ export const SECTIONS: readonly Section[] = [
   { id: "tags", label: "Tags", icon: TagIcon, render: (ctx) => <TagsView {...ctx} /> },
   { id: "history", label: "Historique", icon: ClockIcon, render: (ctx) => <HistoryList {...ctx} /> },
   { id: "progress", label: "Progression", icon: BoardIcon, render: (ctx) => <ProgressBoard {...ctx} /> },
+  // Frise jour par jour : sessions, succès Steam et captures.
+  { id: "journal", label: "Journal", icon: JournalIcon, render: (ctx) => <JournalView {...ctx} /> },
   { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
   { id: "showcase", label: "Vitrine", icon: TrophyIcon, render: (ctx) => <ShowcaseView {...ctx} /> },

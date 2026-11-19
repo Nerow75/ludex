@@ -109,6 +109,8 @@ export default function App() {
   /** Collections de l'utilisateur et de Steam, relues avec la bibliothèque. */
   const [collections, setCollections] = useState<CollectionsInfo | null>(null);
   const [collapsed, setCollapsed] = useState(() => remembered("sidebar", ["open", "collapsed"], "open") === "collapsed");
+  /** Journal restreint à un jeu (« Voir son journal » de la fiche). Quitte la restriction en changeant de section. */
+  const [journalGameId, setJournalGameId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   /** Jeux lancés depuis Ludex dont un processus tourne. */
@@ -144,6 +146,7 @@ export default function App() {
 
   const goTo = useCallback((id: string) => {
     setSectionId(id);
+    setJournalGameId(null);
     setOpen(false);
     remember("section", id);
     scrollRef.current?.scrollTo({ top: 0 });
@@ -194,6 +197,12 @@ export default function App() {
       .then(setCollections)
       .catch(() => {});
   }, []);
+  /** Journal d'un seul jeu, depuis sa fiche. */
+  const openJournal = useCallback((game: Game) => {
+    goTo("journal");
+    setQuery("");
+    setJournalGameId(game.id);
+  }, [goTo]);
 
   /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
   const refresh = useCallback(async (manual = false) => {
@@ -789,7 +798,8 @@ export default function App() {
     }
   });
   const showPadHints = padConnected && padHints;
-  const sectionContext: SectionContext = { games, playing, openGame, play, showTag, showMood, setStatus: changeStatus };
+  const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
+  const sectionContext: SectionContext = { games, playing, openGame, play, showTag, showMood, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
   const changeStatusFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setOpen(false);
@@ -1046,6 +1056,7 @@ export default function App() {
                   onRemove={remove}
                   onTag={showTag}
                   onMood={showMood}
+                  onJournal={openJournal}
                   onClose={() => setOpen(false)}
                   collections={collections?.mine ?? []}
                   onStatus={changeStatus}

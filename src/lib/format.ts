@@ -133,3 +133,32 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1e9) return `${oneDecimal.format(bytes / 1e6)} Mo`;
   return `${oneDecimal.format(bytes / 1e9)} Go`;
 }
+
+/** Jour local d'une date `AAAA-MM-JJ`. */
+const dayOf = (date: string) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
+/** « Aujourd'hui », « Hier », « Il y a 5 jours », « Il y a 3 mois », « Il y a 2 ans », pour une date `AAAA-MM-JJ`. */
+export function relativeDay(date: string): string {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = Math.round((start.getTime() - dayOf(date).getTime()) / 86_400_000);
+  if (days <= 0) return "Aujourd'hui";
+  if (days === 1) return "Hier";
+  if (days < 30) return `Il y a ${days} jours`;
+  if (days < 365) return `Il y a ${Math.max(1, Math.round(days / 30.4))} mois`;
+  const years = Math.floor(days / 365.25);
+  return `Il y a ${years} an${years > 1 ? "s" : ""}`;
+}
+
+const longDay = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+/** « mercredi 18 novembre 2026 », pour une date `AAAA-MM-JJ`. */
+export const formatDay = (date: string) => longDay.format(dayOf(date));
+
+const clock = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+/** « 14:05 ». */
+export const formatClock = (ts: number) => clock.format(new Date(ts * 1000));

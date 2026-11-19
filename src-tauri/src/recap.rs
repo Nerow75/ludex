@@ -17,7 +17,7 @@ use chrono::{Datelike, Local, NaiveDate, Offset, TimeZone};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-const DAY: i64 = 86_400;
+pub(crate) const DAY: i64 = 86_400;
 const HOUR: i64 = 3_600;
 /// Numéro du 1er janvier 1970 dans le calendrier de chrono (jours depuis le 1er janvier de l'an 1).
 const EPOCH_CE: i64 = 719_163;
@@ -124,16 +124,16 @@ pub struct Recap {
     pub history_since: Option<u64>,
 }
 
-fn to_date(day: i64) -> NaiveDate {
+pub(crate) fn to_date(day: i64) -> NaiveDate {
     i32::try_from(day + EPOCH_CE).ok().and_then(NaiveDate::from_num_days_from_ce_opt).unwrap_or_default()
 }
 
-fn to_day(date: NaiveDate) -> i64 {
+pub(crate) fn to_day(date: NaiveDate) -> i64 {
     i64::from(date.num_days_from_ce()) - EPOCH_CE
 }
 
 /// Jour local (jours depuis le 1er janvier 1970) d'un instant UTC.
-fn local_day(utc: i64, zone: &impl Zone) -> i64 {
+pub(crate) fn local_day(utc: i64, zone: &impl Zone) -> i64 {
     (utc + zone.offset(utc)).div_euclid(DAY)
 }
 
@@ -163,7 +163,7 @@ fn bounds(period: Period, today: i64, back: u32) -> (i64, i64) {
 }
 
 /// Découpe une session en morceaux par heure locale : (jour, heure ou `None` si inconnue, secondes).
-fn pieces(s: &PastSession, zone: &impl Zone, mut f: impl FnMut(i64, Option<i64>, u64)) {
+pub(crate) fn pieces(s: &PastSession, zone: &impl Zone, mut f: impl FnMut(i64, Option<i64>, u64)) {
     let start = i64::try_from(s.start).unwrap_or(i64::MAX / 2);
     let mut t = start + zone.offset(start);
     if s.merged {
@@ -180,7 +180,7 @@ fn pieces(s: &PastSession, zone: &impl Zone, mut f: impl FnMut(i64, Option<i64>,
 }
 
 /// Sessions sans doublon (même jeu, même début : une seule, comme le journal).
-fn unique(sessions: &[PastSession]) -> Vec<&PastSession> {
+pub(crate) fn unique(sessions: &[PastSession]) -> Vec<&PastSession> {
     let mut seen: HashSet<(&str, u64)> = HashSet::new();
     sessions.iter().filter(|s| s.secs > 0 && seen.insert((s.game_id.as_str(), s.start))).collect()
 }

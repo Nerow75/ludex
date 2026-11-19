@@ -513,3 +513,38 @@ export const gameScreenshots = (id: string) => invoke<Screenshot[]>("game_screen
 export const allScreenshots = () => invoke<ScreenshotGroup[]>("all_screenshots");
 /** Montre la capture dans l'Explorateur (le chemin est retrouvé côté Rust). */
 export const showScreenshot = (shot: Screenshot) => invoke<void>("show_screenshot", { id: shot.gameId, key: shot.key });
+/** Morceau d'une session dans un jour du journal. */
+export interface JournalSession {
+  /** Début de la session (secondes Unix), `null` : sessions regroupées d'un ancien jour (heure inconnue). */
+  start: number | null;
+  /** Temps joué ce jour-là, en secondes. */
+  secs: number;
+  /** Partie commencée la veille (passée minuit). */
+  continued: boolean;
+}
+/** Ce qu'un jeu a laissé dans un jour. `gameId` à `null` : captures sans jeu (« Autres captures »). */
+export interface JournalGame {
+  gameId: string | null;
+  title: string;
+  secs: number;
+  sessions: JournalSession[];
+  /** Succès débloqués ce jour-là (compte sûr, même sans détail). */
+  unlocked: number;
+  /** Détail de ces succès, dans l'ordre de la journée. */
+  achievements: Achievement[];
+  shots: Screenshot[];
+}
+export interface JournalDay {
+  /** Date locale `AAAA-MM-JJ`. */
+  date: string;
+  secs: number;
+  games: JournalGame[];
+}
+export interface JournalPage {
+  /** Du plus récent au plus ancien. */
+  days: JournalDay[];
+  /** À renvoyer en `before` pour la page suivante, `null` : rien de plus ancien. */
+  next: string | null;
+}
+/** Une page du journal (environ 30 jours actifs) avant `before` ; `game` : un seul jeu. */
+export const journal = (before: string | null, game: string | null) => invoke<JournalPage>("journal", { before, game });
