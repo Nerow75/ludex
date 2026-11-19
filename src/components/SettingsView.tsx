@@ -26,6 +26,7 @@ import {
   type WelcomeInfo,
 } from "../lib/api";
 import { applyTheme } from "../lib/theme";
+import { DiagnosticPanel } from "./DiagnosticPanel";
 
 interface Props {
   scan: ScanResult | null;
@@ -86,6 +87,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
   const [confirmShow, setConfirmShow] = useState(false);
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
   const captureBtn = useRef<HTMLButtonElement>(null);
 
   const fail = (e: unknown) => setError(String(e));
@@ -370,6 +372,21 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 <button type="button" className="btn-ghost set__small" data-nav disabled={checking} onClick={searchUpdate}>Rechercher une mise à jour</button>
               )}
             </div>
+          </section>
+
+          <section className="set__group" aria-labelledby="set-diag">
+            <h3 id="set-diag">Diagnostic</h3>
+            {showDiag ? (
+              <DiagnosticPanel scan={scan} onScan={onScan} />
+            ) : (
+              <div className="set__row">
+                <span className="set__text">
+                  <span>Diagnostic des launchers</span>
+                  <small>Ce que Ludex lit pour chaque launcher, les jeux écartés et les erreurs, avec un rapport à copier.</small>
+                </span>
+                <button type="button" className="btn-ghost set__small" data-nav onClick={() => setShowDiag(true)}>Afficher</button>
+              </div>
+            )}
           </section>
         </>
       )}

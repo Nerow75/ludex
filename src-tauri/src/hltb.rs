@@ -522,6 +522,7 @@ impl HltbCache {
             }
             match client.search(&q.title, &mut moved) {
                 Ok(items) => {
+                    crate::diagnostic::ok(crate::diagnostic::Service::Hltb);
                     let times = pick(&items, &q.title, q.year);
                     let found = times.is_some();
                     self.record(q.key, times);
@@ -536,6 +537,7 @@ impl HltbCache {
                     }
                 }
                 Err(e) => {
+                    crate::diagnostic::failed(crate::diagnostic::Service::Hltb, &e);
                     eprintln!("Durées HowLongToBeat interrompues : {e}");
                     return false;
                 }

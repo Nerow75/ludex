@@ -71,7 +71,13 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         .into_iter()
         .filter(|d| local::kind(d) == Kind::Battlenet)
         .filter_map(|d| build(&d, client))
-        .filter(|g| seen.insert(g.platform_id.clone()))
+        .filter(|g| {
+            let first = seen.insert(g.platform_id.clone());
+            if !first {
+                super::skip(&g.title, "Même jeu déjà vu dans un autre dossier");
+            }
+            first
+        })
         .collect();
     Ok((client || !games.is_empty()).then_some(games))
 }

@@ -66,6 +66,22 @@ struct Entry {
     depends_on: String,
 }
 
+/// Pourquoi `build` écarte une entrée du registre (page de diagnostic).
+#[cfg(windows)]
+fn skip_reason(e: &Entry, galaxy: bool) -> Option<&'static str> {
+    if e.name.is_empty() {
+        None
+    } else if !e.depends_on.is_empty() {
+        Some("Contenu additionnel (DLC)")
+    } else if !Path::new(&e.path).is_dir() {
+        Some("Dossier d'installation introuvable")
+    } else if !galaxy && !Path::new(&e.exe).is_file() {
+        Some("Exécutable introuvable (GOG Galaxy absent)")
+    } else {
+        None
+    }
+}
+
 /// `times` : temps de jeu de Galaxy, `None` si la base est absente ou illisible.
 fn build(e: &Entry, galaxy: Option<&Path>, times: Option<&Times>) -> Option<Game> {
     if !e.depends_on.is_empty() || e.name.is_empty() || !Path::new(&e.path).is_dir() {
@@ -122,7 +138,13 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
                     params: s("launchParam"),
                     depends_on: s("dependsOn"),
                 };
-                build(&entry, galaxy.as_deref(), times.as_ref())
+                let game = build(&entry, galaxy.as_deref(), times.as_ref());
+                if game.is_none()
+                    && let Some(reason) = skip_reason(&entry, galaxy.is_some())
+                {
+                    super::skip(&entry.name, reason);
+                }
+                game
             })
             .collect();
         Ok(Some(games))

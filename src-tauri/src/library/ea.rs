@@ -93,11 +93,23 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         .filter_map(|dir| match local::kind(&dir) {
             Kind::Ea(manifest) => {
                 let game_dir = manifest.parent()?.parent()?.to_path_buf();
-                build(&fs::read_to_string(&manifest).ok()?, &game_dir)
+                let game = fs::read_to_string(&manifest).ok().and_then(|text| build(&text, &game_dir));
+                if game.is_none() {
+                    let folder = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    super::skip(&folder, "Manifeste EA illisible ou sans exécutable");
+                }
+                game
             }
             _ => None,
         })
-        .filter(|g| seen.insert(g.platform_id.clone())) // même jeu copié dans deux dossiers
+        .filter(|g| {
+            // Même jeu copié dans deux dossiers.
+            let first = seen.insert(g.platform_id.clone());
+            if !first {
+                super::skip(&g.title, "Même jeu déjà vu dans un autre dossier");
+            }
+            first
+        })
         .collect();
     Ok((app || !games.is_empty()).then_some(games))
 }

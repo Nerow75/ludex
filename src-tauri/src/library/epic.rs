@@ -36,46 +36,53 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         if path.extension().and_then(|e| e.to_str()) != Some("item") {
             continue;
         }
-        let Ok(text) = fs::read_to_string(&path) else { continue };
-        let Ok(item) = serde_json::from_str::<Value>(&text) else { continue };
-        if let Some(game) = parse_item(&item)
-            && seen.insert(game.platform_id.clone())
-        {
-            games.push(game);
+        let file = entry.file_name().to_string_lossy().into_owned();
+        let Some(item) = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
+            super::skip(&file, "Manifeste illisible");
+            continue;
+        };
+        match parse_item(&item) {
+            Ok(game) if seen.insert(game.platform_id.clone()) => games.push(game),
+            Ok(game) => super::skip(&game.title, "Manifeste en double"),
+            Err(reason) => {
+                let title = item.get("DisplayName").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or(&file);
+                super::skip(title, reason);
+            }
         }
     }
     Ok(Some(games))
 }
 
-fn parse_item(item: &Value) -> Option<Game> {
+/// Jeu décrit par un manifeste, ou la raison de l'écarter.
+fn parse_item(item: &Value) -> Result<Game, &'static str> {
     let s = |key: &str| item.get(key).and_then(Value::as_str).unwrap_or("");
     let flag = |key: &str| item.get(key).and_then(Value::as_bool) == Some(true);
 
     let app_name = s("AppName");
     let title = s("DisplayName");
     if app_name.is_empty() || title.is_empty() {
-        return None;
+        return Err("Manifeste incomplet (AppName ou nom absent)");
     }
     // DLC : leur jeu principal porte un autre AppName.
     let main = s("MainGameAppName");
     if !main.is_empty() && main != app_name {
-        return None;
+        return Err("Contenu additionnel (DLC)");
     }
     // Ignore les applications qui ne sont pas des jeux (Unreal Engine, etc.).
     if let Some(categories) = item.get("AppCategories").and_then(Value::as_array)
         && !categories.iter().any(|c| c.as_str() == Some("games"))
     {
-        return None;
+        return Err("Application, pas un jeu");
     }
     let install = s("InstallLocation");
     if !install.is_empty() && !Path::new(install).exists() {
-        return None;
+        return Err("Dossier d'installation introuvable");
     }
     // `bIsIncompleteInstall` : installation ou mise à jour interrompue. Gardé seulement si
     // l'exécutable est déjà là (mise à jour), une première installation n'étant pas jouable.
     let incomplete = flag("bIsIncompleteInstall");
     if incomplete && (install.is_empty() || !Path::new(install).join(s("LaunchExecutable")).is_file()) {
-        return None;
+        return Err("Première installation pas terminée");
     }
 
     let (namespace, catalog_id) = (s("CatalogNamespace"), s("CatalogItemId"));
@@ -93,7 +100,7 @@ fn parse_item(item: &Value) -> Option<Game> {
     if incomplete || flag("bNeedsValidation") {
         game.install_state = InstallState::Incomplete;
     }
-    Some(game)
+    Ok(game)
 }
 
 #[cfg(test)]
@@ -120,7 +127,7 @@ mod tests {
 
         let mut dlc = base.clone();
         dlc["AppName"] = "SugarDLC".into();
-        assert!(parse_item(&dlc).is_none());
+        assert_eq!(parse_item(&dlc).err(), Some("Contenu additionnel (DLC)"));
     }
 
     #[test]
@@ -136,13 +143,14 @@ mod tests {
                 "bIsIncompleteInstall": incomplete, "bNeedsValidation": validation
             })
         };
-        let state = |v: &Value| parse_item(v).map(|g| g.install_state);
+        let state = |v: &Value| parse_item(v).ok().map(|g| g.install_state);
         assert_eq!(state(&item(false, false, "Binaries/Game.exe")), Some(InstallState::Ready));
         assert_eq!(state(&item(false, true, "Binaries/Game.exe")), Some(InstallState::Incomplete));
         // Mise à jour interrompue : l'exécutable est là, le jeu reste listé.
         assert_eq!(state(&item(true, false, "Binaries/Game.exe")), Some(InstallState::Incomplete));
         // Première installation en cours : pas encore d'exécutable, écartée.
         assert_eq!(state(&item(true, false, "Binaries/Absent.exe")), None);
+        assert_eq!(parse_item(&item(true, false, "Binaries/Absent.exe")).err(), Some("Première installation pas terminée"));
         let _ = fs::remove_dir_all(&dir);
     }
 }

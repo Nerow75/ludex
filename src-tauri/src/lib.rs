@@ -2,6 +2,7 @@ mod art;
 mod collections;
 mod covers;
 mod deeplink;
+mod diagnostic;
 mod history;
 mod hltb;
 mod images;
@@ -212,15 +213,20 @@ fn publish_image(app: &tauri::AppHandle, state: &AppState, job: &images::Job, fi
 fn download_image(app: &tauri::AppHandle, state: &AppState, agent: &ureq::Agent, root: &std::path::Path, job: images::Job) -> bool {
     match images::fetch(agent, &job.url) {
         images::Fetch::Image(bytes, ext) => match images::write(root, &job, &bytes, ext) {
-            Ok(file) => publish_image(app, state, &job, file),
+            Ok(file) => {
+                diagnostic::ok(diagnostic::Service::Images);
+                publish_image(app, state, &job, file);
+            }
             Err(e) => eprintln!("Image non enregistrée ({}) : {e}", job.url),
         },
         images::Fetch::Missing => {
+            diagnostic::ok(diagnostic::Service::Images);
             if let Ok(mut cache) = lock(&state.images) {
                 cache.note_missing(&job.url);
             }
         }
         images::Fetch::Failed(e) => {
+            diagnostic::failed(diagnostic::Service::Images, &e);
             eprintln!("Image non téléchargée ({}) : {e}", job.url);
             return false;
         }
@@ -2134,6 +2140,7 @@ pub fn run() {
             settings::set_keep_in_tray,
             settings::set_source_enabled,
             settings::show_all_hidden,
+            diagnostic::diagnostic,
             window_controls::window_enter_couch,
             window_controls::window_leave_couch,
             window_controls::window_couch_fullscreen,
