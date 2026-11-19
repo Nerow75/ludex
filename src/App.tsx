@@ -46,6 +46,9 @@ import {
   type SessionEvent,
   type Status,
   type UpdateInfo,
+  type WelcomeInfo,
+  welcome as getWelcome,
+  welcomeDone,
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
@@ -84,6 +87,7 @@ import { spatialNext } from "./lib/spatial";
 import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
+import WelcomeScreen from "./components/WelcomeScreen";
 
 interface Toast {
   title: string;
@@ -414,6 +418,15 @@ export default function App() {
       unlisten.then((stop) => stop()).catch(() => {});
     };
   }, [runUpdate, showToast]);
+
+  // Premier lancement : écran montré une fois, après le premier scan. `null` : déjà vu.
+  const [welcomeInfo, setWelcomeInfo] = useState<WelcomeInfo | null>(null);
+  const welcomeOpen = useRef(false);
+  useEffect(() => {
+    getWelcome()
+      .then(setWelcomeInfo)
+      .catch(() => {}); // sans réponse, pas d'écran d'accueil : la bibliothèque reste utilisable
+  }, []);
 
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);
@@ -946,7 +959,12 @@ export default function App() {
   const padConnected = useGamepad((action) => {
     setPadHints(true);
     const s = live.current;
-    // Menu contextuel ouvert : la manette le pilote comme le clavier (B ou Menu le ferment).
+    // Écran de premier lancement ou menu contextuel ouvert : la manette les pilote comme le clavier.
+    if (welcomeOpen.current) {
+      const key = PAD_MENU_KEYS[action];
+      if (key) (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      return;
+    }
     if (menuRef.current) {
       const key = PAD_MENU_KEYS[action];
       const target = document.activeElement?.closest(".cmenu-layer") ? document.activeElement : document.querySelector(".cmenu");
@@ -1004,6 +1022,16 @@ export default function App() {
     remember("status", f);
   };
   const mineCollection = view.collection?.kind === "mine" ? collections?.mine.find((c) => c.id === view.collection?.id) : undefined;
+
+  const showWelcome = !!(scan && welcomeInfo);
+  welcomeOpen.current = showWelcome;
+  /** Écran de premier lancement fermé : il ne reviendra plus, puis `then` (section à ouvrir). */
+  const closeWelcome = (then: () => void) => {
+    setWelcomeInfo(null);
+    welcomeDone().catch((e) => showToast({ title: "Premier lancement non enregistré", detail: String(e), error: true }, 5000));
+    then();
+    requestAnimationFrame(focusContent);
+  };
 
   return (
     <div
@@ -1305,6 +1333,22 @@ export default function App() {
           keyboard={menu.keyboard}
           onAction={(a) => runMenu(menuGame, a)}
           onClose={closeMenu}
+        />
+      )}
+
+      {showWelcome && (
+        <WelcomeScreen
+          scan={scan!}
+          info={welcomeInfo!}
+          pad={padConnected}
+          onDone={() => closeWelcome(() => goTo("for-you"))}
+          onShowHidden={() =>
+            closeWelcome(() => {
+              goTo("all");
+              setQuery("");
+              changeFilter("hidden");
+            })
+          }
         />
       )}
 

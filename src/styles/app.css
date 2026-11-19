@@ -867,3 +867,45 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 .jgame__shots { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); max-width: 840px; }
 .journal__end { display: flex; justify-content: center; padding: 32px 0 16px; }
 .journal__end .btn-ghost:disabled { opacity: .6; }
+/* ---------- Premier lancement ---------- */
+.welcome {
+  position: fixed; inset: 0; z-index: 40; overflow-y: auto; display: grid; place-items: center; padding: 40px 24px;
+  background: var(--lx-bg); animation: fade-in .3s var(--lx-ease); transition: opacity .16s var(--lx-ease);
+}
+.welcome.is-leaving { opacity: 0; }
+.welcome__panel {
+  width: min(600px, 100%); display: flex; flex-direction: column; gap: 24px;
+  animation: welcome-in .48s var(--lx-ease) both;
+}
+.welcome__brand { display: inline-flex; align-items: center; gap: 12px; font: 600 20px/1 var(--lx-font-body); }
+.welcome__head h1 { font-size: 28px; line-height: 1.25; font-weight: 400; color: var(--lx-text-2); }
+.welcome__head h1 b { color: var(--lx-text); font-weight: 600; }
+.welcome__lead { margin-top: 8px; color: var(--lx-text-2); }
+.welcome__sources { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.welcome__sources li {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-s); font-size: 13px; color: var(--lx-text-2);
+}
+.welcome__sources span { font-family: var(--lx-font-mono); color: var(--lx-text); }
+.welcome__facts { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--lx-text-3); }
+.welcome__facts code { font-family: var(--lx-font-mono); font-size: 12px; color: var(--lx-text-2); }
+.welcome__link {
+  padding: 0; border: 0; background: none; color: var(--lx-accent-text); font: inherit;
+  text-decoration: underline; text-underline-offset: 2px; border-radius: 4px;
+}
+.welcome__link:hover { color: var(--lx-text); }
+.welcome__keys { border-top: 1px solid var(--lx-border); padding-top: 24px; }
+.welcome__keys h2 { font-size: 14px; color: var(--lx-text-3); margin-bottom: 12px; }
+.welcome__keys dl { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.welcome__keys dl > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 0 16px;
+  border-radius: var(--lx-radius-m); background: var(--lx-surface);
+}
+.welcome__keys dt { font-size: 14px; }
+.welcome__keys dd { margin: 0; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--lx-text-3); }
+.welcome kbd.pad, .welcome__pad kbd.pad { width: 20px; height: 20px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 600; }
+.welcome__pad { margin-top: 12px; font-size: 13px; color: var(--lx-text-3); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.welcome__go { display: flex; align-items: center; gap: 12px; }
+.welcome__go .btn-play { padding: 0 24px; }
+.welcome__hint { display: inline-flex; gap: 4px; }
+@keyframes welcome-in { from { opacity: 0; transform: translateY(8px); } }

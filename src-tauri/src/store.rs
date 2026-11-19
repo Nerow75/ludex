@@ -72,6 +72,10 @@ pub struct Settings {
     /// Raccourci clavier global qui ouvre la recherche rapide (`quick.rs`), au format du plugin
     /// (« Alt+Space », « Ctrl+Shift+L »). Vide : désactivé. Modifiable plus tard par un écran Paramètres.
     pub quick_shortcut: String,
+    /// Écran de premier lancement déjà vu. `None` : fichier d'avant ce réglage, tranché au
+    /// démarrage par `welcome.rs` (un habitué ne le voit pas).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub welcome_shown: Option<bool>,
 }
 
 impl Default for Settings {
@@ -83,6 +87,7 @@ impl Default for Settings {
             saves_dir: None,
             auto_saves: true,
             quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
+            welcome_shown: None,
         }
     }
 }
@@ -104,6 +109,23 @@ impl UserData {
         let tmp = path.with_extension("json.tmp");
         fs::write(&tmp, text).map_err(|e| format!("Enregistrement impossible : {e}"))?;
         fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+    }
+
+    /// Ludex a déjà servi : une préférence retenue, ou l'explication de la zone de notification vue.
+    pub fn has_history(&self) -> bool {
+        self.settings.tray_hint_shown
+            || !(self.favorites.is_empty()
+                && self.hidden.is_empty()
+                && self.shown.is_empty()
+                && self.launched.is_empty()
+                && self.playtime.is_empty()
+                && self.manual.is_empty()
+                && self.exes.is_empty()
+                && self.titles.is_empty()
+                && self.covers.is_empty()
+                && self.status.is_empty()
+                && self.notes.is_empty()
+                && self.collections.is_empty())
     }
 
     pub fn set_favorite(&mut self, id: &str, value: bool) {
@@ -418,8 +440,9 @@ mod tests {
     fn settings_default_to_tray_without_autostart() {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
-        assert!(s.auto_saves && s.saves_dir.is_none());
+        assert!(s.auto_saves && s.saves_dir.is_none() && s.welcome_shown.is_none());
         assert_eq!(s.quick_shortcut, "Alt+Space");
+        assert!(!UserData::default().has_history());
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
         let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
         assert_eq!(old.settings, Settings::default());
@@ -540,6 +563,7 @@ mod tests {
         data.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
         data.settings.auto_saves = false;
         data.settings.quick_shortcut = "Ctrl+Shift+L".to_string();
+        data.settings.welcome_shown = Some(true);
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));

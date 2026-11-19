@@ -312,6 +312,11 @@ pub fn watched_dirs() -> WatchedDirs {
     WatchedDirs { steamapps: steam::steamapps_dirs(), epic: epic::manifests_dir(), riot: riot::root_dir(), libraries: local::library_dirs() }
 }
 
+/// Dossiers de jeux lus à la racine des disques (écran de premier lancement).
+pub fn game_folders() -> Vec<PathBuf> {
+    local::library_dirs()
+}
+
 pub use achievements::Achievement;
 
 /// Lecture à la demande du détail des succès Steam de ce PC (jamais pendant le scan).

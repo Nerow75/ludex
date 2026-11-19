@@ -585,3 +585,13 @@ export interface JournalPage {
 }
 /** Une page du journal (environ 30 jours actifs) avant `before` ; `game` : un seul jeu. */
 export const journal = (before: string | null, game: string | null) => invoke<JournalPage>("journal", { before, game });
+
+/** Écran de premier lancement : ce que le scan ne dit pas. */
+export interface WelcomeInfo {
+  /** Dossiers « Jeux », « Games » lus à la racine des disques. */
+  folders: string[];
+}
+/** `null` : écran déjà vu (ou Ludex utilisé avant cet écran). */
+export const welcome = () => invoke<WelcomeInfo | null>("welcome");
+/** « C'est parti » : l'écran ne reviendra plus. */
+export const welcomeDone = () => invoke<void>("welcome_done");
