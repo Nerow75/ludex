@@ -101,3 +101,10 @@ export const GamepadIcon = () => (
 export const ImageIcon = () => (
   <svg {...base}><rect x="3" y="4.5" width="18" height="15" rx="1.5" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="9" r="1.5" /></svg>
 );
+/** Sauvegardes : une disquette. */
+export const SaveIcon = () => (
+  <svg {...base}>
+    <path d="M5.5 4.5h10l3 3v11a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z" />
+    <path d="M8.5 4.5v4h6v-4M8.5 19.5v-6h7v6" />
+  </svg>
+);

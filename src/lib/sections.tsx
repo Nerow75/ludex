@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import type { Game } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
-import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, StarIcon, TrophyIcon } from "../components/Icons";
+import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, SaveIcon, StarIcon, TrophyIcon } from "../components/Icons";
+import { SavesPage } from "../components/SavesPage";
+import { ScreenshotsPage } from "../components/ScreenshotsPage";
 import { RecapView } from "../components/RecapView";
 import { ShowcaseView } from "../components/ShowcaseView";
 
@@ -50,6 +52,22 @@ export const SECTIONS: readonly Section[] = [
   { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
   { id: "showcase", label: "Vitrine", icon: TrophyIcon, render: (ctx) => <ShowcaseView {...ctx} /> },
+  // Captures Steam et Xbox Game Bar, jeu par jeu.
+  {
+    id: "screenshots",
+    label: "Captures",
+    icon: ImageIcon,
+    render: (ctx) => (
+      <ScreenshotsPage
+        onOpenGame={(id) => {
+          const game = ctx.games.find((g) => g.id === id);
+          if (game) ctx.openGame(game);
+        }}
+      />
+    ),
+  },
+  // Copies de sécurité des sauvegardes (base Ludusavi).
+  { id: "saves", label: "Sauvegardes", icon: SaveIcon, render: () => <SavesPage /> },
 ];
 
 export const SECTION_IDS = SECTIONS.map((s) => s.id);

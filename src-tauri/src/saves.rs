@@ -37,7 +37,7 @@ const INDEX_VERSION: u32 = 1;
 /// Manifeste refusé au-delà de cette taille (il pèse environ 17 Mo).
 const MAX_MANIFEST: u64 = 64 << 20;
 /// Copies gardées par jeu.
-pub const KEEP: usize = 10;
+pub const KEEP: usize = 5;
 /// Une copie au-delà de cette taille ou de ce nombre de fichiers est refusée : règle trop large.
 const MAX_BYTES: u64 = 1 << 30;
 const MAX_FILES: usize = 20_000;
