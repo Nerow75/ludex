@@ -114,11 +114,18 @@ fn is_invisible(c: char) -> bool {
 /// Titre saisi par l'utilisateur : caractères de contrôle et invisibles retirés, espaces
 /// regroupés, `MAX_TITLE` caractères au plus. `None` : rien de lisible.
 pub fn clean_title(raw: &str) -> Option<String> {
+    clean_text(raw, MAX_TITLE)
+}
+
+/// Texte court saisi par l'utilisateur (titre, note, nom de collection), sur une ligne :
+/// caractères de contrôle et invisibles retirés, espaces regroupés, `max` caractères au plus.
+/// `None` : rien de lisible.
+pub fn clean_text(raw: &str, max: usize) -> Option<String> {
     let visible: String = raw.chars().filter(|&c| !is_invisible(c)).collect();
     let words: Vec<&str> = visible.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
-    let title: String = words.join(" ").chars().take(MAX_TITLE).collect();
-    let title = title.trim_end().to_string();
-    (!title.is_empty()).then_some(title)
+    let text: String = words.join(" ").chars().take(max).collect();
+    let text = text.trim_end().to_string();
+    (!text.is_empty()).then_some(text)
 }
 
 /// Remplace l'exécutable lancé, et l'icône si elle venait de l'exécutable.

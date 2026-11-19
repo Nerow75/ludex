@@ -1,4 +1,4 @@
-import { MOODS, type Game, type Mood, type Platform } from "./api";
+import { MOODS, STATUS_LABEL, STATUSES, type Game, type Mood, type Platform, type Status } from "./api";
 import { cleanTitle, norm, queryMatch } from "./format";
 
 export type Filter = "all" | "favorites" | "hidden" | Platform;
@@ -22,6 +22,14 @@ const COMPARE: Record<Sort, (a: Game, b: Game) => number> = {
   title: byTitle,
   size: (a, b) => (b.sizeOnDisk ?? 0) - (a.sizeOnDisk ?? 0) || byTitle(a, b),
 };
+
+/** Filtre par statut de progression, en plus du filtre par launcher. */
+export type StatusFilter = "any" | "none" | Status;
+export const STATUS_FILTERS: readonly StatusFilter[] = ["any", ...STATUSES, "none"];
+export const STATUS_FILTER_LABEL: Record<StatusFilter, string> = { any: "Tous les statuts", none: "Sans statut", ...STATUS_LABEL };
+
+export const matchesStatus = (game: Game, filter: StatusFilter) =>
+  filter === "any" || (filter === "none" ? !game.status : game.status === filter);
 
 export function matchesFilter(game: Game, filter: Filter): boolean {
   if (filter === "hidden") return game.hidden;
@@ -83,6 +91,15 @@ export function remembered<T extends string>(key: string, allowed: readonly T[],
     return v && allowed.includes(v) ? v : fallback;
   } catch {
     return fallback;
+  }
+}
+
+/** Valeur gardée telle quelle (section d'une collection, vérifiée plus tard), `null` si absente. */
+export function rememberedText(key: string): string | null {
+  try {
+    return localStorage.getItem(`ludex.${key}`);
+  } catch {
+    return null;
   }
 }
 

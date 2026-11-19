@@ -91,6 +91,17 @@ export const ChevronRightIcon = () => (
 export const StorageIcon = () => (
   <svg {...base}><ellipse cx="12" cy="6" rx="7" ry="2.5" /><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" /></svg>
 );
+/** Trois colonnes : la section « Progression ». */
+export const BoardIcon = () => (
+  <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.2 4.5v15M14.8 4.5v15" /></svg>
+);
+/** Pile de cartes : une collection perso. */
+export const StackIcon = () => (
+  <svg {...base}><path d="m12 4 8.5 4.5L12 13 3.5 8.5z" /><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5" /></svg>
+);
+export const NoteIcon = () => (
+  <svg {...base}><path d="M5 4.5h14v10.5L14.5 19.5H5z" /><path d="M14.5 19.5V15H19M8.5 9h7M8.5 12.5h4" /></svg>
+);
 export const SidebarIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
 );

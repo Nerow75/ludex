@@ -1,0 +1,46 @@
+import { useState } from "react";
+
+interface Props {
+  initial?: string;
+  maxLength: number;
+  label: string;
+  placeholder?: string;
+  className?: string;
+  /** Texte validé par Entrée (le nettoyage final est fait côté Rust). */
+  onSubmit: (value: string) => void;
+  /** Échap, clic ailleurs, ou après `onSubmit`. */
+  onDone: () => void;
+}
+
+/** Champ sur place, comme « Renommer » : Entrée valide, Échap (ou un clic ailleurs) annule. */
+export function InlineInput({ initial = "", maxLength, label, placeholder, className, onSubmit, onDone }: Props) {
+  const [value, setValue] = useState(initial);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // pas de raccourci global (Ctrl+D, flèches) pendant la saisie
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (value.trim() !== initial.trim()) onSubmit(value);
+      onDone();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onDone();
+    }
+  };
+  return (
+    <input
+      className={`inline-input ${className ?? ""}`}
+      value={value}
+      maxLength={maxLength}
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={onKeyDown}
+      onBlur={onDone}
+      aria-label={label}
+      placeholder={placeholder}
+      title="Entrée pour valider, Échap pour annuler"
+      spellCheck={false}
+      autoComplete="off"
+    />
+  );
+}

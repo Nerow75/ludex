@@ -1,5 +1,21 @@
 import { useEffect, useState } from "react";
-import { gameHistory, gameScreenshots, MAX_TITLE, MOOD_LABEL, PLATFORM_LABEL, type Game, type Mood, type PastSession, type Screenshot } from "../lib/api";
+import {
+  gameHistory,
+  gameScreenshots,
+  MAX_COLLECTION_NAME,
+  MAX_NOTE,
+  MAX_TITLE,
+  MOOD_LABEL,
+  PLATFORM_LABEL,
+  STATUS_LABEL,
+  STATUSES,
+  type Collection,
+  type Game,
+  type Mood,
+  type PastSession,
+  type Screenshot,
+  type Status,
+} from "../lib/api";
 import {
   formatAchievements,
   formatDate,
@@ -13,7 +29,8 @@ import {
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StackIcon, StarIcon, TrashIcon } from "./Icons";
+import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
 
 interface Props {
@@ -36,6 +53,15 @@ interface Props {
   onTag: (tag: string) => void;
   onMood: (mood: Mood) => void;
   onClose: () => void;
+  /** Collections de l'utilisateur, pour y ajouter le jeu ou l'en retirer. */
+  collections: Collection[];
+  /** `null` : aucun statut. */
+  onStatus: (game: Game, status: Status | null) => void;
+  /** Note vide : note effacée. */
+  onNote: (game: Game, note: string) => void;
+  onToggleCollection: (game: Game, collection: Collection, value: boolean) => void;
+  /** Nouvelle collection qui reçoit tout de suite ce jeu. */
+  onCreateCollection: (name: string, game: Game) => void;
 }
 
 /** Titre modifiable sur place : Entrée valide, Échap (ou un clic ailleurs) annule. */
@@ -183,8 +209,31 @@ function SavesSection({ gameId, playing }: { gameId: string; playing: boolean })
 }
 
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
-export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onTag, onMood, onClose }: Props) {
+export function GameStrip({
+  game,
+  notch,
+  playing,
+  onPlay,
+  onFavorite,
+  onHide,
+  onOpenFolder,
+  onChangeExe,
+  onRename,
+  onRemove,
+  onTag,
+  onMood,
+  onClose,
+  collections,
+  onStatus,
+  onNote,
+  onToggleCollection,
+  onCreateCollection,
+}: Props) {
   const [renaming, setRenaming] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [showCollections, setShowCollections] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const description = game.details?.description;
   const moods = game.details?.moods ?? [];
@@ -236,6 +285,42 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
             </div>
           )}
         </dl>
+        <div className="strip__progress">
+          <div className="seg" role="group" aria-label="Progression">
+            {STATUSES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={game.status === s}
+                title={game.status === s ? "Cliquer de nouveau retire le statut" : undefined}
+                onClick={() => onStatus(game, game.status === s ? null : s)}
+              >
+                {STATUS_LABEL[s]}
+              </button>
+            ))}
+          </div>
+          {editingNote ? (
+            <InlineInput
+              className="strip__note-input"
+              initial={game.note ?? ""}
+              maxLength={MAX_NOTE}
+              label={`Note sur ${game.title}`}
+              placeholder="Une note pour toi : où tu en es, ce qu'il reste à faire…"
+              onSubmit={(note) => onNote(game, note)}
+              onDone={() => setEditingNote(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              className={`strip__note ${game.note ? "" : "is-empty"}`}
+              title={game.note ? `${game.note}\nCliquer pour modifier. Vide : note effacée` : "Ajouter une note perso"}
+              onClick={() => setEditingNote(true)}
+            >
+              <NoteIcon />
+              <span>{game.note ?? "Ajouter une note"}</span>
+            </button>
+          )}
+        </div>
         <div className="strip__acts">
           <button type="button" className="btn-play" onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>
           {install && <span className="live is-pending">{install}</span>}
@@ -280,6 +365,17 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           >
             <EyeOffIcon />
           </button>
+          <button
+            type="button"
+            className="btn-icon"
+            aria-pressed={showCollections}
+            aria-expanded={showCollections}
+            aria-label="Collections"
+            title={member.length ? `Collections : ${member.map((c) => c.name).join(", ")}` : "Ajouter à une collection"}
+            onClick={() => setShowCollections((v) => !v)}
+          >
+            <StackIcon />
+          </button>
           {game.manual && (
             <button type="button" className="btn-icon" aria-label="Retirer de la bibliothèque" title="Retirer de la bibliothèque" onClick={() => onRemove(game)}>
               <TrashIcon />
@@ -287,6 +383,34 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           )}
         </div>
         <StripScreenshots key={game.id} game={game} playing={playing} />
+        {showCollections ? (
+          <div className="strip__cols" role="group" aria-label="Collections">
+            {collections.map((c) => {
+              const inside = c.games.includes(game.id);
+              return (
+                <button key={c.id} type="button" className="chip" aria-pressed={inside} onClick={() => onToggleCollection(game, c, !inside)}>
+                  {c.name}
+                </button>
+              );
+            })}
+            {creating ? (
+              <InlineInput
+                className="chip chip--input"
+                maxLength={MAX_COLLECTION_NAME}
+                label="Nom de la nouvelle collection"
+                placeholder="Nom de la collection"
+                onSubmit={(name) => onCreateCollection(name, game)}
+                onDone={() => setCreating(false)}
+              />
+            ) : (
+              <button type="button" className="chip chip--add" onClick={() => setCreating(true)}>
+                <PlusIcon />Nouvelle collection
+              </button>
+            )}
+          </div>
+        ) : (
+          member.length > 0 && <p className="strip__member">Dans {member.map((c) => `« ${c.name} »`).join(", ")}</p>
+        )}
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
         <AchievementList key={game.id} game={game} />
         <SavesSection key={game.id} gameId={game.id} playing={playing} />

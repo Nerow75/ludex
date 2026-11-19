@@ -202,6 +202,13 @@ pub fn account_dir() -> Option<PathBuf> {
     localconfig.parent()?.parent().map(Path::to_path_buf)
 }
 
+/// Stockage « cloud » local du client Steam (collections, étagères…) du compte retenu pour le temps
+/// de jeu : `userdata/<compte>/config/cloudstorage/cloud-storage-namespace-1.json`. Lu seulement.
+pub fn cloud_storage_file() -> Option<PathBuf> {
+    let config = localconfig_path(&steam_root()?)?.parent()?.to_path_buf();
+    Some(config.join("cloudstorage").join("cloud-storage-namespace-1.json"))
+}
+
 /// Numéro de compte (steamid3) du dossier `userdata/<compte>/config/localconfig.vdf`.
 fn account_of(localconfig: &Path) -> Option<u64> {
     localconfig.parent()?.parent()?.file_name()?.to_str()?.parse().ok()

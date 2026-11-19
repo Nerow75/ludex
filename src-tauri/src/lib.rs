@@ -1,4 +1,5 @@
 mod art;
+mod collections;
 mod history;
 mod images;
 mod library;
@@ -1091,6 +1092,100 @@ async fn rename_game(app: tauri::AppHandle, id: String, title: String) -> Result
     .await
 }
 
+/// Statut de progression d'un jeu (valeur fermée), `None` : aucun.
+#[tauri::command]
+fn set_status(state: State<'_, AppState>, id: String, status: Option<collections::Status>) -> Result<(), String> {
+    update_data(&state, &id, |data, game| data.set_status(&game.id, status))
+}
+
+/// Note perso d'un jeu, nettoyée ici ; renvoie la note enregistrée (`None` : effacée).
+#[tauri::command]
+fn set_note(state: State<'_, AppState>, id: String, note: String) -> Result<Option<String>, String> {
+    collections::check_input(&note)?;
+    let note = collections::clean_note(&note);
+    let saved = note.clone();
+    update_data(&state, &id, move |data, game| data.set_note(&game.id, note))?;
+    Ok(saved)
+}
+
+/// Collections de l'utilisateur et, à part, celles du client Steam (lecture seule).
+#[derive(Serialize)]
+struct CollectionsInfo {
+    mine: Vec<collections::Collection>,
+    steam: Vec<collections::Collection>,
+}
+
+#[tauri::command]
+async fn collections(app: tauri::AppHandle) -> Result<CollectionsInfo, String> {
+    blocking(move || {
+        let mine = lock(&app.state::<AppState>().data)?.collections.clone();
+        Ok(CollectionsInfo { mine, steam: collections::steam_collections() })
+    })
+    .await
+}
+
+/// Modifie les collections de l'utilisateur, enregistre, puis renvoie le résultat et la liste à jour.
+fn update_collections<R>(
+    state: &AppState,
+    change: impl FnOnce(&mut UserData) -> Result<R, String>,
+) -> Result<(R, Vec<collections::Collection>), String> {
+    let mut data = lock(&state.data)?;
+    // Changement refusé ou non enregistré : les collections en mémoire reviennent en arrière.
+    let before = data.collections.clone();
+    match change(&mut data).and_then(|out| data.save(&state.data_path).map(|()| out)) {
+        Ok(out) => Ok((out, data.collections.clone())),
+        Err(e) => {
+            data.collections = before;
+            Err(e)
+        }
+    }
+}
+
+/// Collection créée : son id (généré ici) et la liste à jour.
+#[derive(Serialize)]
+struct CreatedCollection {
+    id: String,
+    mine: Vec<collections::Collection>,
+}
+
+/// Crée une collection ; `game` : jeu à y mettre tout de suite (création depuis une fiche).
+#[tauri::command]
+fn create_collection(state: State<'_, AppState>, name: String, game: Option<String>) -> Result<CreatedCollection, String> {
+    collections::check_input(&name)?;
+    if let Some(id) = &game {
+        find_game(&state, id)?;
+    }
+    let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+    let (id, mine) = update_collections(&state, |data| {
+        let id = data.create_collection(&name, seed)?;
+        if let Some(game) = &game {
+            data.set_in_collection(&id, game, true)?;
+        }
+        Ok(id)
+    })?;
+    Ok(CreatedCollection { id, mine })
+}
+
+#[tauri::command]
+fn rename_collection(state: State<'_, AppState>, id: String, name: String) -> Result<Vec<collections::Collection>, String> {
+    collections::check_input(&name)?;
+    update_collections(&state, |data| data.rename_collection(&id, &name)).map(|((), mine)| mine)
+}
+
+#[tauri::command]
+fn delete_collection(state: State<'_, AppState>, id: String) -> Result<Vec<collections::Collection>, String> {
+    update_collections(&state, |data| data.delete_collection(&id)).map(|(_, mine)| mine)
+}
+
+/// Ajoute un jeu de la bibliothèque à une collection, ou l'en retire.
+#[tauri::command]
+fn set_in_collection(state: State<'_, AppState>, collection: String, id: String, value: bool) -> Result<Vec<collections::Collection>, String> {
+    if value {
+        find_game(&state, &id)?;
+    }
+    update_collections(&state, |data| data.set_in_collection(&collection, &id, value)).map(|((), mine)| mine)
+}
+
 /// Retire un jeu ajouté à la main. Les jeux détectés ne se retirent pas : ils se masquent.
 #[tauri::command]
 async fn remove_game(app: tauri::AppHandle, id: String) -> Result<ScanResult, String> {
@@ -1597,7 +1692,14 @@ pub fn run() {
             restore_saves,
             choose_saves_dir,
             set_auto_saves,
-            saves_overview
+            saves_overview,
+            set_status,
+            set_note,
+            collections,
+            create_collection,
+            rename_collection,
+            delete_collection,
+            set_in_collection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
