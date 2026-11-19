@@ -33,6 +33,10 @@ export const LudexMark = ({ size = 24 }: { size?: number }) => (
 export const PlayIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M4 2.5v11l9-5.5z" /></svg>
 );
+/** Écran avec une flèche : raccourci sur le Bureau. */
+export const ShortcutIcon = () => (
+  <svg {...base}><path d="M4.5 4h15A1.5 1.5 0 0 1 21 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 14.5v-9A1.5 1.5 0 0 1 4.5 4zM9 20h6M12 16v4M10 12l4-4M10.5 8H14v3.5" /></svg>
+);
 export const FolderIcon = () => (
   <svg {...base}><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" /></svg>
 );

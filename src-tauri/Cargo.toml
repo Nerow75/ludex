@@ -30,7 +30,8 @@ notify = "8.2.2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tauri-plugin-updater = "2"
 tauri-plugin-autostart = "2"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
 serde_yaml_ng = "0.10"
 glob = "0.3"
 dirs = "6"
@@ -45,6 +46,17 @@ welcome-preview = []
 [target.'cfg(windows)'.dependencies]
 pelite = "0.10"
 winreg = "0.55"
+# Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Storage_EnhancedStorage",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

@@ -22,7 +22,7 @@ describe("gameMenu : entrées selon le jeu", () => {
   it("jeu ordinaire avec dossier", () => {
     const g = jeu({ installDir: "D:\\Jeux\\Hades" });
     const entries = gameMenu(g, collections);
-    expect(cles(entries)).toEqual(["play", "open", "sep-1", "favorite", "status", "collections", "sep-2", "folder", "rename", "hide"]);
+    expect(cles(entries)).toEqual(["play", "open", "sep-1", "favorite", "status", "collections", "sep-2", "folder", "shortcut", "rename", "hide"]);
     const label = (key: string) => (entries.find((e) => e.key === key) as { label: string }).label;
     expect(label("favorite")).toBe("Ajouter aux favoris");
     expect(label("hide")).toBe("Masquer");
@@ -30,6 +30,7 @@ describe("gameMenu : entrées selon le jeu", () => {
   it("favori, masqué, sans dossier", () => {
     const entries = gameMenu(jeu({ favorite: true, hidden: true, installDir: null }), []);
     expect(cles(entries)).not.toContain("folder");
+    expect(entries.find((e) => e.key === "shortcut")).toMatchObject({ label: "Créer un raccourci sur le Bureau", action: { kind: "shortcut" } });
     expect(entries.find((e) => e.key === "favorite")).toMatchObject({ label: "Retirer des favoris" });
     expect(entries.find((e) => e.key === "hide")).toMatchObject({ label: "Afficher", action: { kind: "hide" } });
   });

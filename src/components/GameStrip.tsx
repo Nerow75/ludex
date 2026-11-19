@@ -42,7 +42,7 @@ import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
 
@@ -56,6 +56,8 @@ interface Props {
   onFavorite: (game: Game) => void;
   onHide: (game: Game) => void;
   onOpenFolder: (game: Game) => void;
+  /** Raccourci sur le Bureau qui lance le jeu par `ludex://launch/<id>`. */
+  onShortcut: (game: Game) => void;
   /** Jeux « Autres » : choisir un autre exécutable. */
   onChangeExe: (game: Game) => void;
   /** Titre vide : retour au titre d'origine. */
@@ -500,6 +502,7 @@ export function GameStrip({
   onFavorite,
   onHide,
   onOpenFolder,
+  onShortcut,
   onChangeExe,
   onRename,
   onChooseArt,
@@ -790,6 +793,9 @@ export function GameStrip({
                   <FolderIcon />
                 </button>
               )}
+              <button type="button" className="btn-icon" data-nav aria-label="Créer un raccourci sur le Bureau" title="Créer un raccourci sur le Bureau" onClick={() => onShortcut(game)}>
+                <ShortcutIcon />
+              </button>
               {game.platform === "other" && (
                 <button type="button" className="btn-icon" data-nav aria-label="Changer l'exécutable" title="Changer l'exécutable" onClick={() => onChangeExe(game)}>
                   <FileIcon />

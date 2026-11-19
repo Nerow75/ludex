@@ -172,6 +172,8 @@ export const launchGame = (id: string) => invoke<number>("launch_game", { id });
 export const setFavorite = (id: string, value: boolean) => invoke<void>("set_favorite", { id, value });
 export const setHidden = (id: string, value: boolean) => invoke<void>("set_hidden", { id, value });
 export const openInstallDir = (id: string) => invoke<void>("open_install_dir", { id });
+/** Raccourci `.url` du jeu sur le Bureau (lien `ludex://launch/<id>`, écrit côté Rust) ; renvoie le nom du fichier. */
+export const createShortcut = (id: string) => invoke<string>("create_shortcut", { id });
 /** Jeu ajouté ou modifié, avec la bibliothèque relue après l'opération. */
 export interface LibraryUpdate {
   id: string;
