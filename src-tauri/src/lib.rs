@@ -18,6 +18,7 @@ mod store;
 mod update;
 mod tray;
 mod watch;
+mod welcome;
 
 use library::{manual, Game, Launch, Platform, PlaytimeSource, ScanResult};
 use serde::Serialize;
@@ -1863,6 +1864,9 @@ pub fn run() {
                 saves_busy: AtomicBool::new(false),
                 saves_lock: Mutex::new(()),
             });
+            // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
+            let welcome = welcome::Welcome::detect(&app.state::<AppState>());
+            app.manage(welcome);
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             update::spawn_check(app.handle().clone());
@@ -1932,7 +1936,9 @@ pub fn run() {
             create_collection,
             rename_collection,
             delete_collection,
-            set_in_collection
+            set_in_collection,
+            welcome::welcome,
+            welcome::welcome_done
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

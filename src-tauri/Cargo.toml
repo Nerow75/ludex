@@ -36,6 +36,11 @@ glob = "0.3"
 dirs = "6"
 time = { version = "0.3", features = ["local-offset"] }
 
+[features]
+# Affichage forcé de l'écran de premier lancement par `LUDEX_WELCOME=1` dans une build de release
+# (vérification à l'écran). Jamais dans une build publiée ; en debug, la variable suffit.
+welcome-preview = []
+
 [target.'cfg(windows)'.dependencies]
 pelite = "0.10"
 winreg = "0.55"

@@ -69,11 +69,15 @@ pub struct Settings {
     pub saves_dir: Option<PathBuf>,
     /// Copie des sauvegardes à la fin de chaque partie (une minute au moins). Active par défaut.
     pub auto_saves: bool,
+    /// Écran de premier lancement déjà vu. `None` : fichier d'avant ce réglage, tranché au
+    /// démarrage par `welcome.rs` (un habitué ne le voit pas).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub welcome_shown: Option<bool>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false, saves_dir: None, auto_saves: true }
+        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false, saves_dir: None, auto_saves: true, welcome_shown: None }
     }
 }
 
@@ -94,6 +98,23 @@ impl UserData {
         let tmp = path.with_extension("json.tmp");
         fs::write(&tmp, text).map_err(|e| format!("Enregistrement impossible : {e}"))?;
         fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+    }
+
+    /// Ludex a déjà servi : une préférence retenue, ou l'explication de la zone de notification vue.
+    pub fn has_history(&self) -> bool {
+        self.settings.tray_hint_shown
+            || !(self.favorites.is_empty()
+                && self.hidden.is_empty()
+                && self.shown.is_empty()
+                && self.launched.is_empty()
+                && self.playtime.is_empty()
+                && self.manual.is_empty()
+                && self.exes.is_empty()
+                && self.titles.is_empty()
+                && self.covers.is_empty()
+                && self.status.is_empty()
+                && self.notes.is_empty()
+                && self.collections.is_empty())
     }
 
     pub fn set_favorite(&mut self, id: &str, value: bool) {
@@ -408,7 +429,8 @@ mod tests {
     fn settings_default_to_tray_without_autostart() {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
-        assert!(s.auto_saves && s.saves_dir.is_none());
+        assert!(s.auto_saves && s.saves_dir.is_none() && s.welcome_shown.is_none());
+        assert!(!UserData::default().has_history());
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
         let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
         assert_eq!(old.settings, Settings::default());
@@ -524,6 +546,7 @@ mod tests {
         data.settings.tray_hint_shown = true;
         data.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
         data.settings.auto_saves = false;
+        data.settings.welcome_shown = Some(true);
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));
