@@ -79,6 +79,20 @@ pub fn available_update(state: State<'_, PendingUpdate>) -> Option<UpdateInfo> {
     state.update.lock().ok()?.as_ref().map(UpdateInfo::of)
 }
 
+/// Recherche demandée depuis les Paramètres. Trouvée : gardée et annoncée comme celle du fond
+/// (`update-available` : toast et bouton de la barre du haut). `None` : Ludex est à jour.
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    if cfg!(debug_assertions) {
+        return Err("La recherche de mises à jour est coupée en développement.".into());
+    }
+    let found = check(&app).await.map_err(|e| format!("Recherche impossible : {e}"))?;
+    if let Some(info) = &found {
+        let _ = app.emit(UPDATE_EVENT, info.clone());
+    }
+    Ok(found)
+}
+
 /// Télécharge, vérifie et lance l'installeur de la mise à jour trouvée par Ludex. Sous Windows,
 /// le plugin ferme Ludex et l'installeur NSIS le relance une fois l'installation finie.
 #[tauri::command]

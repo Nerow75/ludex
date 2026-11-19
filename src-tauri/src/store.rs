@@ -7,7 +7,7 @@
 use crate::collections::{self, Collection, Status};
 use crate::covers::{CustomArt, Kind, Picked};
 use crate::library::manual::{self, Custom, ManualGame};
-use crate::library::{Game, PlaytimeSource};
+use crate::library::{Game, Platform, PlaytimeSource};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -76,6 +76,40 @@ pub struct Settings {
     /// démarrage par `welcome.rs` (un habitué ne le voit pas).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub welcome_shown: Option<bool>,
+    /// Thème de l'interface (écran Paramètres). Valeur inconnue : thème par défaut, sans perdre le reste.
+    #[serde(deserialize_with = "or_default")]
+    pub theme: Theme,
+    /// Launchers dont les jeux sont écartés du scan (écran Paramètres). Valeur inconnue ignorée.
+    #[serde(deserialize_with = "known_platforms")]
+    pub disabled_sources: Vec<Platform>,
+}
+
+/// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, ou celui de Windows.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    Dark,
+    Light,
+    System,
+}
+
+/// Valeur relue en gardant la valeur par défaut si elle est illisible (fichier d'une version future).
+fn or_default<'de, D: Deserializer<'de>, T: Default + serde::de::DeserializeOwned>(d: D) -> Result<T, D::Error> {
+    let raw = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(raw).unwrap_or_default())
+}
+
+/// Launchers relus sans doublon, en ignorant ceux qu'une version future aurait ajoutés.
+fn known_platforms<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Platform>, D::Error> {
+    let raw = Vec::<serde_json::Value>::deserialize(d).unwrap_or_default();
+    let mut list: Vec<Platform> = Vec::new();
+    for p in raw.into_iter().filter_map(|v| serde_json::from_value(v).ok()) {
+        if !list.contains(&p) {
+            list.push(p);
+        }
+    }
+    Ok(list)
 }
 
 impl Default for Settings {
@@ -88,6 +122,8 @@ impl Default for Settings {
             auto_saves: true,
             quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
             welcome_shown: None,
+            theme: Theme::Dark,
+            disabled_sources: Vec::new(),
         }
     }
 }
@@ -145,6 +181,12 @@ impl UserData {
             (false, true) => drop(self.shown.insert(id)),
             _ => {} // état par défaut : rien à retenir
         }
+    }
+
+    /// Ré-affiche tous les jeux masqués par l'utilisateur et renvoie leurs ids. Les outils
+    /// (masqués d'office) restent dans « Masqués » : ce ne sont pas des choix de l'utilisateur.
+    pub fn show_all_hidden(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.hidden).into_iter().collect()
     }
 
     pub fn record_launch(&mut self, id: &str) -> u64 {
@@ -452,6 +494,39 @@ mod tests {
         // Raccourci désactivé par l'utilisateur : la chaîne vide est gardée telle quelle.
         let off: UserData = serde_json::from_str(r#"{"settings":{"quickShortcut":""}}"#).unwrap();
         assert!(off.settings.quick_shortcut.is_empty());
+    }
+
+    #[test]
+    fn theme_and_disabled_sources_survive_unknown_values() {
+        let s = UserData::default().settings;
+        assert_eq!(s.theme, Theme::Dark);
+        assert!(s.disabled_sources.is_empty());
+        let read: UserData = serde_json::from_str(r#"{"settings":{"theme":"system","disabledSources":["epic","riot","epic"]}}"#).unwrap();
+        assert_eq!(read.settings.theme, Theme::System);
+        assert_eq!(read.settings.disabled_sources, [Platform::Epic, Platform::Riot]);
+        // Fichier d'une version future : le thème inconnu revient au défaut, le launcher inconnu est
+        // oublié, et le reste du fichier (favoris, autres réglages) est gardé.
+        let future: UserData = serde_json::from_str(
+            r#"{"favorites":["steam:730"],"settings":{"theme":"sepia","disabledSources":["itch","gog"],"autoSaves":false}}"#,
+        )
+        .unwrap();
+        assert_eq!(future.settings.theme, Theme::Dark);
+        assert_eq!(future.settings.disabled_sources, [Platform::Gog]);
+        assert!(!future.settings.auto_saves && future.favorites.contains("steam:730"));
+        let text = serde_json::to_string(&read.settings).unwrap();
+        assert!(text.contains(r#""theme":"system""#) && text.contains(r#""disabledSources":["epic","riot"]"#), "{text}");
+    }
+
+    #[test]
+    fn show_all_hidden_keeps_tools_hidden() {
+        let mut data = UserData::default();
+        let tool = game("431960", true);
+        data.set_hidden(&game("730", false), true);
+        data.set_hidden(&game("440", false), true);
+        data.set_hidden(&tool, false); // outil ré-affiché : reste ré-affiché
+        assert_eq!(data.show_all_hidden(), ["steam:440", "steam:730"]);
+        assert!(data.hidden.is_empty() && data.shown.contains("steam:431960"));
+        assert!(data.show_all_hidden().is_empty());
     }
 
     #[test]

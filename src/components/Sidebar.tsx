@@ -3,7 +3,7 @@ import { MAX_COLLECTION_NAME, recentPlaytime, type Game, type RecentPlaytime } f
 import { formatPlaytime, relativeTime } from "../lib/format";
 import { MINE_GROUP, type Section } from "../lib/sections";
 import { Cover } from "./Cover";
-import { PlusIcon, SidebarIcon } from "./Icons";
+import { PlusIcon, SidebarIcon, SlidersIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 
 interface Props {
@@ -20,13 +20,16 @@ interface Props {
   playing: ReadonlySet<string>;
   /** Nouvelle collection, nommée sur place sous « Mes collections ». */
   onCreateCollection: (name: string) => void;
+  /** Paramètres affichés, et leur ouverture (dernier élément de la barre, Ctrl+,). */
+  settingsActive: boolean;
+  onSettings: () => void;
 }
 
 /** « 12,5 h », « 40 min », « Aucune partie ». */
 const recentText = (r: RecentPlaytime | null) => (!r ? "…" : r.secs < 60 ? "Aucune partie" : formatPlaytime(r.secs / 60));
 
 /** Barre de navigation à gauche : sections, collections, puis temps de jeu récent et dernier jeu lancé. */
-export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, onCreateCollection }: Props) {
+export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, onCreateCollection, settingsActive, onSettings }: Props) {
   const [recent, setRecent] = useState<RecentPlaytime | null>(null);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -134,6 +137,18 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
             </span>
           </button>
         )}
+        {/* Dernier `.side__item` de la barre : les sections gardent leurs indices pour haut et bas. */}
+        <button
+          type="button"
+          className="side__item"
+          aria-current={settingsActive ? "page" : undefined}
+          aria-label="Paramètres"
+          title="Paramètres (Ctrl+,)"
+          onClick={onSettings}
+        >
+          <SlidersIcon />
+          <span>Paramètres</span>
+        </button>
       </div>
     </nav>
   );

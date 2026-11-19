@@ -85,7 +85,8 @@ import { LibraryGrid } from "./components/LibraryGrid";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
 import { spatialNext } from "./lib/spatial";
 import { InlineInput } from "./components/InlineInput";
-import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "./components/Icons";
+import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
+import { SettingsView } from "./components/SettingsView";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
 
@@ -122,6 +123,9 @@ const PAD_MENU_KEYS: Partial<Record<PadAction, string>> = {
 
 /** Élément d'un jeu qui reçoit le focus : sa jaquette, sa tuile ou sa ligne. */
 const focusTarget = (holder: HTMLElement) => holder.querySelector<HTMLElement>("button") ?? holder;
+
+/** Section des Paramètres : hors de la liste (ni Ctrl+chiffre ni LB/RB), ouverte par Ctrl+, ou le bas de la barre. */
+const SETTINGS_ID = "settings";
 
 const FILTERS: readonly Filter[] = ["all", "favorites", ...PLATFORMS, "hidden"];
 const SORTS = Object.keys(SORT_LABEL) as Sort[];
@@ -166,9 +170,34 @@ export default function App() {
   const games = scan?.games ?? [];
   // Sections fixes, puis une par collection (après : les raccourcis Ctrl+1… des fixes ne bougent pas).
   const sections = useMemo<Section[]>(() => [...SECTIONS, ...collectionSections(collections, games)], [collections, games]);
+  // Rendu appelé plus bas, une fois l'état (mise à jour, écran d'accueil) déclaré.
+  const settingsSection: Section = {
+    id: SETTINGS_ID,
+    label: "Paramètres",
+    icon: SlidersIcon,
+    render: () => (
+      <SettingsView
+        scan={scan}
+        onScan={(result) => {
+          setScan(result);
+          loadCollections();
+        }}
+        onShown={(ids) => {
+          const shown = new Set(ids);
+          setScan((s) => s && { ...s, games: s.games.map((g) => (shown.has(g.id) ? { ...g, hidden: false } : g)) });
+          if (ids.length) showToast({ title: ids.length > 1 ? `${ids.length} jeux sont de retour dans la bibliothèque` : "1 jeu est de retour dans la bibliothèque" });
+        }}
+        onWelcome={setWelcomeInfo}
+        update={update}
+        onInstallUpdate={runUpdate}
+      />
+    ),
+  };
   // Section : un écran à elle (`render`, sauf pendant une recherche), sinon la grille restreinte à `scope`.
-  const view = sections.find((s) => s.id === sectionId) ?? sections[0];
+  const view = sectionId === SETTINGS_ID ? settingsSection : sections.find((s) => s.id === sectionId) ?? sections[0];
   const custom = !query && !!view.render;
+  /** Paramètres affichés : toujours accessibles, même bibliothèque vide (tous les launchers désactivés). */
+  const inSettings = custom && view.id === SETTINGS_ID;
   const scoped = useMemo(
     () => (view.scope ? games.filter(view.scope) : games).filter((g) => matchesStatus(g, statusFilter)),
     [games, view, statusFilter],
@@ -199,7 +228,8 @@ export default function App() {
     setSectionId(id);
     setJournalGameId(null);
     setOpen(false);
-    remember("section", id);
+    // Les Paramètres ne sont pas rouverts au lancement suivant.
+    if (id !== SETTINGS_ID) remember("section", id);
     scrollRef.current?.scrollTo({ top: 0 });
   }, []);
 
@@ -769,7 +799,8 @@ export default function App() {
   /** Section voisine (barre, LB/RB), en boucle ; le focus suit si la barre l'avait. */
   const stepSection = (delta: number) => {
     const s = live.current;
-    const ids = s.sectionIds;
+    // Les Paramètres ferment la boucle : dernier élément de la barre, joignables au clavier et à la manette.
+    const ids = [...s.sectionIds, SETTINGS_ID];
     const i = Math.max(0, ids.indexOf(s.sectionId));
     const next = (i + delta + ids.length) % ids.length;
     const follow = inSidebar();
@@ -882,6 +913,9 @@ export default function App() {
       } else if (ctrl && key.toLowerCase() === "n") {
         e.preventDefault(); // sinon la WebView ouvre une nouvelle fenêtre
         s.addManualGame();
+      } else if (ctrl && key === ",") {
+        e.preventDefault();
+        s.goTo(SETTINGS_ID);
       } else if (inInput) {
         if (key === "ArrowDown" && s.selected) {
           e.preventDefault();
@@ -1048,6 +1082,8 @@ export default function App() {
         onOpenGame={openGame}
         playing={playing}
         onCreateCollection={(name) => newCollection(name, null)}
+        settingsActive={view.id === SETTINGS_ID}
+        onSettings={() => goTo(SETTINGS_ID)}
       />
 
       <header className="top">
@@ -1114,9 +1150,9 @@ export default function App() {
           <p key={s.platform} className="notice notice--error">{PLATFORM_LABEL[s.platform]} : {s.error}</p>
         ))}
 
-        {!scan && !scanError && <LibrarySkeleton />}
+        {!scan && !scanError && !inSettings && <LibrarySkeleton />}
 
-        {scan && emptyLibrary && (
+        {scan && emptyLibrary && !inSettings && (
           <EmptyState
             title="Aucun jeu trouvé sur ce PC"
             action={
@@ -1130,13 +1166,13 @@ export default function App() {
             Installe un jeu avec l'un d'eux puis relance un scan, ou ajoute un jeu rangé ailleurs en choisissant son exécutable.
             <span className="empty__sources">
               {scan.sources.map((s) => (
-                <span key={s.platform}>{PLATFORM_LABEL[s.platform]} : {s.installed ? `${s.count} jeu${s.count > 1 ? "x" : ""}` : "non détecté"}</span>
+                <span key={s.platform}>{PLATFORM_LABEL[s.platform]} : {s.disabled ? "désactivé dans les Paramètres" : s.installed ? `${s.count} jeu${s.count > 1 ? "x" : ""}` : "non détecté"}</span>
               ))}
             </span>
           </EmptyState>
         )}
 
-        {scan && !emptyLibrary && custom && view.render?.(sectionContext)}
+        {custom && (inSettings || (scan && !emptyLibrary)) && view.render?.(sectionContext)}
 
         {scan && !emptyLibrary && !custom && (
           <section aria-labelledby="lib-title">

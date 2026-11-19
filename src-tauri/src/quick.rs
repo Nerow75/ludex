@@ -30,11 +30,96 @@ pub fn parse(text: &str) -> Result<Option<Shortcut>, String> {
     if text.is_empty() {
         return Ok(None);
     }
-    let shortcut: Shortcut = text.parse().map_err(|_| format!("Raccourci « {text} » non reconnu."))?;
+    let shortcut: Shortcut = text.parse().map_err(|_| format!("Raccourci {} non reconnu.", label(text)))?;
     if !shortcut.mods.intersects(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SUPER) {
-        return Err(format!("Le raccourci « {text} » doit contenir Ctrl, Alt ou Windows."));
+        return Err(format!("Le raccourci {} doit contenir Ctrl, Alt ou Windows.", label(text)));
     }
     Ok(Some(shortcut))
+}
+
+/// Raccourci au format du plugin rendu lisible : « Ctrl+Maj+L », « Alt+Espace ». Vide : « Désactivé ».
+pub fn label(text: &str) -> String {
+    let text = text.trim();
+    if text.is_empty() {
+        return "Désactivé".into();
+    }
+    text.split('+')
+        .map(|part| {
+            let upper = part.trim().to_ascii_uppercase();
+            let named = match upper.as_str() {
+                "CTRL" | "CONTROL" => "Ctrl",
+                "ALT" | "OPTION" => "Alt",
+                "SHIFT" => "Maj",
+                "SUPER" | "META" | "CMD" | "COMMAND" => "Windows",
+                "SPACE" => "Espace",
+                "ENTER" => "Entrée",
+                "ESCAPE" | "ESC" => "Échap",
+                "BACKSPACE" => "Retour arrière",
+                "DELETE" => "Suppr",
+                "INSERT" => "Inser",
+                "HOME" => "Début",
+                "END" => "Fin",
+                "PAGEUP" => "Page préc.",
+                "PAGEDOWN" => "Page suiv.",
+                "ARROWUP" | "UP" => "Haut",
+                "ARROWDOWN" | "DOWN" => "Bas",
+                "ARROWLEFT" | "LEFT" => "Gauche",
+                "ARROWRIGHT" | "RIGHT" => "Droite",
+                _ => "",
+            };
+            if !named.is_empty() {
+                return named.to_string();
+            }
+            let p = part.trim();
+            for prefix in ["Key", "Digit"] {
+                if let Some(rest) = p.get(..prefix.len()).filter(|s| s.eq_ignore_ascii_case(prefix)).and(p.get(prefix.len()..))
+                    && rest.len() == 1
+                {
+                    return rest.to_ascii_uppercase();
+                }
+            }
+            if let Some(rest) = p.get(..6).filter(|s| s.eq_ignore_ascii_case("Numpad")).and(p.get(6..)) {
+                return format!("Pavé {rest}");
+            }
+            p.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+/// Change le raccourci à chaud : l'ancien est retiré, le nouveau enregistré. Refusé (illisible, ou
+/// déjà pris par une autre appli ou par Windows) : l'ancien est remis et l'erreur renvoyée.
+/// `previous` : raccourci des réglages, remis en cas d'échec.
+pub fn replace<R: Runtime>(app: &AppHandle<R>, text: &str, previous: &str) -> Result<(), String> {
+    let shortcut = parse(text)?;
+    let manager = app.global_shortcut();
+    let _ = manager.unregister_all();
+    let Some(shortcut) = shortcut else { return Ok(()) };
+    if manager.register(shortcut).is_err() {
+        resume(app, previous);
+        return Err(format!(
+            "Le raccourci {} est déjà pris par une autre application ou par Windows. Essaie une autre combinaison.",
+            label(text)
+        ));
+    }
+    Ok(())
+}
+
+/// Coupe le raccourci pendant sa saisie dans les Paramètres : sinon la combinaison actuelle
+/// ouvrirait la recherche rapide au lieu d'arriver dans la page.
+pub fn pause<R: Runtime>(app: &AppHandle<R>) {
+    let _ = app.global_shortcut().unregister_all();
+}
+
+/// Remet le raccourci des réglages (fin de la saisie, ou échec d'un changement).
+pub fn resume<R: Runtime>(app: &AppHandle<R>, text: &str) {
+    let manager = app.global_shortcut();
+    let _ = manager.unregister_all();
+    if let Ok(Some(shortcut)) = parse(text)
+        && let Err(e) = manager.register(shortcut)
+    {
+        eprintln!("Recherche rapide désactivée : raccourci « {text} » non remis ({e}).");
+    }
 }
 
 /// Position du coin haut gauche de la fenêtre (`w` × `h`) dans la zone de travail d'un écran
@@ -82,7 +167,7 @@ fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
         .visible(false)
         .focused(false)
         .center()
-        .theme(Some(tauri::Theme::Dark))
+        .theme(crate::settings::window_theme(crate::settings::current_theme(app)))
         .background_color(Color(0x1A, 0x1A, 0x1A, 0xFF))
         .build()
 }
@@ -178,6 +263,21 @@ mod tests {
             let err = parse(text).unwrap_err();
             assert!(err.contains("Ctrl, Alt ou Windows"), "{text} : {err}");
         }
+    }
+
+    #[test]
+    fn labels_are_readable() {
+        assert_eq!(label("Alt+Space"), "Alt+Espace");
+        assert_eq!(label("Ctrl+Shift+KeyL"), "Ctrl+Maj+L");
+        assert_eq!(label("super+digit1"), "Windows+1");
+        assert_eq!(label("Control+Alt+ArrowUp"), "Ctrl+Alt+Haut");
+        assert_eq!(label("Alt+Numpad5"), "Alt+Pavé 5");
+        assert_eq!(label("Ctrl+F12"), "Ctrl+F12");
+        assert_eq!(label("  "), "Désactivé");
+        // Format envoyé par la page Paramètres (`KeyboardEvent.code`) : lu par le plugin.
+        assert_eq!(parse("Ctrl+Alt+KeyG").unwrap().unwrap().key, Code::KeyG);
+        assert_eq!(parse("Alt+Digit3").unwrap().unwrap().key, Code::Digit3);
+        assert_eq!(parse("Ctrl+Shift+Comma").unwrap().unwrap().key, Code::Comma);
     }
 
     #[test]

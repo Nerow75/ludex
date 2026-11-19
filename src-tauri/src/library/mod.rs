@@ -17,10 +17,10 @@ mod ubisoft;
 mod vdf;
 mod xbox;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
     Steam,
@@ -283,6 +283,8 @@ pub struct SourceReport {
     pub installed: bool,
     pub count: usize,
     pub error: Option<String>,
+    /// Désactivé dans les Paramètres : ses jeux (`count`) sont écartés de la bibliothèque.
+    pub disabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -341,7 +343,15 @@ pub use epic::item_installed;
 pub use steam::account_dir as steam_account_dir;
 pub use steam::{cloud_storage_file, manifest_installed, steam_root};
 
+/// Scan de toutes les sources (relevés réels des tests).
+#[cfg(test)]
 pub fn scan() -> ScanResult {
+    scan_except(&[])
+}
+
+/// Scan sans les jeux des launchers désactivés dans les Paramètres. Un launcher désactivé est lu
+/// quand même : ses dossiers restent réservés, donc « Autres » ne reprend pas ses jeux.
+pub fn scan_except(disabled: &[Platform]) -> ScanResult {
     // Un jeu peut avoir été installé depuis le dernier scan : les disques sont relus.
     local::forget_candidates();
     // Ordre = priorité : un jeu vu par deux launchers (même dossier) reste au premier.
@@ -358,11 +368,19 @@ pub fn scan() -> ScanResult {
         (Platform::Riot, riot::scan),
         (Platform::Other, local::scan),
     ];
+    let (mut games, reports) = gather(&sources, disabled);
+    games.iter_mut().for_each(add_icon);
+    games.sort_by_key(|g| g.title.to_lowercase());
+    ScanResult { games, sources: reports }
+}
 
+/// Lit les sources dans l'ordre de priorité et écarte les jeux dont le dossier est déjà vu.
+fn gather(sources: &[(Platform, SourceFn)], disabled: &[Platform]) -> (Vec<Game>, Vec<SourceReport>) {
     let mut games = Vec::new();
     let mut reports = Vec::new();
     let mut dirs: Vec<String> = Vec::new();
-    for (platform, source) in sources {
+    for &(platform, source) in sources {
+        let off = disabled.contains(&platform);
         match source() {
             Ok(Some(mut found)) => {
                 found.retain(|g| {
@@ -375,16 +393,16 @@ pub fn scan() -> ScanResult {
                     }
                     !overlaps
                 });
-                reports.push(SourceReport { platform, installed: true, count: found.len(), error: None });
-                games.extend(found);
+                reports.push(SourceReport { platform, installed: true, count: found.len(), error: None, disabled: off });
+                if !off {
+                    games.extend(found);
+                }
             }
-            Ok(None) => reports.push(SourceReport { platform, installed: false, count: 0, error: None }),
-            Err(e) => reports.push(SourceReport { platform, installed: true, count: 0, error: Some(e) }),
+            Ok(None) => reports.push(SourceReport { platform, installed: false, count: 0, error: None, disabled: off }),
+            Err(e) => reports.push(SourceReport { platform, installed: true, count: 0, error: Some(e), disabled: off }),
         }
     }
-    games.iter_mut().for_each(add_icon);
-    games.sort_by_key(|g| g.title.to_lowercase());
-    ScanResult { games, sources: reports }
+    (games, reports)
 }
 
 /// Jeu sans jaquette : l'icône de son exécutable (celui qu'on lance s'il est dans le dossier du
@@ -414,6 +432,41 @@ pub fn install_date(dir: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
+    use super::{Game, Launch, Platform, SourceFn};
+
+    fn at(platform: Platform, id: &str, dir: &str) -> Game {
+        let mut g = Game::new(platform, id, id, Launch::Uri(String::new()));
+        g.install_dir = Some(dir.to_string());
+        g
+    }
+    fn fake_steam() -> Result<Option<Vec<Game>>, String> {
+        Ok(Some(vec![at(Platform::Steam, "620", r"D:\SteamLibrary\steamapps\common\Portal 2")]))
+    }
+    fn fake_epic() -> Result<Option<Vec<Game>>, String> {
+        Ok(None)
+    }
+    fn fake_other() -> Result<Option<Vec<Game>>, String> {
+        // Même dossier que le jeu Steam (vu aussi par « Autres »), puis un jeu à lui.
+        Ok(Some(vec![at(Platform::Other, "portal", r"D:\SteamLibrary\steamapps\common\Portal 2"), at(Platform::Other, "dofus", r"E:\Jeux\Dofus")]))
+    }
+    const FAKE: [(Platform, SourceFn); 3] = [(Platform::Steam, fake_steam), (Platform::Epic, fake_epic), (Platform::Other, fake_other)];
+
+    #[test]
+    fn disabled_source_keeps_its_folders_but_not_its_games() {
+        let ids = |games: &[Game]| games.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
+        let (games, reports) = super::gather(&FAKE, &[]);
+        assert_eq!(ids(&games), ["steam:620", "other:dofus"]);
+        assert!(reports.iter().all(|r| !r.disabled));
+
+        // Steam désactivé : Portal 2 n'apparaît pas non plus sous « Autres ».
+        let (games, reports) = super::gather(&FAKE, &[Platform::Steam, Platform::Epic]);
+        assert_eq!(ids(&games), ["other:dofus"]);
+        let steam = &reports[0];
+        assert!(steam.disabled && steam.installed && steam.count == 1);
+        assert!(reports[1].disabled && !reports[1].installed);
+        assert!(!reports[2].disabled && reports[2].count == 1);
+    }
+
     #[test]
     fn install_date_of_a_folder() {
         let dir = std::env::temp_dir().join(format!("ludex-install-date-{}", std::process::id()));

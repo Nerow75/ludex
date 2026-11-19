@@ -86,6 +86,14 @@ pub async fn welcome(app: AppHandle) -> Result<Option<WelcomeInfo>, String> {
     Ok(Some(WelcomeInfo { folders: folders.iter().map(|d| d.display().to_string()).collect() }))
 }
 
+/// « Revoir l'écran de premier lancement » (Paramètres) : l'écran est de nouveau dû, sans rien
+/// enregistrer ; « C'est parti » le referme comme la première fois.
+#[tauri::command]
+pub async fn welcome_again(app: AppHandle) -> Result<WelcomeInfo, String> {
+    app.state::<Welcome>().pending.store(true, Ordering::SeqCst);
+    welcome(app).await?.ok_or_else(|| "Écran de premier lancement indisponible.".to_string())
+}
+
 /// « C'est parti » : l'écran ne reviendra plus.
 #[tauri::command]
 pub fn welcome_done(app: AppHandle) -> Result<(), String> {
