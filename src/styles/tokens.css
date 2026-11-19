@@ -23,6 +23,9 @@
   --lx-caption-close: #C42B1C;
   --lx-on-caption-close: #FFFFFF;
 
+  /* Succès tous débloqués : ambre clair posé sur le voile sombre des jaquettes, même valeur dans les deux thèmes. */
+  --lx-perfect: #F3BD55;
+
   /* Couleur du jeu sélectionné, remplacée à la volée : contour de sélection uniquement. */
   --lx-ambient: #D8B35A;
 

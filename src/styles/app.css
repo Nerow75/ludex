@@ -208,6 +208,7 @@ kbd {
 .seg button:hover { color: var(--lx-text); }
 .seg button[aria-pressed="true"] { background: var(--lx-surface-2); color: var(--lx-text); }
 .seg em { font-style: normal; font-family: var(--lx-font-mono); font-size: 12px; color: var(--lx-text-3); }
+.seg--icons button { width: 36px; padding: 0; justify-content: center; }
 
 /* ---------- Tags et ambiances ---------- */
 /* Listes Ambiance et Tag de la barre, pastilles des filtres actifs, puces de la fiche et page Tags. */
@@ -378,6 +379,13 @@ kbd {
 .card__fav, .card__plat { position: absolute; z-index: 1; background: rgba(0, 0, 0, .7); color: #fff; }
 .card__fav { left: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
 .card__plat { right: 8px; top: 8px; font: 11px/1 var(--lx-font-mono); padding: 4px 6px; border-radius: 4px; }
+/* Avancement des succès : petit, en bas à gauche (Jouer apparaît en bas à droite), ambre à 100 %. */
+.card__ach {
+  position: absolute; z-index: 1; left: 8px; bottom: 8px; padding: 4px 6px; border-radius: 4px;
+  font: 11px/1 var(--lx-font-mono); font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .6); color: rgba(255, 255, 255, .8);
+}
+.card__ach.is-perfect { color: var(--lx-perfect); }
 .card__play {
   position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 40px; height: 40px; border: 0; border-radius: 50%;
   display: grid; place-items: center; background: var(--lx-text); color: var(--lx-bg);
@@ -389,6 +397,59 @@ kbd {
 .card__text { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
 .card__title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card__meta { font-size: 12px; color: var(--lx-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Liste ---------- */
+/* Bibliothèque en liste dense : mêmes colonnes pour l'en-tête et les lignes, colonnes secondaires
+   retirées quand la place manque. Jouer apparaît à droite de la ligne au survol ou à la sélection. */
+.lib-list {
+  container-type: inline-size; display: flex; flex-direction: column; gap: 2px;
+  --lcols: 40px minmax(160px, 1fr) 96px minmax(120px, 180px) 56px 96px 120px 88px 80px 80px;
+}
+.lib-list > .strip { margin: 8px 0 16px; }
+.lhead, .lrow__hit { display: grid; grid-template-columns: var(--lcols); align-items: center; gap: 12px; padding: 0 56px 0 8px; }
+.lhead { height: 32px; font-size: 12px; color: var(--lx-text-3); border-bottom: 1px solid var(--lx-border); margin-bottom: 4px; }
+.lhead > span, .lhead__sort { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lhead__sort {
+  height: 28px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left;
+  display: inline-flex; align-items: center; gap: 4px; transition: color .15s;
+}
+.lhead__sort:hover, .lhead__sort[aria-pressed="true"] { color: var(--lx-text); }
+.lhead__dir { font-family: var(--lx-font-mono); }
+.lhead .lc--num { justify-content: flex-end; text-align: right; }
+.lrow { position: relative; }
+.lrow__hit {
+  width: 100%; min-height: 48px; padding-top: 4px; padding-bottom: 4px; border: 0; border-radius: var(--lx-radius-s);
+  background: none; color: var(--lx-text-2); font-size: 13px; text-align: left;
+  outline: 2px solid transparent; outline-offset: -2px; transition: background-color .15s, outline-color .15s;
+}
+.lrow__hit:hover { background: var(--lx-surface); }
+.lrow__hit:focus-visible { outline-color: var(--lx-accent); }
+.lrow.is-sel .lrow__hit { background: var(--lx-surface); outline-color: var(--lx-ambient); }
+.lrow.is-sel .lrow__hit:focus-visible { outline-color: var(--lx-accent); }
+.lrow__hit > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow__cover { width: 40px; border-radius: 4px; font-size: 6px; }
+.lrow__cover .cover__title { display: none; }
+.lrow__title { display: flex; align-items: center; gap: 8px; color: var(--lx-text); }
+.lrow__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 500; }
+.lrow__title .live { flex: none; font-size: 12px; }
+.lrow__fav { flex: none; display: inline-flex; color: var(--lx-text-3); }
+.lrow__fav svg { width: 14px; height: 14px; }
+.lrow .lc--num { text-align: right; font-variant-numeric: tabular-nums; }
+.lrow .lc--year { font-variant-numeric: tabular-nums; }
+.lrow .lc--num.is-perfect { color: var(--lx-warning); }
+.lrow__none { color: var(--lx-text-3); }
+.lrow .card__play { right: 8px; top: 50%; bottom: auto; width: 36px; height: 36px; margin-top: -18px; }
+.lrow:hover .card__play, .lrow.is-sel .card__play { opacity: 1; transform: none; }
+@container (max-width: 1040px) {
+  .lib-list { --lcols: 40px minmax(160px, 1fr) 56px 96px 120px 88px 80px 80px; }
+  .lib-list .lc--genres { display: none; }
+  /* Launcher retiré aussi : seulement si la colonne Genres l'est (même ordre que le gabarit). */
+  .lib-list .lc--plat { display: none; }
+}
+@container (max-width: 760px) {
+  .lib-list { --lcols: 40px minmax(140px, 1fr) 96px 120px; }
+  .lib-list .lc--year, .lib-list .lc--num:nth-child(n + 8) { display: none; }
+}
 
 /* Session en cours, lancée depuis Ludex : mention discrète, pastille fixe. */
 .live { display: inline-flex; align-items: center; gap: 4px; color: var(--lx-accent-text); font-weight: 500; }
