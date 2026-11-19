@@ -84,6 +84,8 @@ export interface Game {
   launchLabel: string;
   /** Genres, studio, éditeur, sortie et description ; `null` tant qu'inconnus. */
   details: GameDetails | null;
+  /** Images choisies par l'utilisateur, qui priment sur celles du launcher. */
+  customArt: ArtKind[];
   /** Progression choisie par l'utilisateur, `null` : aucun statut. */
   status: Status | null;
   /** Note perso, `null` : aucune. */
@@ -107,6 +109,9 @@ export interface CollectionsInfo {
   mine: Collection[];
   steam: Collection[];
 }
+
+/** Image d'un jeu que l'utilisateur peut remplacer : jaquette ou image de fond. */
+export type ArtKind = "cover" | "hero";
 
 export interface SourceReport {
   platform: Platform;
@@ -352,13 +357,22 @@ export interface SizeEvent {
 }
 export const onGameSize = (handler: (event: SizeEvent) => void): Promise<UnlistenFn> =>
   listen<SizeEvent>("game-size", (e) => handler(e.payload));
-/** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
+/** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan), image passée
+ * en cache, ou jaquette perso choisie ou retirée. */
 export interface ArtEvent {
   id: string;
   coverUrl: string | null;
   heroUrl: string | null;
   logoUrl: string | null;
+  customArt: ArtKind[];
 }
+/**
+ * Ouvre le sélecteur d'image natif (côté Rust), copie l'image choisie dans le dossier de Ludex et
+ * la pose sur le jeu. `null` : sélection annulée. Aucun chemin ne passe par le front.
+ */
+export const chooseCover = (id: string, kind: ArtKind) => invoke<ArtEvent | null>("choose_cover", { id, kind });
+/** Retire l'image perso : l'image d'origine revient. */
+export const resetCover = (id: string, kind: ArtKind) => invoke<ArtEvent>("reset_cover", { id, kind });
 export const onGameArt = (handler: (event: ArtEvent) => void): Promise<UnlistenFn> =>
   listen<ArtEvent>("game-art", (e) => handler(e.payload));
 /** Fiche reçue après le scan (boutique Steam, en arrière-plan). */

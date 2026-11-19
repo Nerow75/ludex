@@ -12,7 +12,8 @@
 //! images absentes du CDN (404 : redemandées au bout de 7 jours) et dernière présence de chaque jeu
 //! dans la bibliothèque.
 //!
-//! Purge : le dossier d'un jeu absent de la bibliothèque depuis 60 jours est supprimé. Pas de
+//! Purge : le dossier d'un jeu absent de la bibliothèque depuis 60 jours est supprimé (jamais
+//! `custom/`, les jaquettes perso de `covers.rs`). Pas de
 //! plafond global : la taille suit la bibliothèque (trois images par jeu au plus), et un jeu
 //! désinstallé puis réinstallé dans les deux mois retrouve ses images sans réseau.
 
@@ -31,7 +32,7 @@ const RETRY_MISSING: u64 = 7 * 24 * 3600;
 const PURGE_AFTER: u64 = 60 * 24 * 3600;
 /// Images gardées en cache, de la plus visible à la moins visible (ordre des téléchargements).
 pub const KINDS: [&str; 3] = ["cover", "hero", "logo"];
-const EXTENSIONS: [&str; 3] = ["jpg", "png", "webp"];
+pub const EXTENSIONS: [&str; 3] = ["jpg", "png", "webp"];
 /// Téléchargements simultanés au plus.
 pub const WORKERS: usize = 4;
 /// Échecs réseau de suite avant d'abandonner le tour (hors ligne) : repris au prochain scan.
@@ -191,14 +192,19 @@ pub fn fetch(agent: &ureq::Agent, url: &str) -> Fetch {
 /// Écrit une image dans le cache (fichier temporaire puis renommage) et retire les anciennes
 /// versions du même type. Renvoie le chemin du fichier.
 pub fn write(root: &Path, job: &Job, bytes: &[u8], ext: &str) -> Result<PathBuf, String> {
-    let dir = root.join(&job.dir);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let tmp = dir.join(format!("{}.tmp", job.kind));
+    store(&root.join(&job.dir), job.kind, bytes, ext)
+}
+
+/// Écrit `<dir>/<kind>.<ext>` (fichier temporaire puis renommage) et retire les autres versions du
+/// même type. Commun au cache et aux jaquettes perso (`covers.rs`).
+pub fn store(dir: &Path, kind: &str, bytes: &[u8], ext: &str) -> Result<PathBuf, String> {
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let tmp = dir.join(format!("{kind}.tmp"));
     fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
     for other in EXTENSIONS.iter().filter(|&&e| e != ext) {
-        let _ = fs::remove_file(dir.join(format!("{}.{other}", job.kind)));
+        let _ = fs::remove_file(dir.join(format!("{kind}.{other}")));
     }
-    let file = dir.join(format!("{}.{ext}", job.kind));
+    let file = dir.join(format!("{kind}.{ext}"));
     fs::rename(&tmp, &file).map_err(|e| e.to_string())?;
     Ok(file)
 }
@@ -341,7 +347,8 @@ impl ImageCache {
     pub fn purge(&mut self) -> usize {
         let t = now();
         let mut removed = 0;
-        for platform in read_dirs(&self.root) {
+        // Les jaquettes perso (`covers.rs`) ont leur propre règle : jamais purgées ici.
+        for platform in read_dirs(&self.root).into_iter().filter(|p| name(p) != Some(crate::covers::DIR)) {
             for game in read_dirs(&platform) {
                 let (Some(p), Some(g)) = (name(&platform), name(&game)) else { continue };
                 let key = format!("{p}/{g}");
@@ -379,7 +386,7 @@ impl ImageCache {
 }
 
 /// Sous-dossiers directs (jamais de lien suivi hors du cache : `read_dir` ne liste que ce niveau).
-fn read_dirs(dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn read_dirs(dir: &Path) -> Vec<PathBuf> {
     fs::read_dir(dir)
         .into_iter()
         .flatten()
@@ -389,7 +396,7 @@ fn read_dirs(dir: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-fn name(path: &Path) -> Option<&str> {
+pub(crate) fn name(path: &Path) -> Option<&str> {
     path.file_name()?.to_str()
 }
 
@@ -553,10 +560,16 @@ mod tests {
         }
         let unknown = root.join("epic").join("fortnite");
         fs::create_dir_all(&unknown).unwrap();
+        // Jaquette perso d'un jeu parti depuis longtemps : jamais purgée ici (`covers.rs`).
+        let custom = crate::covers::save(&root, "riot:valorant", crate::covers::Kind::Cover, JPEG, "jpg").unwrap();
+        let custom_key = format!("{}/{}", crate::covers::DIR, clean_id("riot:valorant"));
+        cache.index.seen.insert(custom_key.clone(), now() - PURGE_AFTER - 1);
         cache.touch(std::slice::from_ref(&kept));
         cache.index.seen.insert("steam/440".into(), now() - PURGE_AFTER - 1);
 
         assert_eq!(cache.purge(), 1);
+        assert!(custom.is_file());
+        let _ = fs::remove_dir_all(root.join(crate::covers::DIR));
         assert!(root.join("steam/730/cover.jpg").is_file());
         assert!(!root.join("steam/440").exists());
         assert!(unknown.is_dir() && cache.index.seen.contains_key("epic/fortnite")); // décompte commencé

@@ -115,6 +115,8 @@ pub struct Game {
     pub status: Option<crate::collections::Status>,
     /// Note perso de l'utilisateur, déjà nettoyée.
     pub note: Option<String>,
+    /// Images choisies par l'utilisateur (`covers.rs`) : jaquette, image de fond.
+    pub custom_art: Vec<crate::covers::Kind>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -246,6 +248,7 @@ impl Game {
             details: None,
             status: None,
             note: None,
+            custom_art: Vec::new(),
         }
     }
 

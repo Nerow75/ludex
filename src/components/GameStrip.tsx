@@ -9,6 +9,7 @@ import {
   PLATFORM_LABEL,
   STATUS_LABEL,
   STATUSES,
+  type ArtKind,
   type Collection,
   type Game,
   type Mood,
@@ -29,7 +30,7 @@ import {
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StackIcon, StarIcon, TrashIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StackIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
 
@@ -47,6 +48,10 @@ interface Props {
   onChangeExe: (game: Game) => void;
   /** Titre vide : retour au titre d'origine. */
   onRename: (game: Game, title: string) => void;
+  /** Choisir une jaquette ou une image de fond perso (sélecteur ouvert côté Rust). */
+  onChooseArt: (game: Game, kind: ArtKind) => void;
+  /** Retirer les images perso du jeu : retour aux images d'origine. */
+  onResetArt: (game: Game) => void;
   /** Jeux ajoutés à la main seulement. */
   onRemove: (game: Game) => void;
   /** Montre les jeux d'un tag, ou d'une ambiance, dans « Tous les jeux ». */
@@ -153,6 +158,12 @@ export function lastSessionText(game: Game, last: PastSession | null): { text: s
   return { text: `${relativeTime(Math.max(end, launcherDate))}, ${formatDuration(last.secs)}`, title };
 }
 
+/** Libellé du retour aux images d'origine, selon ce qui a été remplacé. */
+function resetLabel(custom: ArtKind[]): string {
+  if (custom.length > 1) return "Jaquette et image de fond d'origine";
+  return custom[0] === "hero" ? "Image de fond d'origine" : "Jaquette d'origine";
+}
+
 /** Vignettes montrées dans la fiche ; la dernière annonce les suivantes (« +12 »). */
 const STRIP_SHOTS = 6;
 
@@ -221,6 +232,8 @@ export function GameStrip({
   onOpenFolder,
   onChangeExe,
   onRename,
+  onChooseArt,
+  onResetArt,
   onRemove,
   onTag,
   onMood,
@@ -359,6 +372,17 @@ export function GameStrip({
           >
             <PencilIcon />
           </button>
+          <button type="button" className="btn-icon" aria-label="Changer la jaquette" title="Changer la jaquette" onClick={() => onChooseArt(game, "cover")}>
+            <ImageIcon />
+          </button>
+          <button type="button" className="btn-icon" aria-label="Changer l'image de fond" title="Changer l'image de fond" onClick={() => onChooseArt(game, "hero")}>
+            <WideImageIcon />
+          </button>
+          {game.customArt.length > 0 && (
+            <button type="button" className="btn-icon" aria-label={resetLabel(game.customArt)} title={resetLabel(game.customArt)} onClick={() => onResetArt(game)}>
+              <UndoIcon />
+            </button>
+          )}
           <button
             type="button"
             className="btn-icon"

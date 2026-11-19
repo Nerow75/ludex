@@ -1,5 +1,6 @@
 mod art;
 mod collections;
+mod covers;
 mod history;
 mod images;
 mod journal;
@@ -53,6 +54,9 @@ struct AppState {
     images: Mutex<images::ImageCache>,
     /// Un téléchargement d'images tourne déjà.
     images_busy: AtomicBool,
+    /// Images remplacées par une jaquette perso (`covers.rs`), rendues par « Jaquette d'origine ».
+    /// Verrouillé après `games` (jamais l'inverse).
+    originals: Mutex<covers::Originals>,
     /// Pourcentages mondiaux des succès Steam (`showcase.rs`), lus à la demande.
     global: Mutex<showcase::GlobalCache>,
     /// Tailles des dossiers d'installation mesurées par Ludex (`storage.rs`).
@@ -79,7 +83,8 @@ struct AppState {
     saves_lock: Mutex<()>,
 }
 
-/// Événement `game-art` : jaquette trouvée pour un jeu après le scan, ou image passée en cache.
+/// Événement `game-art` : jaquette trouvée pour un jeu après le scan, image passée en cache, ou
+/// jaquette perso choisie ou retirée.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ArtEvent {
@@ -87,13 +92,20 @@ struct ArtEvent {
     cover_url: Option<String>,
     hero_url: Option<String>,
     logo_url: Option<String>,
+    custom_art: Vec<covers::Kind>,
 }
 
 const ART_EVENT: &str = "game-art";
 
 impl ArtEvent {
     fn of(g: &Game) -> Self {
-        ArtEvent { id: g.id.clone(), cover_url: g.cover_url.clone(), hero_url: g.hero_url.clone(), logo_url: g.logo_url.clone() }
+        ArtEvent {
+            id: g.id.clone(),
+            cover_url: g.cover_url.clone(),
+            hero_url: g.hero_url.clone(),
+            logo_url: g.logo_url.clone(),
+            custom_art: g.custom_art.clone(),
+        }
     }
 }
 
@@ -147,12 +159,15 @@ fn images_to_fetch(state: &AppState) -> Vec<images::Job> {
     lock(&state.images).map(|cache| cache.to_download(&games)).unwrap_or_default()
 }
 
-/// Note la présence des jeux scannés, puis purge les images des jeux partis depuis longtemps.
+/// Note la présence des jeux scannés, puis purge les images des jeux partis depuis longtemps et
+/// les jaquettes perso des jeux que plus rien ne référence.
 fn tidy_images(state: &AppState) {
     let games = lock(&state.games).map(|g| g.clone()).unwrap_or_default();
+    let Ok(chosen) = lock(&state.data).map(|d| d.covers.keys().cloned().collect::<Vec<_>>()) else { return };
     if let Ok(mut cache) = lock(&state.images) {
         cache.touch(&games);
         cache.purge();
+        covers::purge(cache.root(), chosen.iter().map(String::as_str).chain(games.iter().map(|g| g.id.as_str())));
         if let Err(e) = cache.save() {
             eprintln!("Index des images non enregistré : {e}");
         }
@@ -780,6 +795,7 @@ fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
 /// fois. Renvoie aussi les jeux apparus et disparus depuis le scan précédent.
 fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>) -> Result<(ScanResult, watch::Changes), String> {
     let mut result = library::scan();
+    let mut originals = covers::Originals::new();
     {
         let data = lock(&state.data)?;
         let art = lock(&state.art)?;
@@ -792,16 +808,19 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
             data.apply(g);
             art.apply(g);
             meta.apply(g);
-            // En dernier : les images distantes (launcher ou `art.rs`) déjà sur disque.
+            // Puis les images distantes (launcher ou `art.rs`) déjà sur disque.
             images.apply(g);
             // Taille mesurée par Ludex pour les jeux dont le launcher ne la donne pas.
             sizes.apply(g);
+            // En dernier : les images choisies par l'utilisateur priment sur tout.
+            covers::apply(g, data.covers.get(&g.id), images.root(), &mut originals);
         });
     }
     let changes = {
         let mut games = lock(&state.games)?;
         let changes = watch::changes(&games, &result.games);
         *games = result.games.clone();
+        *lock(&state.originals)? = originals;
         changes
     };
     *lock(&state.last_scan)? = Some(Instant::now());
@@ -1242,6 +1261,88 @@ async fn remove_game(app: tauri::AppHandle, id: String) -> Result<ScanResult, St
     .await
 }
 
+/// Sélecteur d'image natif (PNG, JPEG, WebP), au-dessus de la fenêtre de Ludex. Le chemin choisi
+/// reste côté Rust. `None` : annulé.
+fn pick_image(window: &tauri::WebviewWindow, title: &str) -> Option<PathBuf> {
+    let dialog = window.dialog().file().set_title(title).add_filter("Image (PNG, JPEG, WebP)", &covers::EXTENSIONS).set_parent(window);
+    dialog.blocking_pick_file()?.into_path().ok()
+}
+
+/// Choisit une jaquette ou une image de fond perso pour un jeu : sélecteur natif, vérification,
+/// copie dans le dossier de données, puis l'image passe devant toutes les autres (événement
+/// `game-art`). La recherche en ligne de la jaquette s'arrête pour ce jeu. `None` : annulé.
+#[tauri::command]
+async fn choose_cover(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, kind: covers::Kind) -> Result<Option<ArtEvent>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let Some(picked) = pick_image(&window, &format!("{} de {}", kind.title(), game.title)) else { return Ok(None) };
+        let (bytes, ext) = covers::check_image(&picked)?;
+        // Un scan en cours remplacerait l'état sans ce choix : on attend sa fin.
+        let _scanning = wait_scan(&state);
+        let root = lock(&state.images)?.root().to_path_buf();
+        let file = covers::save(&root, &id, kind, &bytes, ext)?;
+        let choice = covers::Picked { ext: ext.to_string(), at: covers::stamp() };
+        {
+            let mut data = lock(&state.data)?;
+            let old = data.set_cover(&id, kind, Some(choice.clone()));
+            if let Err(e) = data.save(&state.data_path) {
+                data.set_cover(&id, kind, old);
+                return Err(e);
+            }
+        }
+        let event = {
+            let mut games = lock(&state.games)?;
+            let mut originals = lock(&state.originals)?;
+            let g = games.iter_mut().find(|g| g.id == id).ok_or("Ce jeu n'est plus dans la bibliothèque. Relance un scan.")?;
+            covers::set(g, kind, file, &choice, &mut originals);
+            ArtEvent::of(g)
+        };
+        let _ = app.emit(ART_EVENT, event.clone());
+        Ok(Some(event))
+    })
+    .await
+}
+
+/// Retire la jaquette ou l'image de fond perso d'un jeu : l'image d'origine revient sans rescan
+/// (launcher, cache, CDN, sinon jaquette générée et recherche en ligne relancée).
+#[tauri::command]
+async fn reset_cover(app: tauri::AppHandle, id: String, kind: covers::Kind) -> Result<ArtEvent, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        find_game(&state, &id)?;
+        let _scanning = wait_scan(&state);
+        {
+            let mut data = lock(&state.data)?;
+            let old = data.set_cover(&id, kind, None);
+            if let Err(e) = data.save(&state.data_path) {
+                data.set_cover(&id, kind, old);
+                return Err(e);
+            }
+        }
+        let event = {
+            // Même ordre que `resolve_art` (jaquettes, jeux) puis jeux, images : jamais l'inverse.
+            let art = lock(&state.art)?;
+            let mut games = lock(&state.games)?;
+            let images = lock(&state.images)?;
+            let mut originals = lock(&state.originals)?;
+            covers::remove(images.root(), &id, kind);
+            let g = games.iter_mut().find(|g| g.id == id).ok_or("Ce jeu n'est plus dans la bibliothèque. Relance un scan.")?;
+            covers::restore(g, kind, &mut originals);
+            // Jaquette retrouvée en ligne pendant que l'image perso la cachait, image déjà en cache.
+            art.apply(g);
+            images.apply(g);
+            ArtEvent::of(g)
+        };
+        let _ = app.emit(ART_EVENT, event.clone());
+        // Jaquette encore inconnue ou image distante pas en cache : recherche et téléchargement.
+        resolve_art(app.clone());
+        resolve_images(app.clone());
+        Ok(event)
+    })
+    .await
+}
+
 /// Lance le jeu et renvoie l'heure du lancement (secondes Unix).
 #[tauri::command]
 fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<u64, String> {
@@ -1665,6 +1766,7 @@ pub fn run() {
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
                 images_busy: AtomicBool::new(false),
+                originals: Mutex::default(),
                 scan_lock: Mutex::new(()),
                 last_scan: Mutex::new(None),
                 watch: OnceLock::new(),
@@ -1726,6 +1828,8 @@ pub fn run() {
             change_executable,
             rename_game,
             remove_game,
+            choose_cover,
+            reset_cover,
             game_screenshots,
             all_screenshots,
             show_screenshot,

@@ -5,6 +5,7 @@ import {
   changeExecutable,
   createCollection,
   deleteCollection,
+  chooseCover,
   gameSessions,
   getCollections,
   installUpdate,
@@ -25,6 +26,7 @@ import {
   removeGame,
   renameCollection,
   renameGame,
+  resetCover,
   scanLibrary,
   setFavorite,
   setHidden,
@@ -34,6 +36,7 @@ import {
   STATUS_LABEL,
   type Collection,
   type CollectionsInfo,
+  type ArtKind,
   type Game,
   type LibraryEvent,
   type LibraryUpdate,
@@ -282,7 +285,7 @@ export default function App() {
 
   // Jaquettes retrouvées en arrière-plan après le scan : elles remplacent la jaquette générée.
   useEffect(() => {
-    const unlisten = onGameArt(({ id, coverUrl, heroUrl, logoUrl }) => patchGame(id, { coverUrl, heroUrl, logoUrl }));
+    const unlisten = onGameArt(({ id, coverUrl, heroUrl, logoUrl, customArt }) => patchGame(id, { coverUrl, heroUrl, logoUrl, customArt }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 
@@ -562,6 +565,36 @@ export default function App() {
       showToast({ title: "Titre non enregistré", detail: String(e), error: true }, 5000);
     }
   }, [applyUpdate, patchGame, showToast]);
+
+  // Le sélecteur d'image est ouvert côté Rust : un second clic pendant ce temps ne fait rien.
+  const choosingArt = useRef(false);
+  const chooseArt = useCallback(async (game: Game, kind: ArtKind) => {
+    if (choosingArt.current) return;
+    choosingArt.current = true;
+    const what = kind === "cover" ? "Jaquette" : "Image de fond";
+    try {
+      const e = await chooseCover(game.id, kind);
+      if (!e) return; // sélection annulée
+      patchGame(e.id, { coverUrl: e.coverUrl, heroUrl: e.heroUrl, logoUrl: e.logoUrl, customArt: e.customArt });
+      showToast({ title: `${what} de ${game.title} changée`, detail: "Copiée dans Ludex : l'image d'origine peut être déplacée" });
+    } catch (err) {
+      showToast({ title: `${what} non changée`, detail: String(err), error: true }, 6000);
+    } finally {
+      choosingArt.current = false;
+    }
+  }, [patchGame, showToast]);
+
+  const resetArt = useCallback(async (game: Game) => {
+    try {
+      for (const kind of game.customArt) {
+        const e = await resetCover(game.id, kind);
+        patchGame(e.id, { coverUrl: e.coverUrl, heroUrl: e.heroUrl, logoUrl: e.logoUrl, customArt: e.customArt });
+      }
+      showToast({ title: `Images d'origine de ${game.title} rétablies` });
+    } catch (err) {
+      showToast({ title: "Images d'origine non rétablies", detail: String(err), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
 
   const remove = useCallback(async (game: Game) => {
     try {
@@ -1053,6 +1086,8 @@ export default function App() {
                   onOpenFolder={openFolder}
                   onChangeExe={changeExe}
                   onRename={rename}
+                  onChooseArt={chooseArt}
+                  onResetArt={resetArt}
                   onRemove={remove}
                   onTag={showTag}
                   onMood={showMood}
