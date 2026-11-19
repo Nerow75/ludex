@@ -241,7 +241,12 @@ pub fn refresh_manifest(data_dir: &Path) -> Result<Manifest, String> {
         Some(m) if m.checked <= now && now - m.checked < REFRESH_SECS => return Ok(m),
         other => other,
     };
-    match download(current.as_ref().and_then(|m| m.etag.as_deref())) {
+    let fetched = download(current.as_ref().and_then(|m| m.etag.as_deref()));
+    match &fetched {
+        Ok(_) => crate::diagnostic::ok(crate::diagnostic::Service::Saves),
+        Err(e) => crate::diagnostic::failed(crate::diagnostic::Service::Saves, e),
+    }
+    match fetched {
         Ok(Some(Downloaded { yaml, etag })) => {
             let mut fresh = parse_manifest(&yaml)?;
             fresh.etag = etag;

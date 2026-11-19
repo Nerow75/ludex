@@ -8,6 +8,8 @@ mod epic;
 mod gog;
 mod kvbin;
 mod local;
+mod locations;
+pub use locations::{locations, Location};
 pub use local::exe_icon;
 pub mod manual;
 mod riot;
@@ -43,6 +45,24 @@ pub enum Launch {
     Uri(String),
     /// Exécutable du launcher avec ses arguments.
     Exec { path: PathBuf, args: Vec<String> },
+}
+
+impl Platform {
+    /// Nom du launcher, en français.
+    pub fn label(self) -> &'static str {
+        match self {
+            Platform::Steam => "Steam",
+            Platform::Epic => "Epic Games",
+            Platform::Riot => "Riot",
+            Platform::Gog => "GOG",
+            Platform::Ubisoft => "Ubisoft",
+            Platform::Rockstar => "Rockstar",
+            Platform::Xbox => "Xbox",
+            Platform::Battlenet => "Battle.net",
+            Platform::Ea => "EA",
+            Platform::Other => "Dossiers de jeux (Autres)",
+        }
+    }
 }
 
 impl Launch {
@@ -297,6 +317,41 @@ pub struct SourceReport {
     pub error: Option<String>,
     /// Désactivé dans les Paramètres : ses jeux (`count`) sont écartés de la bibliothèque.
     pub disabled: bool,
+    /// Durée de lecture de la source en millisecondes (page de diagnostic, pas envoyée au scan).
+    #[serde(skip)]
+    pub millis: u64,
+    /// Jeux vus mais écartés, et pourquoi (page de diagnostic, pas envoyés au scan).
+    #[serde(skip)]
+    pub skipped: Vec<Skipped>,
+}
+
+/// Jeu vu par une source mais écarté de la bibliothèque, et pourquoi.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct Skipped {
+    pub title: String,
+    pub reason: String,
+}
+
+thread_local! {
+    /// Écarts notés par la source en cours de lecture. `None` hors de `gather` : rien n'est gardé.
+    static SKIPPED: std::cell::RefCell<Option<Vec<Skipped>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Note un jeu écarté par la source en cours de lecture (sans effet hors d'un scan).
+pub(crate) fn skip(title: &str, reason: &str) {
+    SKIPPED.with(|s| {
+        if let Some(list) = s.borrow_mut().as_mut() {
+            list.push(Skipped { title: title.trim().to_string(), reason: reason.to_string() });
+        }
+    });
+}
+
+/// Rapports du dernier scan et sa date (secondes Unix), pour la page de diagnostic.
+static LAST_SCAN: std::sync::Mutex<Option<(u64, Vec<SourceReport>)>> = std::sync::Mutex::new(None);
+
+/// Rapports du dernier scan, `None` avant le premier.
+pub fn last_scan() -> Option<(u64, Vec<SourceReport>)> {
+    LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -381,37 +436,61 @@ pub fn scan_except(disabled: &[Platform]) -> ScanResult {
         (Platform::Other, local::scan),
     ];
     let (mut games, reports) = gather(&sources, disabled);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    *LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner()) = Some((now, reports.clone()));
     games.iter_mut().for_each(add_icon);
     games.sort_by_key(|g| g.title.to_lowercase());
     ScanResult { games, sources: reports }
 }
 
 /// Lit les sources dans l'ordre de priorité et écarte les jeux dont le dossier est déjà vu.
+/// Note aussi la durée de chaque source et les jeux écartés (page de diagnostic).
 fn gather(sources: &[(Platform, SourceFn)], disabled: &[Platform]) -> (Vec<Game>, Vec<SourceReport>) {
     let mut games = Vec::new();
     let mut reports = Vec::new();
-    let mut dirs: Vec<String> = Vec::new();
+    // Dossier déjà vu, avec le launcher et le titre du jeu qui l'occupe.
+    let mut dirs: Vec<(String, Platform, String)> = Vec::new();
     for &(platform, source) in sources {
         let off = disabled.contains(&platform);
-        match source() {
+        SKIPPED.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        let start = std::time::Instant::now();
+        let read = source();
+        let millis = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let mut skipped = SKIPPED.with(|s| s.borrow_mut().take()).unwrap_or_default();
+        let report = |installed: bool, count: usize, error: Option<String>, skipped: Vec<Skipped>| SourceReport {
+            platform,
+            installed,
+            count,
+            error,
+            disabled: off,
+            millis,
+            skipped,
+        };
+        match read {
             Ok(Some(mut found)) => {
                 found.retain(|g| {
                     let Some(dir) = g.install_dir.as_deref() else { return true };
                     let key = dir_key(dir);
                     // Même dossier, ou dossier qui contient (ou est contenu dans) un jeu déjà vu.
-                    let overlaps = dirs.iter().any(|d| d == &key || is_inside(&key, d) || is_inside(d, &key));
-                    if !overlaps {
-                        dirs.push(key);
+                    let owner = dirs.iter().find(|(d, _, _)| d == &key || is_inside(&key, d) || is_inside(d, &key));
+                    match owner {
+                        Some((_, by, title)) => {
+                            skipped.push(Skipped { title: g.title.clone(), reason: format!("Même dossier que {title} ({})", by.label()) });
+                            false
+                        }
+                        None => {
+                            dirs.push((key, platform, g.title.clone()));
+                            true
+                        }
                     }
-                    !overlaps
                 });
-                reports.push(SourceReport { platform, installed: true, count: found.len(), error: None, disabled: off });
+                reports.push(report(true, found.len(), None, skipped));
                 if !off {
                     games.extend(found);
                 }
             }
-            Ok(None) => reports.push(SourceReport { platform, installed: false, count: 0, error: None, disabled: off }),
-            Err(e) => reports.push(SourceReport { platform, installed: true, count: 0, error: Some(e), disabled: off }),
+            Ok(None) => reports.push(report(false, 0, None, skipped)),
+            Err(e) => reports.push(report(true, 0, Some(e), skipped)),
         }
     }
     (games, reports)

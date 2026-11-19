@@ -72,7 +72,12 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             .into_iter()
             .filter_map(|(title, key)| {
                 let dir = reg::string(&key, "InstallFolder")?;
-                build(&title, Path::new(&dir))
+                let game = build(&title, Path::new(&dir));
+                if game.is_none() && !NOT_GAMES.iter().any(|n| n.eq_ignore_ascii_case(&title)) {
+                    let reason = if Path::new(&dir).is_dir() { "Exécutable de lancement (Play…) introuvable" } else { "Dossier d'installation introuvable" };
+                    super::skip(&title, reason);
+                }
+                game
             })
             .collect();
         Ok(Some(games))

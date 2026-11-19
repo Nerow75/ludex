@@ -177,7 +177,7 @@ fn account_ids(loginusers: &vdf::Vdf) -> Vec<u64> {
 
 /// `localconfig.vdf` du compte utilisé sur ce PC. Repli si `loginusers.vdf` ne désigne aucun
 /// dossier existant : le `localconfig.vdf` modifié le plus récemment dans `userdata`.
-fn localconfig_path(root: &Path) -> Option<PathBuf> {
+pub(super) fn localconfig_path(root: &Path) -> Option<PathBuf> {
     let userdata = root.join("userdata");
     let file = |id: &str| userdata.join(id).join("config").join("localconfig.vdf");
     if let Ok(text) = fs::read_to_string(root.join("config").join("loginusers.vdf"))
@@ -252,7 +252,7 @@ fn playtimes(localconfig: &Path) -> Option<HashMap<String, AppTimes>> {
     Some(parse_playtimes(&vdf::parse(&text)))
 }
 
-fn library_paths(root: &Path) -> Vec<PathBuf> {
+pub(super) fn library_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = vec![root.to_path_buf()];
     let file = root.join("steamapps").join("libraryfolders.vdf");
     if let Ok(text) = fs::read_to_string(file) {
@@ -315,17 +315,34 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             if !(name.starts_with("appmanifest_") && name.ends_with(".acf")) {
                 continue;
             }
-            let Ok(text) = fs::read_to_string(entry.path()) else { continue };
+            let Ok(text) = fs::read_to_string(entry.path()) else {
+                super::skip(&name, "Manifeste illisible");
+                continue;
+            };
             let doc = vdf::parse(&text);
-            let Some(app) = doc.get("AppState") else { continue };
-            let (Some(appid), Some(title)) = (app.str("appid"), app.str("name")) else { continue };
+            let app = doc.get("AppState");
+            let (Some(appid), Some(title)) = (app.and_then(|a| a.str("appid")), app.and_then(|a| a.str("name"))) else {
+                super::skip(&name, "Manifeste incomplet (appid ou nom absent)");
+                continue;
+            };
+            let Some(app) = app else { continue };
 
             let flags: u32 = app.str("StateFlags").and_then(|f| f.parse().ok()).unwrap_or(0);
-            if !listed(flags, app)
-                || EXCLUDED_APPIDS.contains(&appid)
-                || EXCLUDED_PREFIXES.iter().any(|p| title.starts_with(p))
-                || !seen.insert(appid.to_string())
-            {
+            let skipped = if !listed(flags, app) {
+                Some(if flags & (flags::UNINSTALLED | flags::UNINSTALLING) != 0 {
+                    "Désinstallé ou en cours de désinstallation"
+                } else {
+                    "Première installation pas terminée"
+                })
+            } else if EXCLUDED_APPIDS.contains(&appid) || EXCLUDED_PREFIXES.iter().any(|p| title.starts_with(p)) {
+                Some("Composant de Steam, pas un jeu")
+            } else if !seen.insert(appid.to_string()) {
+                Some("Déjà vu dans une autre bibliothèque Steam")
+            } else {
+                None
+            };
+            if let Some(reason) = skipped {
+                super::skip(title, reason);
                 continue;
             }
 

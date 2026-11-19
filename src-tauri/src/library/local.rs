@@ -477,10 +477,25 @@ fn ankama_title(dir: &str) -> String {
 
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let mut games = known_launchers();
-    games.extend(candidates().iter().filter(|d| kind(d) == Kind::Other).filter_map(|d| build(d)));
+    for dir in candidates().iter().filter(|d| kind(d) == Kind::Other) {
+        match build(dir) {
+            Some(game) => games.push(game),
+            None => {
+                let folder = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let reason = if main_exe(dir).is_some() { "Launcher, pas un jeu" } else { "Aucun exécutable de jeu dans le dossier" };
+                super::skip(&folder, reason);
+            }
+        }
+    }
     // Le même jeu copié sur deux disques : le premier suffit.
     let mut titles = HashSet::new();
-    games.retain(|g| titles.insert(compact(&g.title)));
+    games.retain(|g| {
+        let first = titles.insert(compact(&g.title));
+        if !first {
+            super::skip(&g.title, "Même titre déjà vu dans un autre dossier");
+        }
+        first
+    });
     Ok(Some(games))
 }
 

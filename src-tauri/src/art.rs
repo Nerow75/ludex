@@ -398,12 +398,14 @@ impl ArtCache {
                             match store_search(&agent, title) {
                                 Ok(store) => store,
                                 Err(e) => {
+                                    crate::diagnostic::failed(crate::diagnostic::Service::Art, format!("Microsoft Store : {e}"));
                                     eprintln!("Recherche de jaquettes interrompue (Microsoft Store) : {e}");
                                     return;
                                 }
                             }
                         }
                     };
+                    crate::diagnostic::ok(crate::diagnostic::Service::Art);
                     let found = appid.is_some() || store.is_some();
                     self.titles.insert(compact(title), Entry { appid, checked: now(), cover, hero, store });
                     if let Err(e) = self.save() {
@@ -414,6 +416,7 @@ impl ArtCache {
                     }
                 }
                 Err(e) => {
+                    crate::diagnostic::failed(crate::diagnostic::Service::Art, &e);
                     eprintln!("Recherche de jaquettes interrompue : {e}");
                     return;
                 }

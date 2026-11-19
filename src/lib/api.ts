@@ -669,3 +669,55 @@ export const enterCouchWindow = () => invoke<void>("window_enter_couch");
 export const leaveCouchWindow = () => invoke<void>("window_leave_couch");
 /** F11 dans le mode canapé : nouvel état du plein écran, `null` si le réglage l'interdit. */
 export const toggleCouchFullscreen = () => invoke<boolean | null>("window_couch_fullscreen");
+
+/** Page de diagnostic des launchers (`diagnostic.rs`), d'après le dernier scan. */
+export type DiagSourceState = "unknown" | "absent" | "empty" | "games" | "disabled" | "error";
+export interface DiagLocation {
+  label: string;
+  /** Chemin, ou clé du registre (`HKLM\…`, `HKCU\…`). */
+  path: string;
+  found: boolean;
+}
+export interface DiagSkipped {
+  title: string;
+  reason: string;
+}
+export interface DiagSource {
+  /** Plateforme, ou `manual` pour les jeux ajoutés à la main. */
+  id: Platform | "manual";
+  label: string;
+  state: DiagSourceState;
+  /** Jeux trouvés ; écartés si le launcher est désactivé. */
+  count: number;
+  error: string | null;
+  /** Durée de lecture au dernier scan. */
+  millis: number | null;
+  locations: DiagLocation[];
+  skipped: DiagSkipped[];
+  /** Applis masquées d'office. */
+  tools: string[];
+}
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves";
+export interface DiagService {
+  id: DiagServiceId;
+  label: string;
+  host: string;
+  busy: boolean;
+  /** Secondes Unix, depuis le démarrage de Ludex. */
+  lastOk: number | null;
+  lastError: string | null;
+  errorAt: number | null;
+}
+export interface Diagnostic {
+  version: string;
+  windows: string;
+  webview: string | null;
+  dataDir: string;
+  scannedAt: number | null;
+  created: number;
+  sources: DiagSource[];
+  services: DiagService[];
+  /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier. */
+  report: string;
+}
+export const diagnostic = () => invoke<Diagnostic>("diagnostic");

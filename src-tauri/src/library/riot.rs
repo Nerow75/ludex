@@ -62,7 +62,10 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             continue;
         }
         let settings = entry.path().join(format!("{name}.product_settings.yaml"));
-        let Some(dir) = install_path(&settings).filter(|p| p.exists()) else { continue };
+        let Some(dir) = install_path(&settings).filter(|p| p.exists()) else {
+            super::skip(&title_for(product), "Dossier d'installation introuvable");
+            continue;
+        };
 
         let launch = Launch::Exec {
             path: client.clone(),
