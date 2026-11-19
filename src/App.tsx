@@ -1270,67 +1270,70 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <select
-                className="pick"
-                aria-label="Filtrer par ambiance"
-                value={facets.mood ?? ""}
-                onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
-              >
-                <option value="">Ambiance</option>
-                {moodChoices.map(({ mood, count }) => (
-                  <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
-                ))}
-              </select>
-              <select
-                className="pick"
-                aria-label="Filtrer par tag Steam"
-                value={facets.tag ?? ""}
-                onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
-              >
-                <option value="">Tag</option>
-                {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
-                {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
-                {tagChoices.map(({ name, count }) => (
-                  <option key={name} value={name}>{name} ({count})</option>
-                ))}
-              </select>
-              <select
-                className="pick"
-                aria-label="Filtrer par genre"
-                value={facets.genre ?? ""}
-                onChange={(e) => changeFacets({ ...facets, genre: e.target.value || null })}
-              >
-                <option value="">Genre</option>
-                {facets.genre && !genreChoices.some((t) => t.name === facets.genre) && <option value={facets.genre}>{facets.genre} (0)</option>}
-                {genreChoices.map(({ name, count }) => (
-                  <option key={name} value={name}>{name} ({count})</option>
-                ))}
-              </select>
-              <select
-                className="bar__select"
-                value={statusFilter}
-                aria-label="Filtrer par statut"
-                onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
-                onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
-              >
-                {STATUS_FILTERS.map((f) => (
-                  <option key={f} value={f}>{STATUS_FILTER_LABEL[f]}</option>
-                ))}
-              </select>
-              <select
-                className="bar__select"
-                value={sort}
-                aria-label="Trier"
-                onChange={(e) => changeSort(e.target.value as Sort)}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                {SORTS.map((s) => (
-                  <option key={s} value={s}>{SORT_LABEL[s]}</option>
-                ))}
-              </select>
-              <div className="seg seg--icons" role="group" aria-label="Affichage">
-                <button type="button" aria-pressed={layout === "grid"} aria-label="Grille" title="Grille" onClick={() => changeLayout("grid")}><GridIcon /></button>
-                <button type="button" aria-pressed={layout === "list"} aria-label="Liste" title="Liste" onClick={() => changeLayout("list")}><ListIcon /></button>
+              {/* Listes, tri et affichage : un seul bloc qui passe à la ligne d'un coup quand la place manque. */}
+              <div className="bar__opts">
+                <select
+                  className="pick"
+                  aria-label="Filtrer par ambiance"
+                  value={facets.mood ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
+                >
+                  <option value="">Ambiance</option>
+                  {moodChoices.map(({ mood, count }) => (
+                    <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="pick"
+                  aria-label="Filtrer par tag Steam"
+                  value={facets.tag ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
+                >
+                  <option value="">Tag</option>
+                  {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
+                  {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
+                  {tagChoices.map(({ name, count }) => (
+                    <option key={name} value={name}>{name} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="pick"
+                  aria-label="Filtrer par genre"
+                  value={facets.genre ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, genre: e.target.value || null })}
+                >
+                  <option value="">Genre</option>
+                  {facets.genre && !genreChoices.some((t) => t.name === facets.genre) && <option value={facets.genre}>{facets.genre} (0)</option>}
+                  {genreChoices.map(({ name, count }) => (
+                    <option key={name} value={name}>{name} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="bar__select"
+                  value={statusFilter}
+                  aria-label="Filtrer par statut"
+                  onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
+                  onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
+                >
+                  {STATUS_FILTERS.map((f) => (
+                    <option key={f} value={f}>{STATUS_FILTER_LABEL[f]}</option>
+                  ))}
+                </select>
+                <select
+                  className="bar__select"
+                  value={sort}
+                  aria-label="Trier"
+                  onChange={(e) => changeSort(e.target.value as Sort)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {SORTS.map((s) => (
+                    <option key={s} value={s}>{SORT_LABEL[s]}</option>
+                  ))}
+                </select>
+                <div className="seg seg--icons" role="group" aria-label="Affichage">
+                  <button type="button" aria-pressed={layout === "grid"} aria-label="Grille" title="Grille" onClick={() => changeLayout("grid")}><GridIcon /></button>
+                  <button type="button" aria-pressed={layout === "list"} aria-label="Liste" title="Liste" onClick={() => changeLayout("list")}><ListIcon /></button>
+                </div>
               </div>
             </div>
             {hasFacets(facets) && (

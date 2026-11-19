@@ -198,6 +198,7 @@ kbd {
 
 .bar { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; flex-wrap: wrap; }
 .bar h2 { font-size: 18px; margin-right: auto; }
+.bar__opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .bar h2 span { font: 12px var(--lx-font-mono); color: var(--lx-text-3); margin-left: 8px; }
 
 .seg { display: inline-flex; padding: 4px; gap: 2px; border-radius: var(--lx-radius-m); border: 1px solid var(--lx-border); background: color-mix(in srgb, var(--lx-surface) 85%, transparent); }
@@ -403,7 +404,7 @@ kbd {
    retirées quand la place manque. Jouer apparaît à droite de la ligne au survol ou à la sélection. */
 .lib-list {
   container-type: inline-size; display: flex; flex-direction: column; gap: 2px;
-  --lcols: 40px minmax(160px, 1fr) 96px minmax(120px, 180px) 56px 96px 120px 88px 80px 80px;
+  --lcols: 32px minmax(160px, 1fr) 96px minmax(120px, 180px) 56px 96px 120px 88px 80px 80px;
 }
 .lib-list > .strip { margin: 8px 0 16px; }
 .lhead, .lrow__hit { display: grid; grid-template-columns: var(--lcols); align-items: center; gap: 12px; padding: 0 56px 0 8px; }
@@ -427,7 +428,7 @@ kbd {
 .lrow.is-sel .lrow__hit { background: var(--lx-surface); outline-color: var(--lx-ambient); }
 .lrow.is-sel .lrow__hit:focus-visible { outline-color: var(--lx-accent); }
 .lrow__hit > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lrow__cover { width: 40px; border-radius: 4px; font-size: 6px; }
+.lrow__cover { width: 32px; border-radius: 4px; font-size: 6px; }
 .lrow__cover .cover__title { display: none; }
 .lrow__title { display: flex; align-items: center; gap: 8px; color: var(--lx-text); }
 .lrow__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 500; }
@@ -440,14 +441,15 @@ kbd {
 .lrow__none { color: var(--lx-text-3); }
 .lrow .card__play { right: 8px; top: 50%; bottom: auto; width: 36px; height: 36px; margin-top: -18px; }
 .lrow:hover .card__play, .lrow.is-sel .card__play { opacity: 1; transform: none; }
+/* Une requête @container vise les descendants du conteneur : le gabarit réduit va donc sur l'en-tête et les lignes. */
 @container (max-width: 1040px) {
-  .lib-list { --lcols: 40px minmax(160px, 1fr) 56px 96px 120px 88px 80px 80px; }
+  .lib-list :is(.lhead, .lrow__hit) { --lcols: 32px minmax(160px, 1fr) 56px 96px 120px 88px 80px 80px; }
   .lib-list .lc--genres { display: none; }
   /* Launcher retiré aussi : seulement si la colonne Genres l'est (même ordre que le gabarit). */
   .lib-list .lc--plat { display: none; }
 }
 @container (max-width: 760px) {
-  .lib-list { --lcols: 40px minmax(140px, 1fr) 96px 120px; }
+  .lib-list :is(.lhead, .lrow__hit) { --lcols: 32px minmax(140px, 1fr) 96px 120px; }
   .lib-list .lc--year, .lib-list .lc--num:nth-child(n + 8) { display: none; }
 }
 
