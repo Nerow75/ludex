@@ -1340,22 +1340,23 @@ Vide: null
     }
 
     #[test]
-    fn keeps_the_ten_most_recent_copies() {
+    fn keeps_the_most_recent_copies() {
         let (dir, _, game, scope, saves) = setup("rotate");
         let root = dir.join("Copies");
-        for i in 0..12u64 {
+        let n = KEEP as u64 + 2;
+        for i in 0..n {
             write(&saves.join("slot1.sav"), &format!("partie {i}"));
             touch(&saves.join("slot1.sav"), 1_000 + i);
             backup(&root, &game.id, &game.title, &scope.locate(Some(&root)), Reason::Auto, &stamp(100 + i)).unwrap();
         }
-        assert_eq!(list(&root, &game.id).len(), 12);
+        assert_eq!(list(&root, &game.id).len(), KEEP + 2);
         let oldest = list(&root, &game.id).last().unwrap().id.clone();
         // La plus ancienne est protégée : la suivante part à sa place.
         assert_eq!(rotate(&root, &game.id, KEEP, &[&oldest]), 1);
         let left = list(&root, &game.id);
-        assert_eq!(left.len(), 11);
+        assert_eq!(left.len(), KEEP + 1);
         assert!(left.iter().any(|c| c.id == oldest));
-        assert_eq!(left[0].created, 111);
+        assert_eq!(left[0].created, 100 + n - 1);
         assert_eq!(rotate(&root, &game.id, KEEP, &[]), 1);
         let left = list(&root, &game.id);
         assert_eq!(left.len(), KEEP);
