@@ -20,8 +20,16 @@ kbd {
   background: var(--lx-surface-2); color: var(--lx-text-2);
 }
 
-/* ---------- Cadre : recherche en haut, bibliothèque en dessous ---------- */
-.app { position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; isolation: isolate; }
+/* ---------- Cadre : barre latérale à gauche, recherche en haut, section en dessous ---------- */
+.app {
+  --side-w: 224px;
+  position: relative; height: 100%; overflow: hidden; isolation: isolate;
+  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr);
+}
+.app.is-side-collapsed { --side-w: 64px; }
+.app > .top { grid-area: 1 / 2; }
+.app > .hint { grid-area: 2 / 2; }
+.app > .scroll { grid-area: 3 / 2; }
 
 .top { display: grid; grid-template-columns: 180px minmax(0, 1fr) 180px; align-items: center; gap: 16px; padding: 20px 40px 8px; }
 .brand { display: flex; align-items: center; gap: 8px; font: 600 18px/1 var(--lx-font-body); }
@@ -84,6 +92,65 @@ kbd {
 .keys span { display: inline-flex; align-items: center; gap: 4px; }
 /* Boutons de face de la manette : pastilles rondes, même teinte que les touches. */
 .keys kbd.pad { width: 20px; height: 20px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 600; }
+.app .keys { left: var(--side-w); }
+
+/* ---------- Barre latérale : sections, temps récent, dernier jeu ---------- */
+.side {
+  grid-area: 1 / 1 / -1 / 2; min-height: 0; overflow: hidden auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 20px 12px 16px;
+  border-right: 1px solid var(--lx-border); background: var(--lx-bg);
+}
+.side small { font-size: 12px; color: var(--lx-text-3); }
+.side__toggle {
+  align-self: flex-start; width: 40px; height: 36px; border: 0; border-radius: 8px; background: none; color: var(--lx-text-3);
+  display: grid; place-items: center; transition: color .15s, background-color .15s;
+}
+.side__toggle:hover { background: var(--lx-surface); color: var(--lx-text); }
+.side__list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.side__item {
+  width: 100%; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border: 0;
+  border-radius: var(--lx-radius-m); background: none; color: var(--lx-text-3); text-align: left; white-space: nowrap;
+  transition: color .15s, background-color .15s;
+}
+.side__item:hover { color: var(--lx-text); background: var(--lx-surface); }
+.side__item[aria-current="page"] { color: var(--lx-text); background: var(--lx-surface-2); }
+.side__item[aria-current="page"] svg { color: var(--lx-accent-text); }
+.side__item svg { flex: none; }
+.side__item span { overflow: hidden; text-overflow: ellipsis; }
+.side__foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--lx-border); }
+.side__stat { display: flex; flex-direction: column; padding: 0 12px; }
+.side__stat b { font-size: 18px; font-weight: 500; }
+.side__last {
+  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px; border: 0; border-radius: var(--lx-radius-m);
+  background: none; text-align: left; transition: background-color .15s;
+}
+.side__last:hover { background: var(--lx-surface); }
+.side__last:active { transform: scale(.98); }
+.side__last > span { display: flex; flex-direction: column; min-width: 0; }
+.side__last b { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Petites jaquettes (barre, historique) : monogramme à l'échelle, sans le titre. */
+.side__cover, .hist__cover { flex: none; width: 32px; border-radius: 4px; font-size: 6px; }
+.side__cover .cover__title, .hist__cover .cover__title { display: none; }
+.is-side-collapsed .side__item span, .is-side-collapsed .side__stat, .is-side-collapsed .side__last > span { display: none; }
+.is-side-collapsed .side__toggle { align-self: center; }
+.is-side-collapsed .side__item { justify-content: center; padding: 0; }
+.is-side-collapsed .side__last { justify-content: center; padding: 4px; }
+
+/* ---------- Historique ---------- */
+.hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-width: 960px; }
+.hist__item { position: relative; }
+.hist__row {
+  width: 100%; display: grid; grid-template-columns: 40px minmax(0, 1fr) 120px minmax(160px, 220px); align-items: center; gap: 16px;
+  padding: 8px 64px 8px 8px; border: 0; border-radius: var(--lx-radius-m); background: none; text-align: left;
+  transition: background-color .15s;
+}
+.hist__row:hover, .hist__row:focus-visible { background: var(--lx-surface); }
+.hist__cover { width: 40px; }
+.hist__title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist__meta { font-size: 13px; color: var(--lx-text-3); }
+.hist__when { font-size: 13px; color: var(--lx-text-2); }
+.hist__item .card__play { right: 12px; top: 50%; bottom: auto; width: 36px; height: 36px; margin-top: -18px; }
+.hist__item:hover .card__play, .hist__item:focus-within .card__play { opacity: 1; transform: none; }
 
 .bar { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; flex-wrap: wrap; }
 .bar h2 { font-size: 18px; margin-right: auto; }

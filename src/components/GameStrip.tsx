@@ -107,7 +107,7 @@ function useLastSession(id: string, playing: boolean): PastSession | null {
 }
 
 /** « il y a 2 jours, 1 h 20 » : la durée n'est ajoutée que si la session mesurée est la dernière connue. */
-function lastSessionText(game: Game, last: PastSession | null): { text: string; title?: string } {
+export function lastSessionText(game: Game, last: PastSession | null): { text: string; title?: string } {
   const end = last ? last.start + last.secs : 0;
   const launcherDate = game.lastPlayed ?? 0;
   // Joué depuis hors de Ludex (date du launcher bien plus récente) : la durée mesurée serait trompeuse.

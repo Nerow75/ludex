@@ -199,6 +199,59 @@ pub fn sessions_of(history: &SharedHistory, game_id: &str) -> Vec<PastSession> {
     found
 }
 
+/// Période du temps de jeu récent affiché en bas de la barre latérale.
+pub const RECENT_DAYS: u64 = 14;
+
+/// Temps de jeu des derniers jours, tiré de l'historique de Ludex.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentPlaytime {
+    /// Période couverte, en jours.
+    pub days: u64,
+    /// Secondes de jeu dans la période.
+    pub secs: u64,
+    /// Sessions et jeux différents comptés.
+    pub sessions: usize,
+    pub games: usize,
+}
+
+/// Temps de jeu des `days` derniers jours avant `now` (secondes Unix). Chaque session compte une
+/// fois, celles de Steam ou GOG Galaxy (`launcher`) comprises : c'est la durée observée par Ludex,
+/// jamais le cumul du launcher. Une session commencée avant la période n'y compte que pour sa
+/// partie récente (durée de jeu supposée continue depuis son début). Sessions en cours non comptées.
+pub fn recent_playtime(sessions: &[PastSession], now: u64, days: u64) -> RecentPlaytime {
+    let since = now.saturating_sub(days * DAY);
+    let mut seen: std::collections::HashSet<(&str, u64)> = std::collections::HashSet::new();
+    let mut games: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut total = RecentPlaytime { days, ..Default::default() };
+    for s in sessions {
+        let counted = s.secs.saturating_sub(since.saturating_sub(s.start));
+        // Même jeu, même début : une seule session (le journal évite déjà ce doublon).
+        if counted == 0 || s.start > now || !seen.insert((s.game_id.as_str(), s.start)) {
+            continue;
+        }
+        total.secs = total.secs.saturating_add(counted);
+        total.sessions += 1;
+        games.insert(s.game_id.as_str());
+    }
+    total.games = games.len();
+    total
+}
+
+/// Dernière session de chaque jeu de l'historique, la plus récente d'abord.
+pub fn last_sessions(sessions: &[PastSession]) -> Vec<PastSession> {
+    let mut last: HashMap<&str, &PastSession> = HashMap::new();
+    for s in sessions {
+        let slot = last.entry(s.game_id.as_str()).or_insert(s);
+        if s.start > slot.start {
+            *slot = s;
+        }
+    }
+    let mut found: Vec<PastSession> = last.into_values().cloned().collect();
+    found.sort_by(|a, b| b.start.cmp(&a.start).then_with(|| a.game_id.cmp(&b.game_id)));
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +328,32 @@ mod tests {
         compact(&mut daily, 15);
         assert_eq!(daily.len(), 15);
         assert_eq!(daily[0].start, 5 * DAY);
+    }
+
+    #[test]
+    fn recent_playtime_counts_each_session_once() {
+        let now = 100 * DAY;
+        let sessions = vec![
+            past("epic:Sugar", now - DAY, 3600),
+            // Steam : durée observée par Ludex, comptée une fois comme les autres.
+            PastSession { launcher: true, ..past("steam:730", now - 2 * DAY, 1800) },
+            // Doublon (même jeu, même début) ignoré.
+            PastSession { launcher: true, ..past("steam:730", now - 2 * DAY, 1800) },
+            // Commencée 10 min avant la période : seules les 20 min récentes comptent.
+            past("epic:Sugar", now - 14 * DAY - 600, 1800),
+            // Trop ancienne.
+            past("steam:440", now - 20 * DAY, 7200),
+        ];
+        let recent = recent_playtime(&sessions, now, RECENT_DAYS);
+        assert_eq!(recent, RecentPlaytime { days: 14, secs: 3600 + 1800 + 1200, sessions: 3, games: 2 });
+        assert_eq!(recent_playtime(&[], now, RECENT_DAYS), RecentPlaytime { days: 14, ..Default::default() });
+    }
+
+    #[test]
+    fn last_session_of_each_game_most_recent_first() {
+        let sessions = vec![past("epic:Sugar", 1000, 60), past("steam:730", 5000, 60), past("epic:Sugar", 9000, 120), past("steam:440", 3000, 60)];
+        let last = last_sessions(&sessions);
+        assert_eq!(last, vec![past("epic:Sugar", 9000, 120), past("steam:730", 5000, 60), past("steam:440", 3000, 60)]);
     }
 
     #[test]

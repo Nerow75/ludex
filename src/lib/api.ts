@@ -145,6 +145,16 @@ export interface PastSession {
 }
 /** Historique d'un jeu, la session la plus récente d'abord. */
 export const gameHistory = (id: string) => invoke<PastSession[]>("game_history", { id });
+/** Dernière session de chaque jeu de l'historique, la plus récente d'abord. */
+export const lastSessions = () => invoke<PastSession[]>("last_sessions");
+/** Temps de jeu des derniers jours, tiré de l'historique (sessions terminées, chacune comptée une fois). */
+export interface RecentPlaytime {
+  days: number;
+  secs: number;
+  sessions: number;
+  games: number;
+}
+export const recentPlaytime = () => invoke<RecentPlaytime>("recent_playtime");
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan). */
 export interface ArtEvent {
   id: string;

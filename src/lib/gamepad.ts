@@ -10,23 +10,29 @@ export type PadAction =
   | "back"
   | "details"
   | "favorite"
+  | "prevSection"
+  | "nextSection"
   | "prevFilter"
   | "nextFilter"
-  | "prevSort"
   | "nextSort";
 
 type Direction = "up" | "down" | "left" | "right";
 
-/** Boutons du « standard mapping » de la Gamepad API (manettes Xbox, PlayStation via XInput, etc.). */
+/**
+ * Boutons du « standard mapping » de la Gamepad API (manettes Xbox, PlayStation via XInput, etc.).
+ * Du plus large au plus fin, comme les onglets d'une console : gâchettes hautes = section de la
+ * barre latérale, gâchettes basses = filtre de la grille, bouton Vue = tri suivant.
+ */
 const BUTTONS: [number, PadAction][] = [
   [0, "confirm"], // A
   [1, "back"], // B
   [2, "details"], // X
   [3, "favorite"], // Y
-  [4, "prevFilter"], // LB
-  [5, "nextFilter"], // RB
-  [6, "prevSort"], // LT
-  [7, "nextSort"], // RT
+  [4, "prevSection"], // LB
+  [5, "nextSection"], // RB
+  [6, "prevFilter"], // LT
+  [7, "nextFilter"], // RT
+  [8, "nextSort"], // Vue (Back, Select, Share)
 ];
 const DPAD: [number, Direction][] = [
   [12, "up"],

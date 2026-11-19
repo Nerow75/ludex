@@ -31,8 +31,10 @@ import {
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { useGamepad } from "./lib/gamepad";
-import { recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
+import { matchesFilter, recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
+import { SECTION_IDS, SECTIONS, type SectionContext } from "./lib/sections";
 import { GameStrip } from "./components/GameStrip";
+import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
 import { DownloadIcon, LudexMark, PlusIcon, RefreshIcon, SearchIcon } from "./components/Icons";
@@ -59,6 +61,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
+  // Barre latérale : section affichée et barre repliée (icônes seules), gardées entre deux lancements.
+  const [sectionId, setSectionId] = useState(() => remembered("section", SECTION_IDS, SECTION_IDS[0]));
+  const [collapsed, setCollapsed] = useState(() => remembered("sidebar", ["open", "collapsed"], "open") === "collapsed");
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   /** Jeux lancés depuis Ludex dont un processus tourne. */
@@ -69,7 +74,12 @@ export default function App() {
 
   // Les applis masquées (Wallpaper Engine…) restent dans le scan mais n'apparaissent que dans « Masqués ».
   const games = scan?.games ?? [];
-  const results = useMemo(() => selectGames(games, filter, sort, query), [games, filter, sort, query]);
+  // Section : un écran à elle (`render`, sauf pendant une recherche), sinon la grille restreinte à `scope`.
+  const view = SECTIONS.find((s) => s.id === sectionId) ?? SECTIONS[0];
+  const custom = !query && !!view.render;
+  const scoped = useMemo(() => (view.scope ? games.filter(view.scope) : games), [games, view]);
+  const activeFilter: Filter = view.filters && !view.filters(filter) ? "all" : filter;
+  const results = useMemo(() => selectGames(scoped, activeFilter, sort, query), [scoped, activeFilter, sort, query]);
   const recent = useMemo(() => recentGames(games, 4), [games]);
   const selected =
     results.find((g) => g.id === selectedId) ??
@@ -81,6 +91,29 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
   }, []);
+
+  const goTo = useCallback((id: string) => {
+    setSectionId(id);
+    setOpen(false);
+    remember("section", id);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((c) => {
+      remember("sidebar", c ? "open" : "collapsed");
+      return !c;
+    });
+  }, []);
+
+  /** Ouvre la fiche d'un jeu dans « Tous les jeux », avec un filtre qui le montre. */
+  const openGame = useCallback((game: Game) => {
+    goTo("all");
+    setQuery("");
+    setFilter((f) => (game.hidden ? "hidden" : f !== "favorites" && matchesFilter(game, f) ? f : "all"));
+    setSelectedId(game.id);
+    setOpen(true);
+  }, [goTo]);
 
   /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
   const refresh = useCallback(async (manual = false) => {
@@ -308,6 +341,7 @@ export default function App() {
       applyUpdate(u);
       // Le nouveau jeu doit être visible : ni filtre qui l'exclut, ni recherche.
       setFilter((f) => (f === "all" || f === "other" ? f : "all"));
+      goTo(SECTION_IDS[0]);
       setQuery("");
       setOpen(true);
       showToast({ title: `${u.title} ajouté`, detail: "Rangé dans « Autres »" });
@@ -316,7 +350,7 @@ export default function App() {
     } finally {
       adding.current = false;
     }
-  }, [applyUpdate, showToast]);
+  }, [applyUpdate, goTo, showToast]);
 
   const changeExe = useCallback(async (game: Game) => {
     try {
@@ -357,16 +391,54 @@ export default function App() {
     requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
-  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame });
-  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame };
+  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar });
+  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar };
+
+  // Navigation par zones, au clavier comme à la manette : la barre latérale à gauche, le contenu à
+  // droite. Gauche depuis la première colonne (ou depuis une section à elle) entre dans la barre ;
+  // dans la barre, haut et bas changent de section, droite ou Entrée (A) reviennent au contenu.
+  const sideItems = () => [...document.querySelectorAll<HTMLElement>(".side__item")];
+  const inSidebar = () => !!document.activeElement?.closest(".side");
+  const focusSidebar = () => sideItems().find((b) => b.getAttribute("aria-current") === "page")?.focus();
+  const focusContent = () => {
+    const s = live.current;
+    if (s.custom) scrollRef.current?.querySelector<HTMLElement>("[data-nav]")?.focus();
+    else if (s.selected) focusCard(s.selected.id);
+    else (document.activeElement as HTMLElement | null)?.blur(); // grille vide : la barre rend la main
+  };
+  /** Section voisine (barre, LB/RB), en boucle ; le focus suit si la barre l'avait. */
+  const stepSection = (delta: number) => {
+    const s = live.current;
+    const i = Math.max(0, SECTION_IDS.indexOf(s.sectionId));
+    const next = (i + delta + SECTION_IDS.length) % SECTION_IDS.length;
+    const follow = inSidebar();
+    s.goTo(SECTION_IDS[next]);
+    if (follow) sideItems()[next]?.focus();
+  };
+
+  /** Flèche ou croix : barre latérale, élément `[data-nav]` d'une section à elle, ou grille. */
+  const navigate = (dir: "up" | "down" | "left" | "right") => {
+    if (inSidebar()) {
+      if (dir === "right") focusContent();
+      else if (dir !== "left") stepSection(dir === "down" ? 1 : -1);
+    } else if (live.current.custom) {
+      const items = [...(scrollRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? [])];
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      if (dir === "left") focusSidebar();
+      else items[i < 0 ? 0 : Math.min(items.length - 1, Math.max(0, i + (dir === "up" ? -1 : 1)))]?.focus();
+    } else {
+      moveSelection(dir);
+    }
+  };
 
   /** Déplace la sélection dans la grille, comme les flèches du clavier. */
   const moveSelection = (dir: "up" | "down" | "left" | "right") => {
     const s = live.current;
-    if (!s.results.length) return;
+    if (!s.results.length) return void (dir === "left" && focusSidebar());
     const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
     const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
     const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
+    if (dir === "left" && i % cols === 0) return focusSidebar();
     const step = { left: -1, right: 1, up: -cols, down: cols }[dir];
     const next = s.results[Math.min(s.results.length - 1, Math.max(0, i + step))];
     setSelectedId(next.id);
@@ -397,7 +469,9 @@ export default function App() {
       const s = live.current;
       const target = e.target as HTMLElement;
       const inInput = target instanceof HTMLInputElement;
-      const onGame = target === document.body || target.matches(".card__hit, .tile__hit");
+      // Une section à elle (Historique…) n'a pas de jeu sélectionné visible : Entrée, Espace et Ctrl+D n'y agissent pas.
+      const onGame = !s.custom && (target === document.body || target.matches(".card__hit, .tile__hit"));
+      const onNav = target === document.body || target.matches(".card__hit, .tile__hit, .side__item, [data-nav]");
       const ctrl = e.ctrlKey || e.metaKey;
       const key = e.key;
 
@@ -408,9 +482,16 @@ export default function App() {
       } else if (key === "F5") {
         e.preventDefault(); // sinon la WebView recharge la page
         s.refresh(true);
+      } else if (ctrl && key >= "1" && key <= "9") {
+        e.preventDefault(); // Ctrl+1, Ctrl+2… : section de la barre latérale
+        const id = SECTION_IDS[Number(key) - 1];
+        if (id) s.goTo(id);
+      } else if (ctrl && key.toLowerCase() === "b") {
+        e.preventDefault();
+        s.toggleSidebar();
       } else if (ctrl && key.toLowerCase() === "d") {
         e.preventDefault();
-        if (s.selected) s.toggleFavorite(s.selected);
+        if (s.selected && !s.custom) s.toggleFavorite(s.selected);
       } else if (ctrl && key.toLowerCase() === "n") {
         e.preventDefault(); // sinon la WebView ouvre une nouvelle fenêtre
         s.addManualGame();
@@ -425,15 +506,20 @@ export default function App() {
       } else if (key.length === 1 && key !== " " && !ctrl && !e.altKey) {
         // Taper n'importe où commence une recherche : le caractère arrive dans le champ.
         searchRef.current?.focus();
+      } else if (key === "Enter" && target.matches(".side__item")) {
+        // Entrée dans la barre : ouvre la section et passe à son contenu.
+        e.preventDefault();
+        target.click();
+        requestAnimationFrame(focusContent);
       } else if (onGame && key === "Enter") {
         e.preventDefault();
         if (s.selected) s.play(s.selected);
       } else if (onGame && key === " ") {
         e.preventDefault();
         setOpen((o) => !o);
-      } else if (onGame && key.startsWith("Arrow") && s.results.length) {
+      } else if (onNav && key.startsWith("Arrow")) {
         e.preventDefault();
-        moveSelection(key.slice(5).toLowerCase() as "up" | "down" | "left" | "right");
+        navigate(key.slice(5).toLowerCase() as "up" | "down" | "left" | "right");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -457,9 +543,12 @@ export default function App() {
     (g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : sort === "playtime" ? formatPlaytime(g.playtimeMinutes) : relativeTime(g.lastPlayed)),
     [sort],
   );
-  const count = (f: Filter) => selectGames(games, f, sort, "").length;
-  // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre).
-  const filters = FILTERS.filter((f) => f === "all" || f === "favorites" || f === "hidden" || f === filter || games.some((g) => g.platform === f));
+  const count = (f: Filter) => selectGames(scoped, f, sort, "").length;
+  // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre),
+  // parmi ceux que la section propose.
+  const filters = FILTERS.filter(
+    (f) => (view.filters?.(f) ?? true) && (f === "all" || f === "favorites" || f === "hidden" || f === activeFilter || scoped.some((g) => g.platform === f)),
+  );
   const changeFilter = (f: Filter) => {
     setFilter(f);
     setOpen(false);
@@ -481,35 +570,54 @@ export default function App() {
       case "down":
       case "left":
       case "right":
-        // La sélection quitte le champ de recherche pour la grille.
-        moveSelection(action);
+        // La sélection quitte le champ de recherche pour la grille (ou la barre, ou la section).
+        navigate(action);
         break;
       case "confirm":
-        if (s.selected) s.play(s.selected);
+      case "details":
+        // Dans la barre : entrer dans la section. Dans une section à elle : l'élément choisi (fiche du jeu).
+        if (inSidebar()) focusContent();
+        else if (s.custom) (document.activeElement?.closest<HTMLElement>("[data-nav]") ?? null)?.click();
+        else if (action === "confirm" && s.selected) s.play(s.selected);
+        else if (s.selected) setOpen((o) => !o);
         break;
       case "back":
         back();
         break;
-      case "details":
-        if (s.selected) setOpen((o) => !o);
-        break;
       case "favorite":
-        if (s.selected) s.toggleFavorite(s.selected);
+        if (s.selected && !s.custom) s.toggleFavorite(s.selected);
+        break;
+      case "prevSection":
+      case "nextSection":
+        stepSection(action === "nextSection" ? 1 : -1);
         break;
       case "prevFilter":
       case "nextFilter":
-        changeFilter(cycle(filters, filter, action === "nextFilter" ? 1 : -1));
+        if (!s.custom) changeFilter(cycle(filters, activeFilter, action === "nextFilter" ? 1 : -1));
         break;
-      case "prevSort":
       case "nextSort":
-        changeSort(cycle(SORTS, sort, action === "nextSort" ? 1 : -1));
+        if (!s.custom) changeSort(cycle(SORTS, sort, 1));
         break;
     }
   });
   const showPadHints = padConnected && padHints;
+  const sectionContext: SectionContext = { games, playing, openGame, play };
 
   return (
-    <div className="app" style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}>
+    <div
+      className={`app ${collapsed ? "is-side-collapsed" : ""}`}
+      style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}
+    >
+      <Sidebar
+        sections={SECTIONS}
+        active={view.id}
+        onSelect={goTo}
+        collapsed={collapsed}
+        onToggle={toggleSidebar}
+        lastGame={recent[0] ?? null}
+        onOpenGame={openGame}
+        playing={playing}
+      />
 
       <header className="top">
         <span className="brand"><LudexMark />Ludex</span>
@@ -597,15 +705,17 @@ export default function App() {
           </EmptyState>
         )}
 
-        {scan && !emptyLibrary && !query && filter === "all" && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
+        {scan && !emptyLibrary && custom && view.render?.(sectionContext)}
 
-        {scan && !emptyLibrary && (
+        {scan && !emptyLibrary && !custom && view.resume && !query && activeFilter === "all" && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
+
+        {scan && !emptyLibrary && !custom && (
           <section aria-labelledby="lib-title">
             <div className="bar">
-              <h2 id="lib-title">{query ? "Résultats" : "Bibliothèque"}<span>{results.length}</span></h2>
+              <h2 id="lib-title">{query ? "Résultats" : view.resume ? "Bibliothèque" : view.label}<span>{results.length}</span></h2>
               <div className="seg" role="group" aria-label="Filtrer">
                 {filters.map((f) => (
-                  <button key={f} type="button" aria-pressed={filter === f} onClick={() => changeFilter(f)}>
+                  <button key={f} type="button" aria-pressed={activeFilter === f} onClick={() => changeFilter(f)}>
                     {FILTER_LABEL[f]} <em>{count(f)}</em>
                   </button>
                 ))}
@@ -616,7 +726,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-            {results.length === 0 && <NoResults filter={filter} query={query} onClear={() => setQuery("")} />}
+            {results.length === 0 && <NoResults filter={activeFilter} section={view.resume ? null : view.label} query={query} onClear={() => setQuery("")} />}
             <LibraryGrid
               games={results}
               selectedId={selected?.id ?? null}
@@ -652,8 +762,9 @@ export default function App() {
           <span><kbd className="pad">A</kbd> jouer</span>
           <span><kbd className="pad">X</kbd> fiche</span>
           <span><kbd className="pad">Y</kbd> favori</span>
-          <span><kbd>LB</kbd><kbd>RB</kbd> filtre</span>
-          <span><kbd>LT</kbd><kbd>RT</kbd> tri</span>
+          <span><kbd>LB</kbd><kbd>RB</kbd> section</span>
+          <span><kbd>LT</kbd><kbd>RT</kbd> filtre</span>
+          <span><kbd>Vue</kbd> tri</span>
           <span><kbd className="pad">B</kbd> fermer</span>
         </footer>
       ) : (
@@ -662,6 +773,7 @@ export default function App() {
           <span><kbd>Entrée</kbd> jouer</span>
           <span><kbd>Espace</kbd> fiche</span>
           <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
+          <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, SECTIONS.length)}</kbd> section</span>
           <span><kbd>Ctrl</kbd><kbd>N</kbd> ajouter</span>
           <span><kbd>F5</kbd> rescanner</span>
           <span><kbd>Échap</kbd> fermer</span>
@@ -709,7 +821,7 @@ function libraryToast({ added, removed }: LibraryEvent): Toast | null {
   return removed.length ? { title: gone, detail: list(removed) } : null;
 }
 
-function NoResults({ filter, query, onClear }: { filter: Filter; query: string; onClear: () => void }) {
+function NoResults({ filter, section, query, onClear }: { filter: Filter; section: string | null; query: string; onClear: () => void }) {
   if (query) {
     return (
       <EmptyState
@@ -717,9 +829,12 @@ function NoResults({ filter, query, onClear }: { filter: Filter; query: string; 
         title={`Aucun jeu ne correspond à « ${query} »`}
         action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
       >
-        La recherche porte sur le titre{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
+        La recherche porte sur le titre{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
       </EmptyState>
     );
+  }
+  if (section && filter === "all") {
+    return <EmptyState title={`Aucun jeu dans « ${section} »`}>{section === "Favoris" ? "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné" : "Les jeux qui attendent une mise à jour ou une fin d'installation sont dans « Tous les jeux »"}</EmptyState>;
   }
   if (filter === "favorites") {
     return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné</EmptyState>;

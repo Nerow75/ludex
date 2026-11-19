@@ -412,6 +412,17 @@ impl Tracker {
         crate::history::sessions_of(&self.history, game_id)
     }
 
+    /// Temps de jeu des derniers jours (sessions terminées).
+    pub fn recent_playtime(&self) -> crate::history::RecentPlaytime {
+        let sessions = self.history.lock().map(|all| all.clone()).unwrap_or_default();
+        crate::history::recent_playtime(&sessions, unix_now(), crate::history::RECENT_DAYS)
+    }
+
+    /// Dernière session de chaque jeu, la plus récente d'abord.
+    pub fn last_sessions(&self) -> Vec<PastSession> {
+        self.history.lock().map(|all| crate::history::last_sessions(&all)).unwrap_or_default()
+    }
+
     /// Commence à suivre un jeu qui vient d'être lancé. Sans dossier connu, ou déjà suivi : rien.
     pub fn start(&self, game: &Game) {
         let roots = roots_for(game);

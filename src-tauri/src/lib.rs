@@ -328,6 +328,18 @@ fn game_history(state: State<'_, AppState>, id: String) -> Vec<history::PastSess
     state.tracker.history(&id)
 }
 
+/// Temps de jeu des 14 derniers jours, tiré de l'historique (bas de la barre latérale).
+#[tauri::command]
+fn recent_playtime(state: State<'_, AppState>) -> history::RecentPlaytime {
+    state.tracker.recent_playtime()
+}
+
+/// Dernière session de chaque jeu, la plus récente d'abord (section « Historique »).
+#[tauri::command]
+fn last_sessions(state: State<'_, AppState>) -> Vec<history::PastSession> {
+    state.tracker.last_sessions()
+}
+
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
     m.lock().map_err(|_| "État interne indisponible".to_string())
 }
@@ -971,6 +983,8 @@ pub fn run() {
             set_hidden,
             game_sessions,
             game_history,
+            recent_playtime,
+            last_sessions,
             update::available_update,
             update::install_update,
             add_game,
