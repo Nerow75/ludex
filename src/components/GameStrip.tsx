@@ -382,7 +382,7 @@ export function GameStrip({
             </button>
           )}
         </div>
-        <StripScreenshots key={game.id} game={game} playing={playing} />
+        <StripScreenshots key={`shots-${game.id}`} game={game} playing={playing} />
         {showCollections ? (
           <div className="strip__cols" role="group" aria-label="Collections">
             {collections.map((c) => {
@@ -412,8 +412,8 @@ export function GameStrip({
           member.length > 0 && <p className="strip__member">Dans {member.map((c) => `« ${c.name} »`).join(", ")}</p>
         )}
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
-        <AchievementList key={game.id} game={game} />
-        <SavesSection key={game.id} gameId={game.id} playing={playing} />
+        <AchievementList key={`achs-${game.id}`} game={game} />
+        <SavesSection key={`saves-${game.id}`} gameId={game.id} playing={playing} />
       </div>
       <button type="button" className="strip__close" aria-label="Fermer la fiche" title="Fermer (Échap)" onClick={onClose}>
         <CloseIcon />
