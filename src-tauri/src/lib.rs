@@ -11,6 +11,7 @@ mod recap;
 mod screenshots;
 mod saves;
 mod moods;
+mod quick;
 mod session;
 mod showcase;
 mod storage;
@@ -1427,10 +1428,35 @@ async fn reset_cover(app: tauri::AppHandle, id: String, kind: covers::Kind) -> R
     .await
 }
 
-/// Lance le jeu et renvoie l'heure du lancement (secondes Unix).
+/// Lance le jeu et renvoie l'heure du lancement (secondes Unix). Depuis la recherche rapide : la
+/// fenêtre se cache et la fenêtre principale reçoit la date du lancement (`tray-launch`) ; une
+/// erreur reste affichée dans la recherche rapide.
 #[tauri::command]
-fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<u64, String> {
-    launch(&app, &state, &id)
+fn launch_game(app: AppHandle, window: tauri::Window, state: State<'_, AppState>, id: String) -> Result<u64, String> {
+    let launched = launch(&app, &state, &id)?;
+    if window.label() == quick::LABEL {
+        quick::hide(&app);
+        let title = find_game(&state, &id).map(|g| g.title).unwrap_or_default();
+        let event = TrayLaunchEvent { id, title, last_played: Some(launched), error: None };
+        let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
+    }
+    Ok(launched)
+}
+
+/// Fenêtre principale (label par défaut de Tauri).
+const MAIN_WINDOW: &str = "main";
+
+/// Jeux proposés par la recherche rapide : la bibliothèque du dernier scan, sans les jeux masqués.
+/// Aucun scan ici : la fenêtre principale (même cachée) scanne au démarrage.
+#[tauri::command]
+fn quick_games(state: State<'_, AppState>) -> Result<Vec<Game>, String> {
+    Ok(lock(&state.games)?.iter().filter(|g| !g.hidden).cloned().collect())
+}
+
+/// Cache la recherche rapide (Échap). Sans argument : le front ne peut cacher qu'elle.
+#[tauri::command]
+fn hide_quick(app: AppHandle) {
+    quick::hide(&app);
 }
 
 /// Lance un jeu connu, démarre son suivi et note la date : commun au front et à la zone de
@@ -1494,7 +1520,7 @@ fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(state) = app.try_state::<AppState>() {
         state.hide_pending.store(false, Ordering::SeqCst);
     }
-    if let Some(w) = app.get_webview_window("main") {
+    if let Some(w) = app.get_webview_window(MAIN_WINDOW) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
@@ -1817,6 +1843,9 @@ pub fn run() {
         .manage(update::PendingUpdate::default())
         // Sélecteur de fichier, utilisé seulement depuis Rust : aucune permission `dialog` côté front.
         .plugin(tauri_plugin_dialog::init())
+        // Raccourci de la recherche rapide, enregistré depuis Rust (`quick.rs`) : aucune permission
+        // `global-shortcut` côté front.
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(quick::on_shortcut).build())
         .register_asynchronous_uri_scheme_protocol("ludex", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_string();
@@ -1870,6 +1899,8 @@ pub fn run() {
             let enabled = autostart_enabled(app.handle());
             update_settings(app.handle(), |s| s.launch_at_startup = enabled);
             create_tray(app)?;
+            let shortcut = lock(&app.state::<AppState>().data).map(|d| d.settings.quick_shortcut.clone()).unwrap_or_default();
+            quick::setup(app.handle(), &shortcut);
             // Fenêtre créée cachée : lancé avec Windows, Ludex reste dans la zone de notification.
             if !std::env::args().any(|a| a == tray::MINIMIZED_ARG) {
                 show_main(app.handle());
@@ -1877,6 +1908,17 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            // Recherche rapide : cachée dès qu'on clique ailleurs, jamais fermée (Alt+F4 la cache).
+            tauri::WindowEvent::Focused(false) if window.label() == quick::LABEL => {
+                let _ = window.hide();
+            }
+            tauri::WindowEvent::CloseRequested { api, .. } if window.label() == quick::LABEL => {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+            // Fenêtre principale fermée pour de bon (« garder dans la zone de notification » coupé) :
+            // la recherche rapide, cachée, ne doit pas garder Ludex ouvert.
+            tauri::WindowEvent::Destroyed if window.label() == MAIN_WINDOW => window.app_handle().exit(0),
             // Retour sur Ludex après un long moment : relit les launchers sans surveillance.
             tauri::WindowEvent::Focused(true) if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) => {
                 let app = window.app_handle().clone();
@@ -1932,7 +1974,9 @@ pub fn run() {
             create_collection,
             rename_collection,
             delete_collection,
-            set_in_collection
+            set_in_collection,
+            quick_games,
+            hide_quick
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
