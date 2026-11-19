@@ -33,6 +33,10 @@ pub struct PastSession {
     /// Temps de référence compté par le launcher (Steam, GOG Galaxy) : jamais cumulé par Ludex.
     #[serde(default)]
     pub launcher: bool,
+    /// Entrée qui regroupe plusieurs sessions d'un même jour (`compact`) : durée totale exacte,
+    /// mais ni heure de début ni durée d'une session.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub merged: bool,
 }
 
 /// Session en cours, telle qu'enregistrée pour une reprise après redémarrage.
@@ -95,7 +99,10 @@ fn compact(sessions: &mut Vec<PastSession>, max: usize) {
     for s in old {
         let key = (s.game_id.clone(), s.start / DAY, s.launcher);
         match index.get(&key) {
-            Some(&i) => merged[i].secs = merged[i].secs.saturating_add(s.secs),
+            Some(&i) => {
+                merged[i].secs = merged[i].secs.saturating_add(s.secs);
+                merged[i].merged = true;
+            }
             None => {
                 index.insert(key, merged.len());
                 merged.push(s);
@@ -257,7 +264,7 @@ mod tests {
     use super::*;
 
     fn past(id: &str, start: u64, secs: u64) -> PastSession {
-        PastSession { game_id: id.into(), start, secs, launcher: false }
+        PastSession { game_id: id.into(), start, secs, launcher: false, merged: false }
     }
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -320,7 +327,8 @@ mod tests {
         compact(&mut sessions, 15);
         // La moitié ancienne (les 10 du premier jour) devient une seule entrée de 100 min.
         assert_eq!(sessions.len(), 11);
-        assert_eq!(sessions[0], past("epic:Sugar", 0, 6000));
+        assert_eq!(sessions[0], PastSession { merged: true, ..past("epic:Sugar", 0, 6000) });
+        assert!(!sessions[1].merged);
         assert_eq!(sessions.iter().map(|s| s.secs).sum::<u64>(), 6000 + 600);
 
         // Sans fusion possible (un jeu par jour), les plus anciennes sont retirées.

@@ -75,6 +75,15 @@ export const DriveIcon = () => (
 export const ClockIcon = () => (
   <svg {...base}><circle cx="12" cy="12" r="8" /><path d="M12 7.5V12l3 2" /></svg>
 );
+export const ChartIcon = () => (
+  <svg {...base}><path d="M4.5 19.5h15M7.5 16v-4M12 16V8M16.5 16v-6" /></svg>
+);
+export const ChevronLeftIcon = () => (
+  <svg {...base}><path d="m15 5-7 7 7 7" /></svg>
+);
+export const ChevronRightIcon = () => (
+  <svg {...base}><path d="m9 5 7 7-7 7" /></svg>
+);
 export const SidebarIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
 );

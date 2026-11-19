@@ -44,7 +44,7 @@ fn progress(bits: &[(String, Vec<u32>)], user: &Kv) -> Option<Achievements> {
     }
     let cache = user.get("cache")?;
     let mut unlocked = 0;
-    let mut last_unlocked: Option<u64> = None;
+    let mut unlock_times: Vec<u64> = Vec::new();
     for (id, numbers) in bits {
         let Some(stat) = cache.get(id) else { continue };
         // int32 signé dans le fichier : seul le motif de bits compte.
@@ -54,11 +54,12 @@ fn progress(bits: &[(String, Vec<u32>)], user: &Kv) -> Option<Achievements> {
             unlocked += 1;
             let time = times.and_then(|t| t.get(&n.to_string())).and_then(Kv::int);
             if let Some(t) = time.and_then(|t| u64::try_from(t).ok()).filter(|&t| t > 0) {
-                last_unlocked = Some(last_unlocked.map_or(t, |l| l.max(t)));
+                unlock_times.push(t);
             }
         }
     }
-    Some(Achievements { unlocked, total, last_unlocked })
+    unlock_times.sort_unstable();
+    Some(Achievements { unlocked, total, last_unlocked: unlock_times.last().copied(), unlock_times })
 }
 
 /// Succès d'un jeu pour un compte. `None` : pas de succès, fichier absent ou illisible.
@@ -119,10 +120,15 @@ mod tests {
         let bits = schema_bits(&kvbin::parse(&schema()).unwrap(), "10");
         assert_eq!(bits, vec![("1".to_string(), vec![0, 1, 3]), ("2".to_string(), vec![0])]);
         let got = progress(&bits, &kvbin::parse(&user()).unwrap());
-        assert_eq!(got, Some(Achievements { unlocked: 2, total: 4, last_unlocked: Some(1_700_000_000) }));
+        assert_eq!(got, Some(Achievements {
+            unlocked: 2,
+            total: 4,
+            last_unlocked: Some(1_700_000_000),
+            unlock_times: vec![1_600_000_000, 1_700_000_000],
+        }));
         // Aucun succès débloqué : 0 sur 4, sans date.
         let empty = Bytes::default().open("cache").i32("crc", 0).close().close().0;
-        assert_eq!(progress(&bits, &kvbin::parse(&empty).unwrap()), Some(Achievements { unlocked: 0, total: 4, last_unlocked: None }));
+        assert_eq!(progress(&bits, &kvbin::parse(&empty).unwrap()), Some(Achievements { unlocked: 0, total: 4, ..Default::default() }));
         // Masque négatif (bit 31) : int32 lu comme un motif de bits.
         let all = [("1".to_string(), vec![0, 31])];
         let full = Bytes::default().open("cache").open("1").i32("data", i32::MIN | 1).close().close().close().0;

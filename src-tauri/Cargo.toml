@@ -27,6 +27,7 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 sysinfo = { version = "0.40.3", default-features = false, features = ["system"] }
 ureq = "2"
 notify = "8.2.2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tauri-plugin-updater = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"

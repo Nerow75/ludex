@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import type { Game } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
-import { ClockIcon, DriveIcon, GridIcon, HomeIcon, StarIcon } from "../components/Icons";
+import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, StarIcon } from "../components/Icons";
+import { RecapView } from "../components/RecapView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -45,6 +46,7 @@ export const SECTIONS: readonly Section[] = [
   { id: "installed", label: "Installés", icon: DriveIcon, scope: (g) => g.installState.kind === "ready", filters: launchersOnly },
   { id: "favorites", label: "Favoris", icon: () => <StarIcon />, scope: (g) => g.favorite, filters: launchersOnly },
   { id: "history", label: "Historique", icon: ClockIcon, render: (ctx) => <HistoryList {...ctx} /> },
+  { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
 ];
 
 export const SECTION_IDS = SECTIONS.map((s) => s.id);
