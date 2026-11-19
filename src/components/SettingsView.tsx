@@ -2,8 +2,12 @@
 // (`settings.rs`) : la page n'envoie que des valeurs fermées, des booléens et le texte d'un raccourci.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  applyImport,
+  cancelImport,
   checkUpdate,
   chooseSavesDir,
+  exportData,
+  importData,
   onSettingsChanged,
   pauseQuickShortcut,
   PLATFORM_LABEL,
@@ -18,6 +22,9 @@ import {
   THEME_LABEL,
   THEMES,
   welcomeAgain,
+  type ImportDone,
+  type ImportMode,
+  type ImportPreview,
   type Platform,
   type ScanResult,
   type SettingsInfo,
@@ -26,6 +33,7 @@ import {
   type WelcomeInfo,
 } from "../lib/api";
 import { applyTheme } from "../lib/theme";
+import { previewOrigin, summaryText } from "../lib/transfer";
 
 interface Props {
   scan: ScanResult | null;
@@ -38,6 +46,9 @@ interface Props {
   /** Mise à jour déjà trouvée (barre du haut), et son installation. */
   update: UpdateInfo | null;
   onInstallUpdate: (info: UpdateInfo) => void;
+  /** Données importées : bibliothèque relue (collections, statuts, jeux manuels…). */
+  onImported: (done: ImportDone) => void;
+  onToast: (toast: { title: string; detail?: string; error?: boolean }) => void;
 }
 
 const DEFAULT_SHORTCUT = "Alt+Space";
@@ -76,7 +87,7 @@ function Switch({ label, detail, checked, disabled, onChange }: { label: string;
   );
 }
 
-export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInstallUpdate }: Props) {
+export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInstallUpdate, onImported, onToast }: Props) {
   const [info, setInfo] = useState<SettingsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Saisie du raccourci : `null` hors saisie, sinon les modificateurs tenus.
@@ -87,6 +98,21 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const captureBtn = useRef<HTMLButtonElement>(null);
+  // Export et import : opération en cours, archive vérifiée qui attend sa confirmation.
+  const [transfer, setTransfer] = useState<"export" | "import" | "apply" | null>(null);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+  const [transferMsg, setTransferMsg] = useState<{ text: string; error: boolean } | null>(null);
+  const importBtn = useRef<HTMLButtonElement>(null);
+  const pending = useRef(false);
+  pending.current = preview !== null;
+  // Page quittée avant de confirmer : l'archive gardée côté Rust est oubliée.
+  useEffect(
+    () => () => {
+      if (pending.current) cancelImport().catch(() => {});
+    },
+    [],
+  );
 
   const fail = (e: unknown) => setError(String(e));
   const reload = useCallback(() => {
@@ -208,6 +234,67 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
       .then((u) => setUpdateMsg(u ? null : "Ludex est à jour."))
       .catch((e) => setUpdateMsg(String(e)))
       .finally(() => setChecking(false));
+  };
+
+  const exportNow = () => {
+    setTransfer("export");
+    setTransferMsg(null);
+    exportData()
+      .then((info) => {
+        if (!info) return;
+        setTransferMsg({ text: `Exporté dans « ${info.file} ». Contenu : ${summaryText(info.summary)}.`, error: false });
+        onToast({ title: "Données exportées", detail: info.file });
+      })
+      .catch((e) => setTransferMsg({ text: String(e), error: true }))
+      .finally(() => setTransfer(null));
+  };
+
+  const chooseImport = () => {
+    setTransfer("import");
+    setTransferMsg(null);
+    setConfirmReplace(false);
+    importData()
+      .then(setPreview)
+      .catch((e) => {
+        setPreview(null);
+        setTransferMsg({ text: String(e), error: true });
+      })
+      .finally(() => setTransfer(null));
+  };
+
+  const closeImport = () => {
+    setPreview(null);
+    setConfirmReplace(false);
+    // Le bouton « Importer » revient à la place des choix : le focus le suit.
+    requestAnimationFrame(() => importBtn.current?.focus());
+  };
+
+  const dropImport = () => {
+    cancelImport().catch(() => {});
+    closeImport();
+  };
+
+  const runImport = (mode: ImportMode) => {
+    setTransfer("apply");
+    setTransferMsg(null);
+    applyImport(mode)
+      .then((done) => {
+        onImported(done);
+        reload();
+        setTransferMsg({
+          text: `Importé. Contenu : ${summaryText(done.summary)}. Copie de sécurité de tes données d'avant : « ${done.backup} », dans le dossier de données de Ludex.`,
+          error: false,
+        });
+        onToast({ title: mode === "merge" ? "Données fusionnées" : "Données remplacées", detail: `Contenu : ${summaryText(done.summary)}` });
+      })
+      .catch((e) => {
+        setTransferMsg({ text: String(e), error: true });
+        cancelImport().catch(() => {});
+      })
+      .finally(() => {
+        setTransfer(null);
+        closeImport();
+      });
   };
 
   const sources = scan?.sources ?? [];
@@ -353,6 +440,60 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               </span>
               <button type="button" className="btn-ghost set__small" data-nav onClick={() => welcomeAgain().then(onWelcome).catch(fail)}>Revoir</button>
             </div>
+          </section>
+
+          <section className="set__group" aria-labelledby="set-data">
+            <h3 id="set-data">Données</h3>
+            <div className="set__row">
+              <span className="set__text">
+                <span>Exporter mes données</span>
+                <small>
+                  Favoris, statuts, notes, collections, temps mesuré, historique des parties, images perso et réglages, dans une archive .zip à
+                  importer sur un autre PC. Ni les caches ni les copies de sauvegardes.
+                </small>
+              </span>
+              <button type="button" className="btn-ghost set__small" data-nav disabled={transfer !== null || preview !== null} onClick={exportNow}>
+                {transfer === "export" ? "Export…" : "Exporter"}
+              </button>
+            </div>
+            <div className="set__row">
+              <span className="set__text">
+                <span>Importer des données</span>
+                <small>
+                  {preview
+                    ? `${previewOrigin(preview)}, « ${preview.file} ». Contenu : ${summaryText(preview.summary)}.`
+                    : "Depuis un export de Ludex. Une copie de sécurité de tes données actuelles est faite avant."}
+                </small>
+              </span>
+              {!preview ? (
+                <button ref={importBtn} type="button" className="btn-ghost set__small" data-nav disabled={transfer !== null} onClick={chooseImport}>
+                  {transfer === "import" ? "Lecture…" : "Importer"}
+                </button>
+              ) : confirmReplace ? (
+                <div className="set__acts">
+                  <button type="button" className="btn-ghost btn-ghost--danger set__small" data-nav autoFocus disabled={transfer !== null} onClick={() => runImport("replace")}>
+                    {transfer === "apply" ? "Import…" : "Tout remplacer"}
+                  </button>
+                  <button type="button" className="btn-ghost set__small" data-nav disabled={transfer !== null} onClick={() => setConfirmReplace(false)}>Retour</button>
+                </div>
+              ) : (
+                <div className="set__acts">
+                  <button type="button" className="btn-ghost set__small is-primary" data-nav autoFocus disabled={transfer !== null} onClick={() => runImport("merge")}>
+                    {transfer === "apply" ? "Import…" : "Fusionner"}
+                  </button>
+                  <button type="button" className="btn-ghost set__small" data-nav disabled={transfer !== null} onClick={() => setConfirmReplace(true)}>Remplacer…</button>
+                  <button type="button" className="btn-ghost set__small" data-nav disabled={transfer !== null} onClick={dropImport}>Annuler</button>
+                </div>
+              )}
+            </div>
+            {preview && (
+              <p className="set__note">
+                {confirmReplace
+                  ? "Favoris, statuts, notes, collections, jeux ajoutés, historique et réglages de ce PC seront remplacés par ceux de l'archive. Le dossier des copies et le lancement avec Windows restent ceux de ce PC."
+                  : "Fusionner garde tes choix sur ce PC et ajoute ceux de l'archive ; Remplacer prend ceux de l'archive à la place. Les jeux absents de ce PC gardent leurs données et les retrouvent une fois installés."}
+              </p>
+            )}
+            {transferMsg && <p className={`set__msg ${transferMsg.error ? "is-error" : ""}`} role="status">{transferMsg.text}</p>}
           </section>
 
           <section className="set__group" aria-labelledby="set-about">

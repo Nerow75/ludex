@@ -22,6 +22,7 @@ mod showcase;
 mod storage;
 mod store;
 mod update;
+mod transfer;
 mod tray;
 mod watch;
 mod welcome;
@@ -97,6 +98,8 @@ struct AppState {
     saves_busy: AtomicBool,
     /// Tenu pendant une copie ou une restauration : jamais deux à la fois.
     saves_lock: Mutex<()>,
+    /// Archive d'import lue et vérifiée, en attente de confirmation (`transfer.rs`).
+    pending_import: Mutex<Option<transfer::Export>>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, image passée en cache, ou
@@ -2015,6 +2018,7 @@ pub fn run() {
                 saves: Mutex::default(),
                 saves_busy: AtomicBool::new(false),
                 saves_lock: Mutex::new(()),
+                pending_import: Mutex::new(None),
             });
             // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
             let welcome = welcome::Welcome::detect(&app.state::<AppState>());
@@ -2137,7 +2141,11 @@ pub fn run() {
             window_controls::window_enter_couch,
             window_controls::window_leave_couch,
             window_controls::window_couch_fullscreen,
-            create_shortcut
+            create_shortcut,
+            transfer::export_data,
+            transfer::import_data,
+            transfer::cancel_import,
+            transfer::apply_import
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

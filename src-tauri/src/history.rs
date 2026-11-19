@@ -115,6 +115,17 @@ fn compact(sessions: &mut Vec<PastSession>, max: usize) {
     *sessions = merged;
 }
 
+/// Garde l'historique sous `MAX_SESSIONS` sessions (import de données).
+pub fn compact_to_max(sessions: &mut Vec<PastSession>) {
+    compact(sessions, MAX_SESSIONS);
+}
+
+/// Réécrit `sessions.json` du dossier de données (import de données ; appelé par le fil des
+/// sessions ou sous le verrou de l'historique partagé, jamais en même temps qu'un `record`).
+pub fn write_history(dir: &Path, sessions: &[PastSession]) -> Result<(), String> {
+    write_atomic(&dir.join("sessions.json"), &to_lines(sessions))
+}
+
 /// Fichiers d'historique et de sessions en cours. Seul le fil des sessions écrit.
 pub struct Journal {
     history_path: PathBuf,

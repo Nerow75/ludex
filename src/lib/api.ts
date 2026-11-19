@@ -669,3 +669,45 @@ export const enterCouchWindow = () => invoke<void>("window_enter_couch");
 export const leaveCouchWindow = () => invoke<void>("window_leave_couch");
 /** F11 dans le mode canapé : nouvel état du plein écran, `null` si le réglage l'interdit. */
 export const toggleCouchFullscreen = () => invoke<boolean | null>("window_couch_fullscreen");
+
+/** Contenu d'un export de données (`transfer.rs`), en nombres d'éléments. */
+export interface TransferSummary {
+  favorites: number;
+  hidden: number;
+  statuses: number;
+  notes: number;
+  collections: number;
+  manualGames: number;
+  titles: number;
+  launchArgs: number;
+  playtimeGames: number;
+  sessions: number;
+  covers: number;
+}
+/** Export écrit : nom du fichier (sans dossier) et contenu. */
+export interface ExportInfo {
+  file: string;
+  summary: TransferSummary;
+}
+/** Archive choisie et vérifiée, en attente de confirmation. */
+export interface ImportPreview {
+  file: string;
+  ludexVersion: string;
+  /** Date de l'export en secondes Unix, 0 si inconnue. */
+  created: number;
+  summary: TransferSummary;
+}
+/** Import fait : bibliothèque relue, contenu importé, copie de sécurité faite avant. */
+export interface ImportDone {
+  scan: ScanResult;
+  summary: TransferSummary;
+  backup: string;
+}
+/** Fusion : les choix de ce PC gardés, ceux de l'archive ajoutés. Remplacement : ceux de l'archive. */
+export type ImportMode = "merge" | "replace";
+/** Sélecteur natif ouvert côté Rust ; `null` : annulé. */
+export const exportData = () => invoke<ExportInfo | null>("export_data");
+/** Sélecteur natif, archive lue et vérifiée côté Rust, rien d'écrit ; `null` : annulé. */
+export const importData = () => invoke<ImportPreview | null>("import_data");
+export const cancelImport = () => invoke<void>("cancel_import");
+export const applyImport = (mode: ImportMode) => invoke<ImportDone>("apply_import", { mode });

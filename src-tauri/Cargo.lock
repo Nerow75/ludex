@@ -2324,6 +2324,7 @@ dependencies = [
  "ureq",
  "windows",
  "winreg 0.55.0",
+ "zip",
 ]
 
 [[package]]
