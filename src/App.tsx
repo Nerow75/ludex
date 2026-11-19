@@ -213,6 +213,11 @@ export default function App() {
         onWelcome={setWelcomeInfo}
         update={update}
         onInstallUpdate={runUpdate}
+        onImported={(done) => {
+          setScan(done.scan);
+          loadCollections();
+        }}
+        onToast={showToast}
       />
     ),
   };

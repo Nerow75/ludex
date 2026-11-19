@@ -37,6 +37,9 @@ glob = "0.3"
 dirs = "6"
 time = { version = "0.3", features = ["local-offset"] }
 tauri-plugin-global-shortcut = "2"
+# Export et import des données perso (`transfer.rs`) : sans aucune fonction, méthode « stockée »
+# seulement. Déjà dans l'arbre avec ces mêmes fonctions par `tauri-plugin-updater`.
+zip = { version = "9", default-features = false }
 
 [features]
 # Affichage forcé de l'écran de premier lancement par `LUDEX_WELCOME=1` dans une build de release

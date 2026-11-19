@@ -425,6 +425,16 @@ impl Tracker {
         self.history.lock().map(|all| all.clone()).unwrap_or_default()
     }
 
+    /// Remplace tout l'historique (import de données) : `write` enregistre la nouvelle liste sous le
+    /// verrou de l'historique (le fil des sessions ne peut pas écrire entre-temps), puis la liste en
+    /// mémoire est remplacée. Écriture refusée : rien ne change.
+    pub fn replace_history(&self, sessions: Vec<PastSession>, write: impl FnOnce(&[PastSession]) -> Result<(), String>) -> Result<(), String> {
+        let mut all = self.history.lock().map_err(|_| "Historique indisponible.".to_string())?;
+        write(&sessions)?;
+        *all = sessions;
+        Ok(())
+    }
+
     /// Dernière session de chaque jeu, la plus récente d'abord.
     pub fn last_sessions(&self) -> Vec<PastSession> {
         self.history.lock().map(|all| crate::history::last_sessions(&all)).unwrap_or_default()

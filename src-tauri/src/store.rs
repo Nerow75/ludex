@@ -14,7 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UserData {
     pub favorites: BTreeSet<String>,
