@@ -71,6 +71,12 @@ describe("relativeTime", () => {
     expect(il_y_a(90 * JOUR)).toBe("il y a 3 mois");
     expect(il_y_a(400 * JOUR)).toBe("il y a plus d'un an");
   });
+  it("l'arrondi ne passe pas à l'unité suivante", () => {
+    expect(il_y_a(59 * 60 + 50)).toBe("il y a 59 min");
+    expect(il_y_a(23 * 3600 + 50 * 60)).toBe("il y a 23 h");
+    expect(il_y_a(350 * JOUR)).toBe("il y a 11 mois");
+    expect(il_y_a(365 * JOUR)).toBe("il y a plus d'un an");
+  });
 });
 
 describe("formatPlaytime", () => {
