@@ -67,6 +67,12 @@ describe("searchRank", () => {
     expect(searchRank(farCry, "coop")).toBe(RANK_META);
     expect(searchRank(farCry, "ouvert")).toBe(RANK_META);
   });
+  it("genre de la fiche, même absent des tags (« rpg », « course »)", () => {
+    const forza = jeu({ title: "Forza Horizon 5", details: fiche({ genres: ["Course", "RPG"], tags: ["Monde ouvert"] }) });
+    expect(searchRank(forza, "course")).toBe(RANK_META);
+    expect(searchRank(forza, "rpg")).toBe(RANK_META);
+    expect(searchRank(forza, "strategie")).toBeNull();
+  });
   it("méta : début de mot seulement, sans fiche rien", () => {
     expect(searchRank(farCry, "soft")).toBeNull();
     expect(searchRank(jeu({ title: "Far Cry 5" }), "coop")).toBeNull();

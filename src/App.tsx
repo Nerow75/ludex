@@ -55,11 +55,12 @@ import {
   welcomeDone,
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
-import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { useGamepad, type PadAction } from "./lib/gamepad";
 import { COUCH_KEY, COUCH_VALUES, couchPadAction, type CouchAction } from "./lib/couch";
 import {
   hasFacets,
+  LAYOUTS,
+  libraryGenres,
   libraryMoods,
   libraryTags,
   matchesFacets,
@@ -74,10 +75,13 @@ import {
   rememberedText,
   selectGames,
   SORT_LABEL,
+  sortMeta,
+  SORTS,
   STATUS_FILTER_LABEL,
   STATUS_FILTERS,
   type Facets,
   type Filter,
+  type Layout,
   type Sort,
   type StatusFilter,
 } from "./lib/library";
@@ -87,10 +91,11 @@ import { ContextMenu } from "./components/ContextMenu";
 import { ficheNext, GameStrip, type FicheEdit } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
+import { LibraryList } from "./components/LibraryList";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
 import { spatialNext } from "./lib/spatial";
 import { InlineInput } from "./components/InlineInput";
-import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
+import { DownloadIcon, GridIcon, ListIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
 import { SettingsView } from "./components/SettingsView";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -135,7 +140,6 @@ const focusTarget = (holder: HTMLElement) => holder.querySelector<HTMLElement>("
 const SETTINGS_ID = "settings";
 
 const FILTERS: readonly Filter[] = ["all", "favorites", ...PLATFORMS, "hidden"];
-const SORTS = Object.keys(SORT_LABEL) as Sort[];
 const FILTER_LABEL: Record<Filter, string> = { all: "Tous", favorites: "Favoris", hidden: "Masqués", ...PLATFORM_LABEL };
 
 export default function App() {
@@ -147,7 +151,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
-  // Tag Steam et ambiance choisis, en plus du filtre par launcher.
+  // Grille de jaquettes ou liste dense.
+  const [layout, setLayout] = useState<Layout>(() => remembered("layout", LAYOUTS, "grid"));
+  // Tag Steam, ambiance et genre choisis, en plus du filtre par launcher.
   const [facets, setFacets] = useState<Facets>(rememberedFacets);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => remembered("status", STATUS_FILTERS, "any"));
   // Barre latérale : section affichée et barre repliée (icônes seules), gardées entre deux lancements.
@@ -286,8 +292,8 @@ export default function App() {
     changeFacets(f);
     setSelectedId(null);
   }, [goTo, changeFacets]);
-  const showTag = useCallback((tag: string) => showFacets({ tag, mood: null }), [showFacets]);
-  const showMood = useCallback((mood: Mood) => showFacets({ tag: null, mood }), [showFacets]);
+  const showTag = useCallback((tag: string) => showFacets({ ...NO_FACETS, tag }), [showFacets]);
+  const showMood = useCallback((mood: Mood) => showFacets({ ...NO_FACETS, mood }), [showFacets]);
   /** Collections relues (celles de Steam ont pu changer) ; sans elles, la barre n'a que les sections fixes. */
   const loadCollections = useCallback(() => {
     getCollections()
@@ -338,7 +344,7 @@ export default function App() {
 
   // Garde la fiche dépliée (ou la jaquette sélectionnée) visible.
   useEffect(() => {
-    const target = scrollRef.current?.querySelector(open ? ".strip" : ".card.is-sel");
+    const target = scrollRef.current?.querySelector(open ? ".strip" : ".card.is-sel, .lrow.is-sel");
     target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected?.id, open]);
 
@@ -712,13 +718,16 @@ export default function App() {
     }
   }, [showToast]);
 
+  /** Focus sur la jaquette (grille) ou la ligne (liste) d'un jeu de la bibliothèque. */
   const focusCard = (id: string | undefined) =>
-    requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
+    requestAnimationFrame(() =>
+      scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit, [data-game="${id}"] .lrow__hit`)?.focus({ preventScroll: true }),
+    );
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
   const sectionIds = sections.map((s) => s.id);
-  const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games });
-  live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games };
+  const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games, layout });
+  live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games, layout };
 
   /** Ouvre la fiche d'un jeu : sur place s'il est dans la grille affichée, sinon dans « Tous les jeux ». */
   const showFiche = (game: Game, edit?: FicheEdit) => {
@@ -866,8 +875,10 @@ export default function App() {
   const moveSelection = (dir: "up" | "down" | "left" | "right") => {
     const s = live.current;
     if (!s.results.length) return void (dir === "left" && focusSidebar());
+    // Liste : une seule colonne, droite ne fait rien.
+    if (s.layout === "list" && dir === "right") return;
     const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
-    const cols = Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
+    const cols = s.layout === "list" ? 1 : Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
     const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
     if (dir === "left" && i % cols === 0) return focusSidebar();
     // Fiche ouverte sous la rangée : bas y entre (Jouer) avant la rangée suivante.
@@ -910,11 +921,11 @@ export default function App() {
       const target = e.target as HTMLElement;
       const inInput = target instanceof HTMLInputElement;
       // Une section à elle (Historique…) n'a pas de jeu sélectionné visible : Entrée, Espace et Ctrl+D n'y agissent pas.
-      const onGame = !s.custom && (target === document.body || target.matches(".card__hit, .tile__hit"));
-      const onNav = target === document.body || target.matches(".card__hit, .tile__hit, .side__item, [data-nav]");
+      const onGame = !s.custom && (target === document.body || target.matches(".card__hit, .tile__hit, .lrow__hit"));
+      const onNav = target === document.body || target.matches(".card__hit, .tile__hit, .lrow__hit, .side__item, [data-nav]");
       const ctrl = e.ctrlKey || e.metaKey;
       const key = e.key;
-      // Liste déroulante (tag, ambiance) : ses touches lui reviennent, sauf les raccourcis avec Ctrl et F5.
+      // Liste déroulante (tag, ambiance, genre, tri) : ses touches lui reviennent, sauf les raccourcis avec Ctrl et F5.
       if (target instanceof HTMLSelectElement && !ctrl && key !== "F5") return;
 
       if ((ctrl && key.toLowerCase() === "k") || (key === "/" && !inInput)) {
@@ -990,14 +1001,12 @@ export default function App() {
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
-  const meta = useCallback(
-    (g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : sort === "playtime" ? formatPlaytime(g.playtimeMinutes) : relativeTime(g.lastPlayed)),
-    [sort],
-  );
+  const meta = useCallback((g: Game) => sortMeta(g, sort), [sort]);
   const count = (f: Filter) => selectGames(scoped, f, sort, "", facets).length;
-  // Choix des listes Tag et Ambiance : jeux de la section et du filtre par launcher.
+  // Choix des listes Tag, Ambiance et Genre : jeux de la section et du filtre par launcher.
   const facetPool = useMemo(() => scoped.filter((g) => matchesFilter(g, activeFilter)), [scoped, activeFilter]);
   const tagChoices = useMemo(() => libraryTags(facetPool), [facetPool]);
+  const genreChoices = useMemo(() => libraryGenres(facetPool), [facetPool]);
   const moodChoices = useMemo(() => libraryMoods(facetPool).filter((m) => m.count > 0 || m.mood === facets.mood), [facetPool, facets.mood]);
   // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre),
   // parmi ceux que la section propose.
@@ -1012,6 +1021,10 @@ export default function App() {
   const changeSort = (s: Sort) => {
     setSort(s);
     remember("sort", s);
+  };
+  const changeLayout = (l: Layout) => {
+    setLayout(l);
+    remember("layout", l);
   };
   /** Passe au filtre ou au tri voisin, en boucle. */
   const cycle = <T,>(list: readonly T[], current: T, delta: number) =>
@@ -1092,6 +1105,37 @@ export default function App() {
     remember("status", f);
   };
   const mineCollection = view.collection?.kind === "mine" ? collections?.mine.find((c) => c.id === view.collection?.id) : undefined;
+
+  /** Fiche dépliée sous la rangée (grille) ou la ligne (liste) du jeu sélectionné. */
+  const renderStrip = (g: Game, notch: number) => (
+    <GameStrip
+      key={`strip-${g.id}`}
+      game={g}
+      notch={notch}
+      playing={playing.has(g.id)}
+      onPlay={play}
+      onFavorite={toggleFavorite}
+      onHide={toggleHidden}
+      onOpenFolder={openFolder}
+      onChangeExe={changeExe}
+      onRename={rename}
+      onChooseArt={chooseArt}
+      onResetArt={resetArt}
+      onRemove={remove}
+      onTag={showTag}
+      onMood={showMood}
+      onJournal={openJournal}
+      onClose={() => setOpen(false)}
+      collections={collections?.mine ?? []}
+      onStatus={changeStatus}
+      onNote={changeNote}
+      onLaunchArgs={changeLaunchArgs}
+      onToggleCollection={toggleCollection}
+      onCreateCollection={(name, game) => newCollection(name, game)}
+      edit={ficheEdit?.id === g.id ? ficheEdit.kind : null}
+      onEditStarted={() => setFicheEdit(null)}
+    />
+  );
 
   const showWelcome = !!(scan && welcomeInfo);
   welcomeOpen.current = showWelcome;
@@ -1281,45 +1325,70 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <select
-                className="pick"
-                aria-label="Filtrer par ambiance"
-                value={facets.mood ?? ""}
-                onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
-              >
-                <option value="">Ambiance</option>
-                {moodChoices.map(({ mood, count }) => (
-                  <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
-                ))}
-              </select>
-              <select
-                className="pick"
-                aria-label="Filtrer par tag Steam"
-                value={facets.tag ?? ""}
-                onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
-              >
-                <option value="">Tag</option>
-                {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
-                {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
-                {tagChoices.map(({ name, count }) => (
-                  <option key={name} value={name}>{name} ({count})</option>
-                ))}
-              </select>
-              <select
-                className="bar__select"
-                value={statusFilter}
-                aria-label="Filtrer par statut"
-                onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
-                onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
-              >
-                {STATUS_FILTERS.map((f) => (
-                  <option key={f} value={f}>{STATUS_FILTER_LABEL[f]}</option>
-                ))}
-              </select>
-              <div className="seg" role="group" aria-label="Trier">
-                {SORTS.map((s) => (
-                  <button key={s} type="button" aria-pressed={sort === s} onClick={() => changeSort(s)}>{SORT_LABEL[s]}</button>
-                ))}
+              {/* Listes, tri et affichage : un seul bloc qui passe à la ligne d'un coup quand la place manque. */}
+              <div className="bar__opts">
+                <select
+                  className="pick"
+                  aria-label="Filtrer par ambiance"
+                  value={facets.mood ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
+                >
+                  <option value="">Ambiance</option>
+                  {moodChoices.map(({ mood, count }) => (
+                    <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="pick"
+                  aria-label="Filtrer par tag Steam"
+                  value={facets.tag ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
+                >
+                  <option value="">Tag</option>
+                  {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
+                  {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
+                  {tagChoices.map(({ name, count }) => (
+                    <option key={name} value={name}>{name} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="pick"
+                  aria-label="Filtrer par genre"
+                  value={facets.genre ?? ""}
+                  onChange={(e) => changeFacets({ ...facets, genre: e.target.value || null })}
+                >
+                  <option value="">Genre</option>
+                  {facets.genre && !genreChoices.some((t) => t.name === facets.genre) && <option value={facets.genre}>{facets.genre} (0)</option>}
+                  {genreChoices.map(({ name, count }) => (
+                    <option key={name} value={name}>{name} ({count})</option>
+                  ))}
+                </select>
+                <select
+                  className="bar__select"
+                  value={statusFilter}
+                  aria-label="Filtrer par statut"
+                  onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
+                  onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
+                >
+                  {STATUS_FILTERS.map((f) => (
+                    <option key={f} value={f}>{STATUS_FILTER_LABEL[f]}</option>
+                  ))}
+                </select>
+                <select
+                  className="bar__select"
+                  value={sort}
+                  aria-label="Trier"
+                  onChange={(e) => changeSort(e.target.value as Sort)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {SORTS.map((s) => (
+                    <option key={s} value={s}>{SORT_LABEL[s]}</option>
+                  ))}
+                </select>
+                <div className="seg seg--icons" role="group" aria-label="Affichage">
+                  <button type="button" aria-pressed={layout === "grid"} aria-label="Grille" title="Grille" onClick={() => changeLayout("grid")}><GridIcon /></button>
+                  <button type="button" aria-pressed={layout === "list"} aria-label="Liste" title="Liste" onClick={() => changeLayout("list")}><ListIcon /></button>
+                </div>
               </div>
             </div>
             {hasFacets(facets) && (
@@ -1334,6 +1403,12 @@ export default function App() {
                   <li className="pill">
                     Tag : {facets.tag}
                     <button type="button" aria-label={`Retirer le filtre ${facets.tag}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, tag: null })}>×</button>
+                  </li>
+                )}
+                {facets.genre && (
+                  <li className="pill">
+                    Genre : {facets.genre}
+                    <button type="button" aria-label={`Retirer le filtre ${facets.genre}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, genre: null })}>×</button>
                   </li>
                 )}
               </ul>
@@ -1351,44 +1426,30 @@ export default function App() {
                 onClearFacets={() => changeFacets(NO_FACETS)}
               />
             )}
-            <LibraryGrid
-              games={results}
-              selectedId={selected?.id ?? null}
-              open={open}
-              meta={meta}
-              playing={playing}
-              onSelect={select}
-              onPlay={play}
-              renderStrip={(g, notch) => (
-                <GameStrip
-                  key={`strip-${g.id}`}
-                  game={g}
-                  notch={notch}
-                  playing={playing.has(g.id)}
-                  onPlay={play}
-                  onFavorite={toggleFavorite}
-                  onHide={toggleHidden}
-                  onOpenFolder={openFolder}
-                  onChangeExe={changeExe}
-                  onRename={rename}
-                  onChooseArt={chooseArt}
-                  onResetArt={resetArt}
-                  onRemove={remove}
-                  onTag={showTag}
-                  onMood={showMood}
-                  onJournal={openJournal}
-                  onClose={() => setOpen(false)}
-                  collections={collections?.mine ?? []}
-                  onStatus={changeStatus}
-                  onNote={changeNote}
-                  onLaunchArgs={changeLaunchArgs}
-                  onToggleCollection={toggleCollection}
-                  onCreateCollection={(name, game) => newCollection(name, game)}
-                  edit={ficheEdit?.id === g.id ? ficheEdit.kind : null}
-                  onEditStarted={() => setFicheEdit(null)}
-                />
-              )}
-            />
+            {layout === "list" ? (
+              <LibraryList
+                games={results}
+                selectedId={selected?.id ?? null}
+                open={open}
+                sort={sort}
+                playing={playing}
+                onSort={changeSort}
+                onSelect={select}
+                onPlay={play}
+                renderStrip={renderStrip}
+              />
+            ) : (
+              <LibraryGrid
+                games={results}
+                selectedId={selected?.id ?? null}
+                open={open}
+                meta={meta}
+                playing={playing}
+                onSelect={select}
+                onPlay={play}
+                renderStrip={renderStrip}
+              />
+            )}
           </section>
         )}
       </main>
@@ -1516,7 +1577,9 @@ interface NoResultsProps {
 
 function NoResults({ filter, status, section, empty, query, facets, onClear, onClearStatus, onClearFacets }: NoResultsProps) {
   if (!query && hasFacets(facets)) {
-    const what = [facets.mood && `l'ambiance « ${MOOD_LABEL[facets.mood]} »`, facets.tag && `le tag « ${facets.tag} »`].filter(Boolean).join(" et ");
+    const what = [facets.mood && `l'ambiance « ${MOOD_LABEL[facets.mood]} »`, facets.tag && `le tag « ${facets.tag} »`, facets.genre && `le genre « ${facets.genre} »`]
+      .filter(Boolean)
+      .join(" et ");
     return (
       <EmptyState
         title={`Aucun jeu avec ${what}`}

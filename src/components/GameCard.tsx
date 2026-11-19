@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { PLATFORM_LABEL, type Game } from "../lib/api";
 import { installBadge } from "../lib/format";
+import { achievementPercent } from "../lib/library";
 import { Cover } from "./Cover";
 import { PlayIcon, StarIcon } from "./Icons";
 
@@ -17,6 +18,7 @@ interface Props {
 
 export const GameCard = memo(function GameCard({ game, selected, meta, playing, onSelect, onPlay }: Props) {
   const badge = installBadge(game.installState);
+  const percent = achievementPercent(game);
   return (
     <div className={`card ${selected ? "is-sel" : ""}`} data-game={game.id}>
       <div className="card__art">
@@ -31,6 +33,11 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
           <Cover game={game} />
           {game.favorite && <span className="card__fav" aria-label="Favori"><StarIcon filled badge /></span>}
           {game.platform !== "steam" && <span className="card__plat">{PLATFORM_LABEL[game.platform]}</span>}
+          {percent !== null && (
+            <span className={`card__ach ${percent === 100 ? "is-perfect" : ""}`} title={`${game.achievements!.unlocked} / ${game.achievements!.total} succès`}>
+              {percent} %
+            </span>
+          )}
         </button>
         <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${game.title}`} onClick={() => onPlay(game)}>
           <PlayIcon />

@@ -8,7 +8,7 @@ import type { Game } from "./api";
  *   3 sous-chaîne, ou chaque mot de la recherche au début d'un mot du titre (« manager football »)
  *   4 une faute de frappe, 5 deux fautes (« rocet », « footbal manger ») : jamais sous 4 lettres,
  *     première lettre juste, nombres jamais changés
- *   6 studio, éditeur ou tag Steam dont un mot commence par la recherche
+ *   6 studio, éditeur, genre ou tag Steam dont un mot commence par la recherche
  * Accents, casse, ®/™, apostrophes et ponctuation ignorés. Fonctions pures, sans dépendance.
  */
 
@@ -172,11 +172,11 @@ function rankTitle(t: Prepared, q: Prepared): number | null {
   return typos === null ? null : 3 + typos;
 }
 
-/** Un studio, un éditeur ou un tag dont un mot commence par la recherche (« ubisoft », « coop »). */
+/** Un studio, un éditeur, un genre ou un tag dont un mot commence par la recherche (« ubisoft », « coop », « rpg »). */
 function metaMatch(game: Game, q: Prepared): boolean {
   const d = game.details;
   if (!d || !q.joined) return false;
-  return [...d.developers, ...d.publishers, ...d.tags].some((v) => ` ${prepare(v).joined}`.includes(` ${q.joined}`));
+  return [...d.developers, ...d.publishers, ...d.genres, ...d.tags].some((v) => ` ${prepare(v).joined}`.includes(` ${q.joined}`));
 }
 
 export type Query = Prepared;

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  achievementPercent,
   hasFacets,
+  libraryGenres,
   libraryMoods,
   libraryTags,
   matchesFacets,
@@ -14,6 +16,8 @@ import {
   rememberFacets,
   rememberedText,
   selectGames,
+  sortMeta,
+  SORTS,
 } from "./library";
 import { fiche, jeu, jeuAmbiance } from "../test/jeu";
 
@@ -62,11 +66,20 @@ describe("facettes tag et ambiance", () => {
     expect([coop, calme, sansFiche].every((g) => matchesFacets(g, NO_FACETS))).toBe(true);
   });
   it("tag et ambiance se cumulent ; un jeu sans fiche ne passe pas", () => {
-    expect(matchesFacets(coop, { tag: "Coop", mood: null })).toBe(true);
-    expect(matchesFacets(coop, { tag: "Coop", mood: "chill" })).toBe(false);
-    expect(matchesFacets(calme, { tag: null, mood: "chill" })).toBe(true);
-    expect(matchesFacets(sansFiche, { tag: "Coop", mood: null })).toBe(false);
-    expect(hasFacets({ tag: null, mood: "story" })).toBe(true);
+    expect(matchesFacets(coop, { tag: "Coop", mood: null, genre: null })).toBe(true);
+    expect(matchesFacets(coop, { tag: "Coop", mood: "chill", genre: null })).toBe(false);
+    expect(matchesFacets(calme, { tag: null, mood: "chill", genre: null })).toBe(true);
+    expect(matchesFacets(sansFiche, { tag: "Coop", mood: null, genre: null })).toBe(false);
+    expect(hasFacets({ tag: null, mood: "story", genre: null })).toBe(true);
+  });
+  it("genre : seulement les genres de la fiche, pas les tags", () => {
+    const rpg = jeu({ details: fiche({ genres: ["RPG", "Action"], tags: ["Monde ouvert"] }) });
+    const tagRpg = jeu({ details: fiche({ genres: ["Action"], tags: ["RPG"] }) });
+    const genre = { tag: null, mood: null, genre: "RPG" };
+    expect(hasFacets(genre)).toBe(true);
+    expect([rpg, tagRpg, sansFiche].filter((g) => matchesFacets(g, genre))).toEqual([rpg]);
+    expect(matchesFacets(rpg, { tag: "Monde ouvert", mood: null, genre: "Action" })).toBe(true);
+    expect(matchesFacets(rpg, { tag: "Coop", mood: null, genre: "RPG" })).toBe(false);
   });
 });
 
@@ -93,6 +106,42 @@ describe("selectGames : tri", () => {
   });
   it("Taille : le plus gros d'abord, inconnue en dernier", () => {
     expect(titres(selectGames(tous, "all", "size", ""))).toEqual(["Baldur's Gate 3", "Ćamelot", "Alan Wake", "Celeste"]);
+  });
+  it("Année de sortie : la plus récente d'abord, inconnue en dernier", () => {
+    const ancien = jeu({ title: "Ancien", details: fiche({ releaseDate: 1e9 }) });
+    const recent = jeu({ title: "Récent", details: fiche({ releaseDate: 1.7e9 }) });
+    const sansDate = jeu({ title: "A sans date", details: fiche() });
+    const sansFiche = jeu({ title: "B sans fiche" });
+    expect(titres(selectGames([sansFiche, ancien, sansDate, recent], "all", "year", ""))).toEqual(["Récent", "Ancien", "A sans date", "B sans fiche"]);
+  });
+  it("Avancement des succès : le plus avancé d'abord, plus de succès à égalité, sans succès en dernier", () => {
+    const moitie = jeu({ title: "Moitié", achievements: { unlocked: 5, total: 10, lastUnlocked: null } });
+    const moitieGrand = jeu({ title: "Moitié grand", achievements: { unlocked: 50, total: 100, lastUnlocked: null } });
+    const fini = jeu({ title: "Fini", achievements: { unlocked: 12, total: 12, lastUnlocked: null } });
+    const zero = jeu({ title: "Zéro", achievements: { unlocked: 0, total: 30, lastUnlocked: null } });
+    const vide = jeu({ title: "A total nul", achievements: { unlocked: 0, total: 0, lastUnlocked: null } });
+    const aucun = jeu({ title: "B aucun" });
+    expect(titres(selectGames([aucun, zero, moitie, vide, fini, moitieGrand], "all", "achievements", ""))).toEqual([
+      "Fini",
+      "Moitié grand",
+      "Moitié",
+      "Zéro",
+      "A total nul",
+      "B aucun",
+    ]);
+  });
+  it("Durée de vie : l'histoire la plus courte d'abord, inconnue en dernier", () => {
+    const hltb = (main: number | null) => ({ name: "x", main, plus: null, full: 900 });
+    const court = jeu({ title: "Court", hltb: hltb(120) });
+    const long = jeu({ title: "Long", hltb: hltb(3000) });
+    const sansHistoire = jeu({ title: "A sans histoire", hltb: hltb(null) });
+    const inconnu = jeu({ title: "B inconnu" });
+    expect(titres(selectGames([inconnu, long, sansHistoire, court], "all", "lifespan", ""))).toEqual(["Court", "Long", "A sans histoire", "B inconnu"]);
+  });
+  it("chaque tri a son libellé et finit par le titre à égalité", () => {
+    const x = jeu({ title: "Xénon" });
+    const y = jeu({ title: "Alpha" });
+    for (const sort of SORTS) expect(titres(selectGames([x, y], "all", sort, ""))).toEqual(["Alpha", "Xénon"]);
   });
   it("ne modifie pas la liste reçue", () => {
     const copie = [...tous];
@@ -126,11 +175,45 @@ describe("selectGames : filtre, facettes et recherche", () => {
     expect(titres(selectGames(tous, "riot", "title", ""))).toEqual(["League of Legends"]);
   });
   it("recherche et facettes se cumulent", () => {
-    expect(titres(selectGames(tous, "all", "title", "", { tag: "Sport", mood: null }))).toEqual(["EA SPORTS FC 24", "Rocket League"]);
-    expect(titres(selectGames(tous, "all", "title", "rocket", { tag: "Football", mood: null }))).toEqual([]);
+    expect(titres(selectGames(tous, "all", "title", "", { tag: "Sport", mood: null, genre: null }))).toEqual(["EA SPORTS FC 24", "Rocket League"]);
+    expect(titres(selectGames(tous, "all", "title", "rocket", { tag: "Football", mood: null, genre: null }))).toEqual([]);
   });
   it("recherche faite d'espaces : pas de recherche", () => {
     expect(selectGames(tous, "all", "title", "   ")).toHaveLength(3);
+  });
+});
+
+describe("achievementPercent et sortMeta", () => {
+  const succes = (unlocked: number, total: number) => ({ unlocked, total, lastUnlocked: null });
+
+  it("pourcentage entier arrondi vers le bas, 100 seulement si tout est débloqué", () => {
+    expect(achievementPercent(jeu({ achievements: succes(1, 3) }))).toBe(33);
+    expect(achievementPercent(jeu({ achievements: succes(999, 1000) }))).toBe(99);
+    expect(achievementPercent(jeu({ achievements: succes(12, 12) }))).toBe(100);
+    expect(achievementPercent(jeu({ achievements: succes(0, 40) }))).toBe(0);
+  });
+  it("sans succès connus : null", () => {
+    expect(achievementPercent(jeu())).toBeNull();
+    expect(achievementPercent(jeu({ achievements: succes(0, 0) }))).toBeNull();
+  });
+  it("information sous la jaquette selon le tri", () => {
+    const g = jeu({
+      sizeOnDisk: 2.5e9,
+      playtimeMinutes: 90,
+      achievements: succes(3, 10),
+      hltb: { name: "x", main: 600, plus: null, full: null },
+      details: fiche({ releaseDate: Date.UTC(2020, 5, 1) / 1000 }),
+    });
+    expect(sortMeta(g, "size")).toBe("2,5 Go");
+    expect(sortMeta(g, "playtime")).toBe("1,5 h");
+    expect(sortMeta(g, "year")).toBe("2020");
+    expect(sortMeta(g, "achievements")).toBe("3 / 10 succès");
+    expect(sortMeta(g, "lifespan")).toBe("Histoire : 10 h");
+    expect(sortMeta(g, "recent")).toBe("Jamais lancé");
+    const vide = jeu();
+    expect(sortMeta(vide, "year")).toBe("Année inconnue");
+    expect(sortMeta(vide, "achievements")).toBe("Sans succès");
+    expect(sortMeta(vide, "lifespan")).toBe("Durée inconnue");
   });
 });
 
@@ -160,6 +243,13 @@ describe("libraryTags et libraryMoods", () => {
       { name: "Action", count: 2 },
       { name: "Coop", count: 2 },
       { name: "Gestion", count: 1 },
+    ]);
+  });
+  it("genres comptés une fois par jeu, masqués exclus", () => {
+    const g = (genres: string[], hidden = false) => jeu({ hidden, details: fiche({ genres }) });
+    expect(libraryGenres([g(["RPG", "Action"]), g(["Action"]), g(["Course"], true), jeu()])).toEqual([
+      { name: "Action", count: 2 },
+      { name: "RPG", count: 1 },
     ]);
   });
   it("ambiances dans l'ordre fixe, zéro compris", () => {
@@ -200,12 +290,16 @@ describe("préférences retenues", () => {
   });
   it("facettes : aller-retour, ambiance inconnue écartée, tag gardé tel quel", () => {
     const data = stockage();
-    rememberFacets({ tag: "Coop", mood: "chill" });
-    expect(rememberedFacets()).toEqual({ tag: "Coop", mood: "chill" });
+    rememberFacets({ tag: "Coop", mood: "chill", genre: null });
+    expect(rememberedFacets()).toEqual({ tag: "Coop", mood: "chill", genre: null });
     rememberFacets(NO_FACETS);
     expect(rememberedFacets()).toEqual(NO_FACETS);
+    rememberFacets({ tag: null, mood: null, genre: "RPG" });
+    expect(data.get("ludex.genre")).toBe("RPG");
+    expect(rememberedFacets()).toEqual({ tag: null, mood: null, genre: "RPG" });
+    data.set("ludex.genre", "");
     data.set("ludex.mood", "joyeux");
     data.set("ludex.tag", "Tag disparu");
-    expect(rememberedFacets()).toEqual({ tag: "Tag disparu", mood: null });
+    expect(rememberedFacets()).toEqual({ tag: "Tag disparu", mood: null, genre: null });
   });
 });

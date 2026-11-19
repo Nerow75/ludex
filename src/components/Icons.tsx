@@ -77,6 +77,9 @@ export const TvIcon = () => (
 export const GridIcon = () => (
   <svg {...base}><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></svg>
 );
+export const ListIcon = () => (
+  <svg {...base}><path d="M9 6.5h11M9 12h11M9 17.5h11" /><rect x="4" y="5" width="3" height="3" rx="1" /><rect x="4" y="10.5" width="3" height="3" rx="1" /><rect x="4" y="16" width="3" height="3" rx="1" /></svg>
+);
 export const DriveIcon = () => (
   <svg {...base}><path d="M4 14.5 6.3 6.2A1.5 1.5 0 0 1 7.7 5h8.6a1.5 1.5 0 0 1 1.4 1.2L20 14.5" /><rect x="4" y="14.5" width="16" height="5" rx="1.5" /><path d="M16.5 17h.01" /></svg>
 );
