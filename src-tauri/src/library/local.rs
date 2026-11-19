@@ -8,7 +8,7 @@
 //! - EA : `__Installer\installerdata.xml` (voir `ea.rs`) ;
 //! - Autres : exécutable principal choisi par score (nom proche du dossier, profondeur, taille).
 
-use super::{Game, Launch, Platform};
+use super::{art_url, Game, Launch, LocalArt, Platform};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -371,22 +371,64 @@ pub fn build(dir: &Path) -> Option<Game> {
     Some(game)
 }
 
+/// Images locales posées sur le jeu, servies par le protocole `ludex` (jamais le chemin au front).
+fn set_local_art(game: &mut Game, art: LocalArt) {
+    if art.cover.is_some() {
+        game.cover_url = Some(art_url(game, "cover"));
+    }
+    if art.hero.is_some() {
+        game.hero_url = Some(art_url(game, "hero"));
+    }
+    if art.logo.is_some() {
+        game.logo_url = Some(art_url(game, "logo"));
+    }
+    game.local_art = LocalArt { icon: game.local_art.icon.take(), ..art };
+}
+
+/// Images de l'Ankama Launcher (zaap) pour un dossier de jeu `<jeu>-<version>` (« Dofus-dofus3 ») :
+/// `<zaap>\repositories\production\<jeu>\<version>\data` : `cover.jpg` (jaquette), `home_cover.jpg`
+/// (image de fond), `logo.png`. Une image absente de la version est prise dans `main`. Noms faits
+/// de lettres et de chiffres seulement, sinon rien.
+fn ankama_art(zaap: &Path, dir_name: &str) -> LocalArt {
+    let (game, release) = dir_name.split_once('-').unwrap_or((dir_name, "main"));
+    let simple = |s: &str| !s.is_empty() && s.len() <= 40 && s.bytes().all(|b| b.is_ascii_alphanumeric());
+    if !simple(game) || !simple(release) {
+        return LocalArt::default();
+    }
+    let base = zaap.join(r"repositories\production").join(game.to_ascii_lowercase());
+    let file = |name: &str| {
+        [release.to_ascii_lowercase(), "main".to_string()]
+            .iter()
+            .map(|r| base.join(r).join("data").join(name))
+            .find(|p| p.is_file())
+    };
+    LocalArt { cover: file("cover.jpg"), hero: file("home_cover.jpg"), logo: file("logo.png"), icon: None }
+}
+
+/// Image de fond du lanceur de FiveM et RedM : `<dossier>\<nom>.app\citizen\resources\background_main.jpg`.
+fn cfx_art(dir: &Path, title: &str) -> LocalArt {
+    let hero = dir.join(format!(r"{title}.app\citizen\resources\background_main.jpg"));
+    LocalArt { hero: hero.is_file().then_some(hero), ..LocalArt::default() }
+}
+
 /// Jeux de lanceurs tiers et de mods connus, à emplacement fixe : FiveM, RedM, RAGE MP, Roblox,
-/// Ankama, Pokeisland.
+/// Ankama, Pokeisland. Les images du lanceur sont reprises quand il en garde (Ankama, FiveM, RedM).
 fn known_launchers() -> Vec<Game> {
     let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let zaap = std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("zaap"));
     let mut games = Vec::new();
-    let mut add = |id: &str, title: &str, dir: PathBuf, exe: PathBuf| {
+    let mut add = |id: &str, title: &str, dir: PathBuf, exe: PathBuf, art: LocalArt| {
         if exe.is_file() {
             let mut g = Game::new(Platform::Other, id, title, Launch::Exec { path: exe, args: Vec::new() });
             g.install_dir = Some(dir.to_string_lossy().into_owned());
+            set_local_art(&mut g, art);
             games.push(g);
         }
     };
     if let Some(local) = &local {
         for (id, title) in [("fivem", "FiveM"), ("redm", "RedM")] {
             let dir = local.join(title);
-            add(id, title, dir.clone(), dir.join(format!("{title}.exe")));
+            add(id, title, dir.clone(), dir.join(format!("{title}.exe")), cfx_art(&dir, title));
         }
         // Roblox : la version la plus récente de l'application.
         let versions = local.join(r"Roblox\Versions");
@@ -396,7 +438,7 @@ fn known_launchers() -> Vec<Game> {
             .filter(|p| p.is_file())
             .max_by_key(|p| p.metadata().and_then(|m| m.modified()).ok());
         if let Some(player) = player {
-            add("roblox", "Roblox", local.join("Roblox"), player);
+            add("roblox", "Roblox", local.join("Roblox"), player, LocalArt::default());
         }
         // Jeux Ankama (Dofus, Wakfu…) : lancés par l'Ankama Launcher, qui gère la connexion.
         let ankama = local.join(r"Programs\Ankama Launcher\Ankama Launcher.exe");
@@ -404,17 +446,18 @@ fn known_launchers() -> Vec<Game> {
             for dir in subdirs(&local.join("Ankama")) {
                 let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
                 if has_exe(&dir) {
-                    add(&format!("ankama-{}", compact(&name)), &ankama_title(&name), dir, ankama.clone());
+                    let art = zaap.as_deref().map(|z| ankama_art(z, &name)).unwrap_or_default();
+                    add(&format!("ankama-{}", compact(&name)), &ankama_title(&name), dir, ankama.clone(), art);
                 }
             }
         }
         let pokeisland = local.join(r"Programs\Pokeisland-Launcher");
-        add("pokeisland", "Pokeisland", pokeisland.clone(), pokeisland.join("Pokeisland Launcher.exe"));
+        add("pokeisland", "Pokeisland", pokeisland.clone(), pokeisland.join("Pokeisland Launcher.exe"), LocalArt::default());
     }
     #[cfg(windows)]
     if let Some(dir) = super::reg::hkcu(r"Software\RAGE-MP").and_then(|k| super::reg::string(&k, "rage_path")) {
         let dir = PathBuf::from(dir);
-        add("ragemp", "RAGE Multiplayer", dir.clone(), dir.join("ragemp_v.exe"));
+        add("ragemp", "RAGE Multiplayer", dir.clone(), dir.join("ragemp_v.exe"), LocalArt::default());
     }
     games
 }
@@ -508,5 +551,42 @@ mod tests {
         assert_eq!(ankama_title("Dofus-dofus3"), "Dofus 3");
         assert_eq!(ankama_title("Wakfu-main"), "Wakfu");
         assert_eq!(path_id(Path::new(r"E:\Jeux\Need for Speed(TM) Rivals\")), "e-jeux-need-for-speed-tm-rivals");
+    }
+
+    #[test]
+    fn finds_launcher_art_of_ankama_and_cfx_games() {
+        let zaap = std::env::temp_dir().join(format!("ludex-zaap-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&zaap);
+        let data = |release: &str| zaap.join(r"repositories\production\dofus").join(release).join("data");
+        for (release, files) in [("dofus3", &["cover.jpg", "home_cover.jpg"][..]), ("main", &["cover.jpg", "logo.png"][..])] {
+            fs::create_dir_all(data(release)).unwrap();
+            for f in files {
+                fs::write(data(release).join(f), b"").unwrap();
+            }
+        }
+        let art = ankama_art(&zaap, "Dofus-dofus3");
+        assert_eq!(art.cover, Some(data("dofus3").join("cover.jpg")));
+        assert_eq!(art.hero, Some(data("dofus3").join("home_cover.jpg")));
+        // Absente de la version : prise dans `main`.
+        assert_eq!(art.logo, Some(data("main").join("logo.png")));
+        assert!(ankama_art(&zaap, "Wakfu-main").cover.is_none());
+        // Aucun nom bizarre ne sort du dossier de zaap.
+        assert!(ankama_art(&zaap, "..-dofus3").cover.is_none());
+        assert!(ankama_art(&zaap, "Dofus-..").cover.is_none());
+
+        let mut game = Game::new(Platform::Other, "ankama-dofusdofus3", "Dofus 3", Launch::Uri(String::new()));
+        game.local_art.icon = Some(PathBuf::from("dofus.exe"));
+        set_local_art(&mut game, art);
+        assert_eq!(game.cover_url, Some(art_url(&game, "cover")));
+        assert!(game.hero_url.is_some() && game.logo_url.is_some());
+        assert_eq!(game.local_art.icon, Some(PathBuf::from("dofus.exe")));
+
+        let cfx = zaap.join("FiveM");
+        fs::create_dir_all(cfx.join(r"FiveM.app\citizen\resources")).unwrap();
+        assert!(cfx_art(&cfx, "FiveM").hero.is_none());
+        fs::write(cfx.join(r"FiveM.app\citizen\resources\background_main.jpg"), b"").unwrap();
+        let art = cfx_art(&cfx, "FiveM");
+        assert!(art.hero.is_some() && art.cover.is_none());
+        let _ = fs::remove_dir_all(&zaap);
     }
 }
