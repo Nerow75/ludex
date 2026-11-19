@@ -4,6 +4,7 @@ mod images;
 mod library;
 mod metadata;
 mod session;
+mod storage;
 mod store;
 mod update;
 mod tray;
@@ -45,6 +46,10 @@ struct AppState {
     images: Mutex<images::ImageCache>,
     /// Un téléchargement d'images tourne déjà.
     images_busy: AtomicBool,
+    /// Tailles des dossiers d'installation mesurées par Ludex (`storage.rs`).
+    sizes: Mutex<storage::SizeCache>,
+    /// Une mesure des dossiers tourne déjà.
+    sizes_busy: AtomicBool,
     /// Tenu pendant un scan : jamais deux scans à la fois.
     scan_lock: Mutex<()>,
     /// Fin du dernier scan.
@@ -276,6 +281,88 @@ fn resolve_details(app: tauri::AppHandle) {
     });
 }
 
+/// Événement `game-size` : taille d'un jeu mesurée par Ludex (dossier d'installation).
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SizeEvent {
+    id: String,
+    size_on_disk: u64,
+}
+
+const SIZE_EVENT: &str = "game-size";
+
+/// Dossiers à mesurer. Les jeux sont copiés avant de verrouiller le cache des tailles : jamais les
+/// deux verrous ensemble.
+fn sizes_to_measure(state: &AppState) -> Vec<storage::Job> {
+    let Ok(games) = lock(&state.games).map(|g| g.clone()) else { return Vec::new() };
+    lock(&state.sizes).map(|cache| cache.to_measure(&games, storage::now(), storage::modified)).unwrap_or_default()
+}
+
+/// Mesure un dossier, garde la mesure, la pose sur les jeux de l'état et prévient le front.
+fn measure_size(app: &tauri::AppHandle, state: &AppState, job: &storage::Job) {
+    let bytes = match storage::dir_size(&job.dir) {
+        Ok(bytes) => bytes,
+        Err(e) => return eprintln!("Taille de {} non mesurée : {e}", job.dir.display()),
+    };
+    if let Ok(mut cache) = lock(&state.sizes) {
+        cache.record(job, bytes, storage::now());
+        if let Err(e) = cache.save() {
+            eprintln!("Tailles des jeux non enregistrées : {e}");
+        }
+    }
+    let changed = lock(&state.games).map(|mut games| storage::publish(job, bytes, &mut games)).unwrap_or_default();
+    for (id, size_on_disk) in changed {
+        let _ = app.emit(SIZE_EVENT, SizeEvent { id, size_on_disk });
+    }
+}
+
+/// Mesure en arrière-plan les dossiers des jeux dont le launcher ne donne pas la taille, un à la
+/// fois, sans bloquer le scan. Recommence si des jeux sont apparus entre-temps.
+fn resolve_sizes(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if state.sizes_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        let games = lock(&state.games).map(|g| g.clone()).unwrap_or_default();
+        if let Ok(mut cache) = lock(&state.sizes) {
+            cache.forget_old(&games, storage::now());
+        }
+        for _ in 0..3 {
+            let jobs = sizes_to_measure(&state);
+            if jobs.is_empty() {
+                break;
+            }
+            jobs.iter().for_each(|job| measure_size(&app, &state, job));
+        }
+        state.sizes_busy.store(false, Ordering::SeqCst);
+    });
+}
+
+/// Section « Stockage » : disques qui portent des jeux, place des jeux par launcher, jeux à
+/// désinstaller. Lecture des disques hors du fil de l'interface.
+#[tauri::command]
+async fn storage(app: tauri::AppHandle) -> Result<storage::Storage, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let games = lock(&state.games)?.clone();
+        let measuring = state.sizes_busy.load(Ordering::SeqCst);
+        Ok(storage::report(&games, &storage::volumes(), storage::now(), measuring))
+    })
+    .await
+}
+
+/// Ouvre la désinstallation du jeu chez son launcher (Steam, qui demande confirmation). Le lien
+/// est reconstruit depuis le jeu de l'état ; Ludex ne supprime jamais de fichier lui-même.
+#[tauri::command]
+fn uninstall_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let game = find_game(&state, &id)?;
+    let uri = storage::uninstall_uri(&game)
+        .ok_or_else(|| format!("Ludex ne sait pas ouvrir la désinstallation de {} : ouvre son dossier.", game.title))?;
+    app.opener().open_url(&uri, None::<&str>).map_err(|e| format!("Le launcher n'a pas répondu : {e}"))
+}
+
 /// Événement `game-session` : phase d'une session et, quand Ludex vient d'ajouter du temps,
 /// le nouveau total du jeu.
 #[derive(Clone, Serialize)]
@@ -354,6 +441,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
         let art = lock(&state.art)?;
         let meta = lock(&state.meta)?;
         let images = lock(&state.images)?;
+        let sizes = lock(&state.sizes)?;
         // D'abord les jeux ajoutés à la main et les corrections : le titre choisi sert aux jaquettes.
         data.customize(&mut result.games);
         result.games.iter_mut().for_each(|g| {
@@ -362,6 +450,8 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
             meta.apply(g);
             // En dernier : les images distantes (launcher ou `art.rs`) déjà sur disque.
             images.apply(g);
+            // Taille mesurée par Ludex pour les jeux dont le launcher ne la donne pas.
+            sizes.apply(g);
         });
     }
     let changes = {
@@ -379,6 +469,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     resolve_art(app.clone());
     resolve_images(app.clone());
     resolve_details(app.clone());
+    resolve_sizes(app.clone());
     refresh_tray(app, false);
     Ok((result, changes))
 }
@@ -936,6 +1027,8 @@ pub fn run() {
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 images: Mutex::new(images::ImageCache::load(dir.join("images"))),
+                sizes: Mutex::new(storage::SizeCache::load(&dir)),
+                sizes_busy: AtomicBool::new(false),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
@@ -985,6 +1078,8 @@ pub fn run() {
             game_history,
             recent_playtime,
             last_sessions,
+            storage,
+            uninstall_game,
             update::available_update,
             update::install_update,
             add_game,

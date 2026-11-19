@@ -78,6 +78,9 @@ pub struct Game {
     pub last_played: Option<u64>,
     /// Taille sur le disque en octets, si le launcher la fournit.
     pub size_on_disk: Option<u64>,
+    /// Taille mesurée par Ludex (dossier d'installation, `storage.rs`) faute de chiffre du launcher.
+    #[serde(skip)]
+    pub size_measured: bool,
     /// Temps de jeu en minutes. `None` : inconnu (ni le launcher ni Ludex n'ont de chiffre).
     pub playtime_minutes: Option<u64>,
     /// Provenance du temps de jeu : jamais additionnée, l'une ou l'autre.
@@ -218,6 +221,7 @@ impl Game {
             icon_url: None,
             last_played: None,
             size_on_disk: None,
+            size_measured: false,
             playtime_minutes: None,
             playtime_source: None,
             achievements: None,

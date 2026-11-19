@@ -51,6 +51,7 @@ export function formatDuration(secs: number): string {
 
 export function formatSize(bytes: number | null): string {
   if (!bytes) return "Inconnue";
+  if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1).replace(".", ",")} To`;
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;
   return `${Math.max(1, Math.round(bytes / 1e6))} Mo`;
 }

@@ -8,6 +8,7 @@ import {
   launchGame,
   onGameArt,
   onGameDetails,
+  onGameSize,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -227,6 +228,12 @@ export default function App() {
   // Fiches (genres, studio, sortie) reçues en arrière-plan après le scan.
   useEffect(() => {
     const unlisten = onGameDetails(({ id, details }) => patchGame(id, { details }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Tailles mesurées par Ludex (jeux sans taille du launcher) : tri « Taille » et section Stockage.
+  useEffect(() => {
+    const unlisten = onGameSize(({ id, sizeOnDisk }) => patchGame(id, { sizeOnDisk }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 
