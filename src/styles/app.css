@@ -257,12 +257,12 @@ kbd {
   position: absolute; inset: 0; overflow: hidden;
   background:
     radial-gradient(90% 90% at 80% 10%, color-mix(in srgb, var(--art-tint) 55%, transparent), transparent 70%),
-    linear-gradient(160deg, color-mix(in srgb, var(--art-tint) 25%, #0B0B0B), #050505);
+    linear-gradient(160deg, color-mix(in srgb, var(--art-tint) 25%, var(--lx-art-base)), var(--lx-art-deep));
 }
 .art img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fade-in .5s var(--lx-ease); }
 .game-logo { display: flex; align-items: flex-end; min-width: 0; }
-.game-logo img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, .55)); }
-.game-logo__text { font: 500 24px/1.1 var(--lx-font-body); color: #fff; text-wrap: balance; text-shadow: 0 4px 30px rgba(0, 0, 0, .5); }
+.game-logo img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 6px 24px color-mix(in srgb, var(--lx-shadow) 55%, transparent)); }
+.game-logo__text { font: 500 24px/1.1 var(--lx-font-body); color: var(--lx-on-art); text-wrap: balance; text-shadow: 0 4px 30px color-mix(in srgb, var(--lx-shadow) 50%, transparent); }
 
 /* ---------- Reprendre ---------- */
 .resume h2 { font-size: 18px; }
@@ -275,13 +275,13 @@ kbd {
 }
 .tile__hit:active { transform: scale(.98); }
 .tile__hit .art { z-index: -2; }
-.tile__hit::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(transparent 35%, rgba(0, 0, 0, .78)); transition: opacity .15s; }
+.tile__hit::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(transparent 35%, var(--lx-art-scrim)); transition: opacity .15s; }
 .tile:hover .tile__hit::after { opacity: .8; }
 .tile .game-logo { position: absolute; left: 16px; right: 64px; bottom: 36px; height: 52px; }
 .tile .game-logo__text { font-size: 18px; }
 .tile--first .game-logo { height: 80px; }
 .tile--first .game-logo__text { font-size: 28px; }
-.tile small { position: absolute; left: 16px; bottom: 12px; font-size: 12px; color: rgba(255, 255, 255, .75); }
+.tile small { position: absolute; left: 16px; bottom: 12px; font-size: 12px; color: var(--lx-on-art-2); }
 .tile .card__play { right: 12px; bottom: 12px; }
 .tile:hover .card__play, .tile--first .card__play { opacity: 1; transform: none; }
 
@@ -356,21 +356,21 @@ kbd {
 .cover--generated {
   background:
     radial-gradient(110% 70% at 85% 0%, color-mix(in srgb, var(--cover-tint) 80%, transparent) 0%, transparent 62%),
-    linear-gradient(165deg, color-mix(in srgb, var(--cover-tint) 22%, #0B0B0B) 30%, #050505 100%);
+    linear-gradient(165deg, color-mix(in srgb, var(--cover-tint) 22%, var(--lx-art-base)) 30%, var(--lx-art-deep) 100%);
 }
 .cover--generated::before {
   content: attr(data-mono); position: absolute; right: -6%; top: -4%;
   font: 500 5.4em/1 var(--lx-font-body); color: var(--cover-tint); opacity: .2; letter-spacing: -0.03em;
 }
 .cover__title {
-  position: absolute; left: 10%; right: 10%; bottom: 9%; color: #fff;
+  position: absolute; left: 10%; right: 10%; bottom: 9%; color: var(--lx-on-art);
   font: 500 1.05em/1.1 var(--lx-font-body); text-wrap: balance;
 }
 /* Icône de l'exécutable sur la jaquette générée : centrée, à la place du monogramme. */
 .cover--icon::before { content: none; }
 .cover .cover__icon {
   position: absolute; left: 50%; top: 40%; width: 40%; height: auto; aspect-ratio: 1; transform: translate(-50%, -50%);
-  object-fit: contain; filter: drop-shadow(0 8px 24px rgb(0 0 0 / .45));
+  object-fit: contain; filter: drop-shadow(0 8px 24px color-mix(in srgb, var(--lx-shadow) 45%, transparent));
 }
 
 /* ---------- Grille ---------- */
@@ -386,20 +386,20 @@ kbd {
 }
 .card:hover .cover { outline-color: var(--lx-border); }
 .card.is-sel .cover { outline-color: var(--lx-ambient); }
-.card__fav, .card__plat { position: absolute; z-index: 1; background: rgba(0, 0, 0, .7); color: #fff; }
+.card__fav, .card__plat { position: absolute; z-index: 1; background: var(--lx-art-badge); color: var(--lx-on-art); }
 .card__fav { left: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
 .card__plat { right: 8px; top: 8px; font: 11px/1 var(--lx-font-mono); padding: 4px 6px; border-radius: 4px; }
 /* Avancement des succès : petit, en bas à gauche (Jouer apparaît en bas à droite), ambre à 100 %. */
 .card__ach {
   position: absolute; z-index: 1; left: 8px; bottom: 8px; padding: 4px 6px; border-radius: 4px;
   font: 11px/1 var(--lx-font-mono); font-variant-numeric: tabular-nums;
-  background: rgba(0, 0, 0, .6); color: rgba(255, 255, 255, .8);
+  background: var(--lx-art-badge); color: var(--lx-on-art-2);
 }
 .card__ach.is-perfect { color: var(--lx-perfect); }
 .card__play {
   position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 40px; height: 40px; border: 0; border-radius: 50%;
   display: grid; place-items: center; background: var(--lx-text); color: var(--lx-bg);
-  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, .7);
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--lx-shadow) 70%, transparent);
   opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s var(--lx-ease);
 }
 .card:hover .card__play, .card.is-sel .card__play { opacity: 1; transform: none; }
@@ -707,7 +707,7 @@ kbd {
   position: fixed; z-index: 25; width: max-content; min-width: 200px; max-width: 320px;
   max-height: calc(100vh - 16px); overflow-y: auto; margin: 0; padding: 4px; list-style: none;
   background: var(--lx-surface-2); border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, .6); outline: none;
+  box-shadow: 0 20px 40px -10px color-mix(in srgb, var(--lx-shadow) 60%, transparent); outline: none;
 }
 .cmenu__item {
   display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 8px;
@@ -724,7 +724,7 @@ kbd {
 .toast {
   position: fixed; right: 24px; bottom: 56px; z-index: 20; display: flex; gap: 12px; align-items: center;
   max-width: min(460px, calc(100vw - 48px)); padding: 12px 16px; border-radius: var(--lx-radius-m);
-  background: var(--lx-surface-2); border: 1px solid var(--lx-border); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, .6);
+  background: var(--lx-surface-2); border: 1px solid var(--lx-border); box-shadow: 0 20px 40px -10px color-mix(in srgb, var(--lx-shadow) 60%, transparent);
   opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity .2s, transform .2s var(--lx-ease);
 }
 .toast.is-on { opacity: 1; transform: none; pointer-events: auto; }
@@ -1162,3 +1162,72 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 .switch:disabled { opacity: .5; }
 .switch:active:not(:disabled) span { width: 18px; }
 .switch[aria-checked="true"]:active:not(:disabled) span { transform: translateX(14px); }
+.set__row--stack { flex-direction: column; align-items: stretch; gap: 12px; }
+.set__row--stack .seg { align-self: flex-start; flex-wrap: wrap; }
+
+/* ---------- Contraste élevé ([data-theme="contrast"]) ----------
+   Les tokens donnent les couleurs (textes AAA, contours clairs) ; ici, ce qui ne tient pas dans un
+   token : focus plus épais, contour au survol des boutons sans bordure (le fond qui s'éclaircit ne
+   se voit plus), état choisi souligné d'un contour, fondus plus couvrants sous le texte. */
+[data-theme="contrast"] :focus-visible { outline-width: 3px; }
+[data-theme="contrast"] .search { border-width: 2px; }
+[data-theme="contrast"] :is(.card__hit, .shelf__hit):focus-visible .cover { outline-width: 3px; }
+[data-theme="contrast"] :is(
+  .caption button, .top__tools button, .side__toggle, .side__item, .side__couch, .side__last, .side__add,
+  .hist__row, .vitrine__row, .board__item, .recap__row, .facts button, .shelf__title.is-link, .strip__close,
+  .strip__note, .fiche__link, .fiche__tab, .seg button, .pill button, .saves-page__row, button.jgame__head,
+  .couch__quit, .shots-group__link
+):hover:not(:disabled, :focus-visible) { outline: 1px solid var(--lx-text); outline-offset: -1px; }
+[data-theme="contrast"] :is(.card, .shelf__hit):hover .cover { outline-color: var(--lx-text); }
+[data-theme="contrast"] :is(.side__item[aria-current="page"], .seg button[aria-pressed="true"]) { box-shadow: inset 0 0 0 2px var(--lx-text); }
+[data-theme="contrast"] .fiche__tab[aria-selected="true"]::after { height: 3px; }
+[data-theme="contrast"] :is(.cmenu__item.is-active, .cmenu__item:focus-visible) { outline: 2px solid var(--lx-accent); outline-offset: -2px; }
+[data-theme="contrast"] .chip[aria-pressed="true"] { border-width: 2px; }
+[data-theme="contrast"] .switch span { background: var(--lx-text-2); }
+/* Barres du Stockage : « autres fichiers » hachés, pour ne pas reposer sur la seule couleur. */
+[data-theme="contrast"] .disk__bar { height: 12px; gap: 2px; border: 1px solid var(--lx-border); background: var(--lx-bg); }
+[data-theme="contrast"] .disk__other, [data-theme="contrast"] .disk__key--other::before {
+  background: repeating-linear-gradient(135deg, var(--lx-text-3) 0 2px, transparent 2px 4px);
+}
+[data-theme="contrast"] :is(.lifespan__track, .recap__meter) { border: 1px solid var(--lx-border); }
+/* Texte posé sur les visuels larges : fond plein sous le texte, l'image ne reste visible qu'à droite. */
+[data-theme="contrast"] .strip__hero::after {
+  background:
+    linear-gradient(90deg, var(--lx-surface) 0%, var(--lx-surface) 45%, color-mix(in srgb, var(--lx-surface) 70%, transparent) 70%, transparent 100%),
+    linear-gradient(0deg, var(--lx-surface), transparent 70%);
+}
+[data-theme="contrast"] .tonight::after {
+  background:
+    linear-gradient(90deg, var(--lx-bg) 0%, var(--lx-bg) 45%, color-mix(in srgb, var(--lx-bg) 70%, transparent) 70%, transparent 100%),
+    linear-gradient(0deg, var(--lx-bg), transparent 70%);
+}
+[data-theme="contrast"] .couch__backdrop::after {
+  background:
+    linear-gradient(90deg, var(--lx-bg) 0%, var(--lx-bg) 40%, color-mix(in srgb, var(--lx-bg) 70%, transparent) 70%, color-mix(in srgb, var(--lx-bg) 40%, transparent) 100%),
+    linear-gradient(0deg, var(--lx-bg) 0%, var(--lx-bg) 45%, transparent 80%);
+}
+[data-theme="contrast"] :is(.tonight__acts, .couch__acts) .btn-ghost,
+[data-theme="contrast"] :is(.strip__acts .btn-icon, .strip__close, .couch__live) { background: var(--lx-bg); }
+[data-theme="contrast"] .couch__stats > div { background: var(--lx-surface); border: 1px solid var(--lx-border); }
+[data-theme="contrast"] .couch__card { filter: none; }
+
+/* ---------- Contraste de Windows (couleurs forcées) ----------
+   Windows impose ses couleurs système : fonds et contours deviennent ceux du thème choisi. Ce qui
+   ne tenait qu'à une couleur de fond (barres, interrupteurs, choix en cours, sélection) passe aux
+   couleurs système pour rester visible. */
+@media (forced-colors: active) {
+  .disk__games, .disk__key--games::before, .lifespan__fill, .recap__bar, .recap__meter span, .live::before { background: Highlight; }
+  .disk__other, .disk__key--other::before { background: GrayText; }
+  .disk__bar, .lifespan__track, .recap__meter, .recap__track { border: 1px solid CanvasText; }
+  .fiche__tab[aria-selected="true"]::after { background: Highlight; }
+  :is(.side__item[aria-current="page"], .seg button[aria-pressed="true"], .quick__item.is-selected, .cmenu__item.is-active) {
+    outline: 2px solid Highlight; outline-offset: -2px;
+  }
+  .chip[aria-pressed="true"] { border-color: Highlight; border-width: 2px; }
+  .card.is-sel .cover, .couch__card.is-focus { outline-color: Highlight; }
+  .switch { border-color: CanvasText; }
+  .switch span { background: CanvasText; }
+  .switch[aria-checked="true"] { background: Highlight; border-color: Highlight; }
+  .switch[aria-checked="true"] span { background: HighlightText; }
+  :focus-visible { outline-color: Highlight; }
+}
