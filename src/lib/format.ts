@@ -1,4 +1,5 @@
 import type { Game, InstallState } from "./api";
+import { RANK_META, searchRank } from "./search";
 
 /** Comparaison sans accents ni casse, pour la recherche. */
 export const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -6,24 +7,15 @@ export const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").to
 /** Titre sans ® ni ™, pour l'affichage compact et le tri. */
 export const cleanTitle = (s: string) => s.replace(/[®™]/g, "").trim();
 
-/** Lettres et chiffres seulement, mots séparés par une espace. */
-const words = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-
-/** Un mot du texte commence par la recherche : « ligne » trouve « Coop en ligne », « ti » ne trouve pas « Tactique ». */
-function wordStarts(text: string, q: string): boolean {
-  const w = words(q);
-  return w !== "" && ` ${words(norm(text))}`.includes(` ${w}`);
-}
-
 /**
- * Recherche (`q` déjà passée par `norm`) : 0 si le titre contient la recherche, 1 si un studio,
+ * Recherche (`q` déjà passée par `norm` ou brute) : 0 si le titre correspond, même de loin
+ * (préfixe, initiales, sous-chaîne, fautes de frappe : voir `search.ts`), 1 si un studio,
  * un éditeur ou un tag Steam commence par elle (« ubisoft », « rogue », « coop »), `null` sinon.
+ * Pour classer les résultats, `searchRank`.
  */
 export function queryMatch(game: Game, q: string): 0 | 1 | null {
-  if (norm(cleanTitle(game.title)).includes(q)) return 0;
-  const d = game.details;
-  if (!d) return null;
-  return [...d.developers, ...d.publishers, ...d.tags].some((v) => wordStarts(v, q)) ? 1 : null;
+  const r = searchRank(game, q);
+  return r === null ? null : r < RANK_META ? 0 : 1;
 }
 
 const now = () => Math.floor(Date.now() / 1000);

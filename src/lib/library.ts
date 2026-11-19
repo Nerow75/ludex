@@ -1,5 +1,6 @@
 import { MOODS, STATUS_LABEL, STATUSES, type Game, type Mood, type Platform, type Status } from "./api";
-import { cleanTitle, norm, queryMatch } from "./format";
+import { cleanTitle } from "./format";
+import { prepareQuery, searchRank } from "./search";
 
 export type Filter = "all" | "favorites" | "hidden" | Platform;
 export type Sort = "recent" | "playtime" | "title" | "size";
@@ -45,18 +46,21 @@ export function matchesFacets(game: Game, { tag, mood }: Facets): boolean {
 export const hasFacets = (f: Facets) => f.tag !== null || f.mood !== null;
 
 /**
- * Jeux du filtre et des tags ou ambiances choisis. Pendant une recherche, ceux dont le titre
- * correspond passent avant ceux trouvés par leur studio ou leurs tags.
+ * Jeux du filtre et des tags ou ambiances choisis. Pendant une recherche, classés par `searchRank`
+ * (préfixe du titre, initiales, début d'un mot, sous-chaîne, fautes de frappe, puis studio,
+ * éditeur ou tag), à égalité le plus récemment joué, puis le tri choisi.
  */
 export function selectGames(games: Game[], filter: Filter, sort: Sort, query: string, facets: Facets = NO_FACETS): Game[] {
-  const q = norm(query.trim());
+  const q = query.trim() ? prepareQuery(query) : null;
   const rank = new Map<string, number>();
   for (const g of games) {
     if (!matchesFilter(g, filter) || !matchesFacets(g, facets)) continue;
-    const r = q ? queryMatch(g, q) : 0;
+    const r = q ? searchRank(g, q) : 0;
     if (r !== null) rank.set(g.id, r);
   }
-  return games.filter((g) => rank.has(g.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)! || COMPARE[sort](a, b));
+  return games
+    .filter((g) => rank.has(g.id))
+    .sort((a, b) => rank.get(a.id)! - rank.get(b.id)! || (q ? (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) : 0) || COMPARE[sort](a, b));
 }
 
 /** Les derniers jeux joués, hors jeux masqués. */
