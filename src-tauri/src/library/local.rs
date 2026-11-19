@@ -417,10 +417,12 @@ fn known_launchers() -> Vec<Game> {
     let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     let zaap = std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("zaap"));
     let mut games = Vec::new();
-    let mut add = |id: &str, title: &str, dir: PathBuf, exe: PathBuf, art: LocalArt| {
+    // `via_launcher` : l'exécutable est un lanceur qui ne transmet pas d'options au jeu.
+    let mut add = |id: &str, title: &str, dir: PathBuf, exe: PathBuf, art: LocalArt, via_launcher: bool| {
         if exe.is_file() {
             let mut g = Game::new(Platform::Other, id, title, Launch::Exec { path: exe, args: Vec::new() });
             g.install_dir = Some(dir.to_string_lossy().into_owned());
+            g.via_launcher = via_launcher;
             set_local_art(&mut g, art);
             games.push(g);
         }
@@ -428,7 +430,7 @@ fn known_launchers() -> Vec<Game> {
     if let Some(local) = &local {
         for (id, title) in [("fivem", "FiveM"), ("redm", "RedM")] {
             let dir = local.join(title);
-            add(id, title, dir.clone(), dir.join(format!("{title}.exe")), cfx_art(&dir, title));
+            add(id, title, dir.clone(), dir.join(format!("{title}.exe")), cfx_art(&dir, title), false);
         }
         // Roblox : la version la plus récente de l'application.
         let versions = local.join(r"Roblox\Versions");
@@ -438,7 +440,7 @@ fn known_launchers() -> Vec<Game> {
             .filter(|p| p.is_file())
             .max_by_key(|p| p.metadata().and_then(|m| m.modified()).ok());
         if let Some(player) = player {
-            add("roblox", "Roblox", local.join("Roblox"), player, LocalArt::default());
+            add("roblox", "Roblox", local.join("Roblox"), player, LocalArt::default(), false);
         }
         // Jeux Ankama (Dofus, Wakfu…) : lancés par l'Ankama Launcher, qui gère la connexion.
         let ankama = local.join(r"Programs\Ankama Launcher\Ankama Launcher.exe");
@@ -447,17 +449,17 @@ fn known_launchers() -> Vec<Game> {
                 let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
                 if has_exe(&dir) {
                     let art = zaap.as_deref().map(|z| ankama_art(z, &name)).unwrap_or_default();
-                    add(&format!("ankama-{}", compact(&name)), &ankama_title(&name), dir, ankama.clone(), art);
+                    add(&format!("ankama-{}", compact(&name)), &ankama_title(&name), dir, ankama.clone(), art, true);
                 }
             }
         }
         let pokeisland = local.join(r"Programs\Pokeisland-Launcher");
-        add("pokeisland", "Pokeisland", pokeisland.clone(), pokeisland.join("Pokeisland Launcher.exe"), LocalArt::default());
+        add("pokeisland", "Pokeisland", pokeisland.clone(), pokeisland.join("Pokeisland Launcher.exe"), LocalArt::default(), true);
     }
     #[cfg(windows)]
     if let Some(dir) = super::reg::hkcu(r"Software\RAGE-MP").and_then(|k| super::reg::string(&k, "rage_path")) {
         let dir = PathBuf::from(dir);
-        add("ragemp", "RAGE Multiplayer", dir.clone(), dir.join("ragemp_v.exe"), LocalArt::default());
+        add("ragemp", "RAGE Multiplayer", dir.clone(), dir.join("ragemp_v.exe"), LocalArt::default(), false);
     }
     games
 }

@@ -44,6 +44,8 @@ pub struct UserData {
     pub notes: BTreeMap<String, String>,
     /// Collections de l'utilisateur, dans l'ordre de création.
     pub collections: Vec<Collection>,
+    /// Options de lancement par id de jeu, déjà validées (`launch_args.rs`).
+    pub launch_args: BTreeMap<String, String>,
 }
 
 /// Statuts relus en ignorant une valeur inconnue (fichier d'une version future) : sinon le
@@ -259,6 +261,14 @@ impl UserData {
         }
     }
 
+    /// Options de lancement d'un jeu, déjà validées. `None` : options effacées.
+    pub fn set_launch_args(&mut self, id: &str, args: Option<String>) {
+        match args {
+            Some(a) => drop(self.launch_args.insert(id.to_string(), a)),
+            None => drop(self.launch_args.remove(id)),
+        }
+    }
+
     fn collection_mut(&mut self, id: &str) -> Result<&mut Collection, String> {
         self.collections.iter_mut().find(|c| c.id == id).ok_or_else(|| "Cette collection n'existe plus.".to_string())
     }
@@ -328,6 +338,10 @@ impl UserData {
         game.favorite = self.favorites.contains(&game.id);
         game.status = self.status.get(&game.id).copied();
         game.note = self.notes.get(&game.id).cloned();
+        // Options gardées même si le launcher les refuse aujourd'hui (Galaxy installé depuis),
+        // mais ni montrées ni utilisées tant qu'il les refuse.
+        game.launch_args_refusal = crate::launch_args::refusal(game).map(String::from);
+        game.launch_args = if game.launch_args_refusal.is_none() { self.launch_args.get(&game.id).cloned() } else { None };
         game.hidden = if game.is_tool { !self.shown.contains(&game.id) } else { self.hidden.contains(&game.id) };
         if let Some(&ts) = self.launched.get(&game.id) {
             game.last_played = Some(game.last_played.map_or(ts, |l| l.max(ts)));
@@ -397,6 +411,32 @@ mod tests {
         data.record_launch(&other.id);
         data.apply(&mut other);
         assert!(other.last_played.unwrap() >= ts);
+    }
+
+    #[test]
+    fn launch_args_are_kept_and_shown_only_where_accepted() {
+        let mut data = UserData::default();
+        let mut steam = game("730", false);
+        data.set_launch_args(&steam.id, Some("-novid".into()));
+        data.apply(&mut steam);
+        assert_eq!(steam.launch_args.as_deref(), Some("-novid"));
+        assert_eq!(steam.launch_args_refusal, None);
+
+        // Launcher qui refuse : options gardées dans le fichier, ni montrées ni utilisées.
+        let mut epic = Game::new(Platform::Epic, "Sugar", "Rocket League", Launch::Uri(String::new()));
+        data.set_launch_args(&epic.id, Some("-novid".into()));
+        data.apply(&mut epic);
+        assert_eq!(epic.launch_args, None);
+        assert!(epic.launch_args_refusal.is_some());
+        assert!(data.launch_args.contains_key("epic:Sugar"));
+
+        let json = serde_json::to_string(&data).unwrap();
+        let back: UserData = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.launch_args.get("steam:730").map(String::as_str), Some("-novid"));
+
+        data.set_launch_args(&steam.id, None);
+        data.apply(&mut steam);
+        assert_eq!(steam.launch_args, None);
     }
 
     #[test]

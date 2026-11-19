@@ -5,6 +5,7 @@ mod history;
 mod hltb;
 mod images;
 mod journal;
+mod launch_args;
 mod library;
 mod metadata;
 mod recap;
@@ -1258,6 +1259,21 @@ fn set_note(state: State<'_, AppState>, id: String, note: String) -> Result<Opti
     Ok(saved)
 }
 
+/// Options de lancement d'un jeu, validées et normalisées ici (`launch_args::clean`) ; renvoie
+/// le texte enregistré (`None` : effacé). Refusé si le launcher du jeu ne transmet pas d'options.
+#[tauri::command]
+fn set_launch_args(state: State<'_, AppState>, id: String, text: String) -> Result<Option<String>, String> {
+    collections::check_input(&text)?;
+    let game = find_game(&state, &id)?;
+    if let Some(why) = launch_args::refusal(&game) {
+        return Err(why.to_string());
+    }
+    let args = launch_args::clean(&text)?;
+    let saved = args.clone();
+    update_data(&state, &id, move |data, game| data.set_launch_args(&game.id, args))?;
+    Ok(saved)
+}
+
 /// Collections de l'utilisateur et, à part, celles du client Steam (lecture seule).
 #[derive(Serialize)]
 struct CollectionsInfo {
@@ -1468,8 +1484,10 @@ fn hide_quick(app: AppHandle) {
 /// notification. Renvoie l'heure du lancement (secondes Unix).
 fn launch<R: Runtime>(app: &AppHandle<R>, state: &AppState, id: &str) -> Result<u64, String> {
     let game = find_game(state, id)?;
+    // Lancement reconstruit ici depuis l'état, options de l'utilisateur comprises.
+    let launch = launch_args::launch_for(&game)?;
 
-    match &game.launch {
+    match &launch {
         Launch::Uri(uri) => app
             .opener()
             .open_url(uri, None::<&str>)
@@ -1984,6 +2002,7 @@ pub fn run() {
             saves_overview,
             set_status,
             set_note,
+            set_launch_args,
             collections,
             create_collection,
             rename_collection,

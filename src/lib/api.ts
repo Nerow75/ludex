@@ -104,6 +104,10 @@ export interface Game {
   note: string | null;
   /** Durée de vie (HowLongToBeat) ; `null` tant qu'inconnue. */
   hltb: Hltb | null;
+  /** Options de lancement choisies par l'utilisateur (validées côté Rust), `null` : aucune. */
+  launchArgs: string | null;
+  /** Pourquoi ce jeu ne peut pas recevoir d'options, `null` s'il le peut. */
+  launchArgsRefusal: string | null;
 }
 
 /** Progression d'un jeu : valeur fermée, vérifiée côté Rust. */
@@ -189,10 +193,14 @@ export const renameGame = (id: string, title: string) => invoke<LibraryUpdate>("
 export const removeGame = (id: string) => invoke<ScanResult>("remove_game", { id });
 /** Note perso : 500 caractères au plus, nom de collection : 40 (nettoyés côté Rust). */
 export const MAX_NOTE = 500;
+/** Longueur maximale des options de lancement (`launch_args::MAX_LEN`). */
+export const MAX_LAUNCH_ARGS = 256;
 export const MAX_COLLECTION_NAME = 40;
 export const setStatus = (id: string, status: Status | null) => invoke<void>("set_status", { id, status });
 /** Renvoie la note enregistrée (nettoyée), `null` : effacée. */
 export const setNote = (id: string, note: string) => invoke<string | null>("set_note", { id, note });
+/** Options de lancement d'un jeu, validées et normalisées côté Rust ; renvoie le texte enregistré (`null` : effacées). */
+export const setLaunchArgs = (id: string, text: string) => invoke<string | null>("set_launch_args", { id, text });
 export const getCollections = () => invoke<CollectionsInfo>("collections");
 /** `game` : jeu à mettre tout de suite dans la nouvelle collection. */
 export const createCollection = (name: string, game: string | null) =>

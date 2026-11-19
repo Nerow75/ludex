@@ -155,3 +155,15 @@ const clock = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-dig
 
 /** « 14:05 ». */
 export const formatClock = (ts: number) => clock.format(new Date(ts * 1000));
+
+/** Options de lancement pour une mention courte : coupées à `max` caractères (entre deux options si possible). */
+export function shortArgs(text: string, max = 40): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/** Exemple d'options pour le champ, selon le launcher. */
+export const argsExample = (platform: Game["platform"]) => (platform === "steam" ? "-novid +fps_max 240" : "-windowed -dx11");

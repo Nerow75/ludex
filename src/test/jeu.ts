@@ -32,6 +32,8 @@ export function jeu(fields: Partial<Game> = {}): Game {
     status: null,
     note: null,
     hltb: null,
+    launchArgs: null,
+    launchArgsRefusal: null,
     ...fields,
   };
 }
