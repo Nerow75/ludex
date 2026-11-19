@@ -319,6 +319,16 @@ kbd {
 .stats dt { font-size: 12px; color: var(--lx-text-3); }
 .stats dd { margin: 2px 0 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- Durée de vie (HowLongToBeat) ---------- */
+.lifespan { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; max-width: 480px; }
+.lifespan__head { grid-column: 1 / -1; font-size: 12px; color: var(--lx-text-3); }
+.lifespan__row { display: contents; }
+.lifespan__label { font-size: 13px; color: var(--lx-text-2); }
+.lifespan__track { height: 4px; border-radius: 2px; background: var(--lx-surface-2); overflow: hidden; }
+.lifespan__fill { display: block; height: 100%; border-radius: 2px; background: var(--lx-accent); }
+.lifespan__value { font: 12px var(--lx-font-mono); font-variant-numeric: tabular-nums; color: var(--lx-text-2); text-align: right; }
+.lifespan__left { grid-column: 1 / -1; font-size: 13px; color: var(--lx-text-2); }
+
 /* ---------- Succès (fiche) et Vitrine ---------- */
 .ach-icon {
   flex: none; width: 32px; height: 32px; border-radius: 6px; overflow: hidden;

@@ -62,7 +62,7 @@ const EDITIONS: &[&str] = &[
     "standardedition", "ultimateedition", "remastered", "directorscut", "nextstop",
 ];
 
-fn without_edition(name: &str) -> &str {
+pub(crate) fn without_edition(name: &str) -> &str {
     EDITIONS.iter().find_map(|e| name.strip_suffix(e)).unwrap_or(name)
 }
 

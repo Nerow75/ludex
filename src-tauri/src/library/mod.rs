@@ -108,6 +108,8 @@ pub struct Game {
     pub steam_appid: Option<u32>,
     /// Genres, studio, éditeur, sortie et description (`metadata.rs`), `None` tant qu'inconnus.
     pub details: Option<crate::metadata::Details>,
+    /// Durée de vie moyenne (HowLongToBeat, `hltb.rs`), `None` tant qu'inconnue.
+    pub hltb: Option<crate::hltb::Hltb>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -236,6 +238,7 @@ impl Game {
             local_art: LocalArt::default(),
             steam_appid: None,
             details: None,
+            hltb: None,
         }
     }
 

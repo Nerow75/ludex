@@ -168,6 +168,44 @@ function StripScreenshots({ game, playing }: { game: Game; playing: boolean }) {
   );
 }
 
+/** Temps restant pour l'histoire, d'après la moyenne HowLongToBeat et le temps de jeu connu. */
+function storyLeft(main: number | null, played: number | null): string | null {
+  if (main === null || played === null) return null;
+  if (played >= main) return "Temps moyen de l'histoire atteint";
+  return `Encore environ ${formatPlaytime(Math.max(main - played, 1))} pour l'histoire`;
+}
+
+/** Bloc « Durée de vie » : trois barres remplies selon le temps de jeu. Rien sans données. */
+function Lifespan({ game }: { game: Game }) {
+  const h = game.hltb;
+  if (!h) return null;
+  const played = game.playtimeMinutes;
+  const rows: [string, number | null][] = [
+    ["Histoire", h.main],
+    ["+ Extras", h.plus],
+    ["100 %", h.full],
+  ];
+  const left = storyLeft(h.main, played);
+  return (
+    <div className="lifespan" title={`Moyennes HowLongToBeat pour « ${h.name} »`}>
+      <p className="lifespan__head">Durée de vie</p>
+      {rows.map(([label, target]) => {
+        const ratio = target && played ? Math.min(played / target, 1) : 0;
+        return (
+          <div className="lifespan__row" key={label}>
+            <span className="lifespan__label">{label}</span>
+            <span className="lifespan__track" aria-hidden="true">
+              <span className="lifespan__fill" style={{ width: `${ratio * 100}%` }} />
+            </span>
+            <span className="lifespan__value">{target === null ? "inconnu" : formatPlaytime(target)}</span>
+          </div>
+        );
+      })}
+      {left && <p className="lifespan__left">{left}</p>}
+    </div>
+  );
+}
+
 /** Section « Sauvegardes » repliée : les dossiers ne sont lus qu'à l'ouverture. */
 function SavesSection({ gameId, playing }: { gameId: string; playing: boolean }) {
   const [open, setOpen] = useState(false);
@@ -211,6 +249,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           <div><dt>Taille</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
           <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
         </dl>
+        <Lifespan game={game} />
         <div className="strip__acts">
           <button type="button" className="btn-play" onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>
           {install && <span className="live is-pending">{install}</span>}

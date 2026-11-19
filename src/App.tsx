@@ -8,6 +8,7 @@ import {
   launchGame,
   onGameArt,
   onGameDetails,
+  onGameHltb,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -227,6 +228,12 @@ export default function App() {
   // Fiches (genres, studio, sortie) reçues en arrière-plan après le scan.
   useEffect(() => {
     const unlisten = onGameDetails(({ id, details }) => patchGame(id, { details }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Durées de vie (HowLongToBeat) reçues en arrière-plan après le scan.
+  useEffect(() => {
+    const unlisten = onGameHltb(({ id, hltb }) => patchGame(id, { hltb }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 

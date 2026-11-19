@@ -1,5 +1,6 @@
 mod art;
 mod history;
+mod hltb;
 mod images;
 mod library;
 mod metadata;
@@ -45,6 +46,10 @@ struct AppState {
     meta: Mutex<metadata::MetaCache>,
     /// Une lecture de fiches tourne déjà.
     meta_busy: AtomicBool,
+    /// Durées de vie (HowLongToBeat) des jeux, par titre.
+    hltb: Mutex<hltb::HltbCache>,
+    /// Une lecture des durées tourne déjà.
+    hltb_busy: AtomicBool,
     /// Images distantes gardées sur disque (`images.rs`).
     images: Mutex<images::ImageCache>,
     /// Un téléchargement d'images tourne déjà.
@@ -129,6 +134,7 @@ fn resolve_art(app: tauri::AppHandle) {
         // leur fiche peut être demandée.
         resolve_images(app.clone());
         resolve_details(app.clone());
+        resolve_hltb(app.clone());
     });
 }
 
@@ -287,6 +293,67 @@ fn resolve_details(app: tauri::AppHandle) {
             }
         }
         state.meta_busy.store(false, Ordering::SeqCst);
+        // Les années de sortie départagent les homonymes : les durées sont cherchées après les fiches.
+        resolve_hltb(app.clone());
+    });
+}
+
+/// Événement `game-hltb` : durée de vie reçue pour un jeu après le scan.
+#[derive(Clone, Serialize)]
+struct HltbEvent {
+    id: String,
+    hltb: hltb::Hltb,
+}
+
+const HLTB_EVENT: &str = "game-hltb";
+
+/// Reporte les durées d'un cache à jour sur les jeux de l'état, garde ce cache et prévient le front.
+fn publish_hltb(app: &tauri::AppHandle, state: &AppState, fresh: &hltb::HltbCache) {
+    let mut events = Vec::new();
+    if let Ok(mut games) = lock(&state.games) {
+        for g in games.iter_mut() {
+            if fresh.apply(g)
+                && let Some(times) = &g.hltb
+            {
+                events.push(HltbEvent { id: g.id.clone(), hltb: times.clone() });
+            }
+        }
+    }
+    if let Ok(mut cache) = lock(&state.hltb) {
+        *cache = fresh.clone();
+    }
+    for e in events {
+        let _ = app.emit(HLTB_EVENT, e);
+    }
+}
+
+/// Titres sans durée ou dont la durée a plus de 30 jours, avec une copie du cache à compléter.
+fn hltb_to_fetch(state: &AppState) -> Option<(hltb::HltbCache, Vec<hltb::Query>)> {
+    let (cache, games) = (lock(&state.hltb).ok()?, lock(&state.games).ok()?);
+    let queries = cache.to_fetch(&games);
+    (!queries.is_empty()).then(|| (cache.clone(), queries))
+}
+
+/// Cherche en arrière-plan les durées manquantes (HowLongToBeat), une requête à la fois, puis met
+/// à jour l'état et le front titre par titre. Attend la fin des jaquettes et des fiches (titres
+/// retrouvés, années de sortie) : leurs fils rappellent cette fonction en finissant.
+fn resolve_hltb(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if state.art_busy.load(Ordering::SeqCst) || state.meta_busy.load(Ordering::SeqCst) {
+        return;
+    }
+    if hltb_to_fetch(&state).is_none() || state.hltb_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        for _ in 0..2 {
+            let Some((mut cache, queries)) = hltb_to_fetch(&state) else { break };
+            if !cache.fetch(queries, None, |fresh| publish_hltb(&app, &state, fresh)) {
+                break;
+            }
+        }
+        state.hltb_busy.store(false, Ordering::SeqCst);
     });
 }
 
@@ -654,6 +721,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
         let data = lock(&state.data)?;
         let art = lock(&state.art)?;
         let meta = lock(&state.meta)?;
+        let durations = lock(&state.hltb)?;
         let images = lock(&state.images)?;
         // D'abord les jeux ajoutés à la main et les corrections : le titre choisi sert aux jaquettes.
         data.customize(&mut result.games);
@@ -661,6 +729,8 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
             data.apply(g);
             art.apply(g);
             meta.apply(g);
+            // Après la fiche : son année de sortie fait partie de la clé.
+            durations.apply(g);
             // En dernier : les images distantes (launcher ou `art.rs`) déjà sur disque.
             images.apply(g);
         });
@@ -680,6 +750,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     resolve_art(app.clone());
     resolve_images(app.clone());
     resolve_details(app.clone());
+    resolve_hltb(app.clone());
     resolve_saves(app.clone());
     refresh_tray(app, false);
     Ok((result, changes))
@@ -1429,11 +1500,13 @@ pub fn run() {
                 tracker: Tracker::spawn(history::Journal::open(&dir), move |update| on_session_update(&handle, update)),
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
+                hltb: Mutex::new(hltb::HltbCache::load(&dir)),
                 images: Mutex::new(images::ImageCache::load(dir.join("images"))),
                 global: Mutex::new(showcase::GlobalCache::load(&dir)),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
+                hltb_busy: AtomicBool::new(false),
                 images_busy: AtomicBool::new(false),
                 scan_lock: Mutex::new(()),
                 last_scan: Mutex::new(None),
