@@ -377,7 +377,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
           <section className="set__group" aria-labelledby="set-diag">
             <h3 id="set-diag">Diagnostic</h3>
             {showDiag ? (
-              <DiagnosticPanel onScan={onScan} />
+              <DiagnosticPanel scan={scan} onScan={onScan} />
             ) : (
               <div className="set__row">
                 <span className="set__text">

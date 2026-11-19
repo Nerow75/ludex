@@ -8,6 +8,8 @@ import { relativeTime } from "../lib/format";
 import { ChevronRightIcon } from "./Icons";
 
 interface Props {
+  /** Dernier scan connu du front : le diagnostic est relu quand il change (premier scan fini, rescan). */
+  scan: ScanResult | null;
   /** Bibliothèque relue par « Relire ». */
   onScan: (scan: ScanResult) => void;
 }
@@ -70,7 +72,7 @@ function SourceRow({ source, open, onToggle }: { source: DiagSource; open: boole
   );
 }
 
-export function DiagnosticPanel({ onScan }: Props) {
+export function DiagnosticPanel({ scan, onScan }: Props) {
   const [diag, setDiag] = useState<Diagnostic | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
@@ -87,16 +89,14 @@ export function DiagnosticPanel({ onScan }: Props) {
       .catch((e) => setError(String(e)));
   }, []);
 
-  useEffect(load, [load]);
+  // Relu à chaque scan : ouvert pendant le premier scan, le panneau ne reste pas sur « Pas encore lu ».
+  useEffect(load, [load, scan]);
 
   const reread = () => {
     setRereading(true);
     setCopied(null);
     scanLibrary()
-      .then((scan) => {
-        onScan(scan);
-        load();
-      })
+      .then(onScan) // le nouveau scan relit le diagnostic
       .catch((e) => setError(String(e)))
       .finally(() => setRereading(false));
   };
