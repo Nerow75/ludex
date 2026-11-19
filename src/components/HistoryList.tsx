@@ -40,7 +40,7 @@ export function HistoryList({ games, playing, openGame, play }: SectionContext) 
           const live = playing.has(g.id);
           const last = lastSessionText(g, sessions.get(g.id) ?? null);
           return (
-            <li key={g.id} className="hist__item">
+            <li key={g.id} className="hist__item" data-game={g.id}>
               <button
                 type="button"
                 className="hist__row"

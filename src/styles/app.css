@@ -480,6 +480,25 @@ kbd {
 .saves-page__row:hover { background: var(--lx-surface-2); }
 .saves-page__title { font-size: 14px; font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- Menu contextuel ---------- */
+/* Sobre : surface, contour, entrées pleine largeur ; position calculée en JS (toujours dans la fenêtre). */
+.cmenu {
+  position: fixed; z-index: 25; width: max-content; min-width: 200px; max-width: 320px;
+  max-height: calc(100vh - 16px); overflow-y: auto; margin: 0; padding: 4px; list-style: none;
+  background: var(--lx-surface-2); border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, .6); outline: none;
+}
+.cmenu__item {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--lx-text-2); font-size: 13px; text-align: left;
+}
+.cmenu__item.is-active, .cmenu__item:focus-visible { background: var(--lx-surface); color: var(--lx-text); outline: none; }
+.cmenu__item svg { flex: none; color: var(--lx-text-3); }
+.cmenu__check { flex: none; width: 18px; height: 18px; display: grid; place-items: center; }
+.cmenu__check svg { color: var(--lx-accent-text); }
+.cmenu__label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmenu__sep { height: 1px; margin: 4px 8px; background: var(--lx-border); }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; right: 24px; bottom: 56px; z-index: 20; display: flex; gap: 12px; align-items: center;

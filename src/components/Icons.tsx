@@ -136,3 +136,8 @@ export const SaveIcon = () => (
 export const JournalIcon = () => (
   <svg {...base}><rect x="4.5" y="5.5" width="15" height="14" rx="2" /><path d="M4.5 10h15M9 3.5v4M15 3.5v4" /></svg>
 );
+
+/** Coche : entrée choisie d'un menu (statut, collection). */
+export const CheckIcon = () => (
+  <svg {...base}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+);

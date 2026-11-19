@@ -21,7 +21,7 @@ export function ResumeRow({ games, playing, onSelect, onPlay }: Props) {
         {games.map((g, i) => {
           const live = playing.has(g.id);
           return (
-            <div key={g.id} className={`tile ${i === 0 ? "tile--first" : ""}`}>
+            <div key={g.id} className={`tile ${i === 0 ? "tile--first" : ""}`} data-game={g.id}>
               <button
                 type="button"
                 className="tile__hit"

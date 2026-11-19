@@ -69,7 +69,14 @@ interface Props {
   onToggleCollection: (game: Game, collection: Collection, value: boolean) => void;
   /** Nouvelle collection qui reçoit tout de suite ce jeu. */
   onCreateCollection: (name: string, game: Game) => void;
+  /** Champ à ouvrir tout de suite (« Renommer », « Nouvelle collection… » du menu contextuel). */
+  edit?: FicheEdit | null;
+  /** Le champ demandé par `edit` est ouvert : la demande peut être oubliée. */
+  onEditStarted?: () => void;
 }
+
+/** Champ de la fiche qu'une autre partie de l'app peut ouvrir. */
+export type FicheEdit = "rename" | "collection";
 
 /** Titre modifiable sur place : Entrée valide, Échap (ou un clic ailleurs) annule. */
 function TitleEditor({ game, onDone, onRename }: { game: Game; onDone: () => void; onRename: Props["onRename"] }) {
@@ -282,11 +289,23 @@ export function GameStrip({
   onNote,
   onToggleCollection,
   onCreateCollection,
+  edit,
+  onEditStarted,
 }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [showCollections, setShowCollections] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Demande venue du menu contextuel : le champ s'ouvre (et prend le focus) dès que la fiche est là.
+  useEffect(() => {
+    if (!edit) return;
+    if (edit === "rename") setRenaming(true);
+    else {
+      setShowCollections(true);
+      setCreating(true);
+    }
+    onEditStarted?.();
+  }, [edit]);
   const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const description = game.details?.description;

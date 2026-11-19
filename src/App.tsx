@@ -49,7 +49,7 @@ import {
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
-import { useGamepad } from "./lib/gamepad";
+import { useGamepad, type PadAction } from "./lib/gamepad";
 import {
   hasFacets,
   libraryMoods,
@@ -74,7 +74,9 @@ import {
   type StatusFilter,
 } from "./lib/library";
 import { collectionSections, SECTIONS, type Section, type SectionContext } from "./lib/sections";
-import { GameStrip } from "./components/GameStrip";
+import { gameMenu, type MenuAction, type Point } from "./lib/contextMenu";
+import { ContextMenu } from "./components/ContextMenu";
+import { GameStrip, type FicheEdit } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
@@ -90,6 +92,32 @@ interface Toast {
   spin?: boolean;
   action?: { label: string; run: () => void };
 }
+
+/** Durée du « Annuler » des actions réversibles (masquer, favori, statut, collection). */
+const UNDO_MS = 5000;
+
+/** Menu contextuel ouvert sur un jeu ; `origin` reprend le focus à la fermeture. */
+interface MenuState {
+  gameId: string;
+  at: Point;
+  keyboard: boolean;
+  origin: HTMLElement | null;
+}
+
+/** Manette pendant le menu contextuel : mêmes touches que le clavier. */
+const PAD_MENU_KEYS: Partial<Record<PadAction, string>> = {
+  up: "ArrowUp",
+  down: "ArrowDown",
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  confirm: "Enter",
+  details: "Enter",
+  back: "Escape",
+  menu: "Escape",
+};
+
+/** Élément d'un jeu qui reçoit le focus : sa jaquette, sa tuile ou sa ligne. */
+const focusTarget = (holder: HTMLElement) => holder.querySelector<HTMLElement>("button") ?? holder;
 
 const FILTERS: readonly Filter[] = ["all", "favorites", ...PLATFORMS, "hidden"];
 const SORTS = Object.keys(SORT_LABEL) as Sort[];
@@ -116,6 +144,13 @@ export default function App() {
   /** Journal restreint à un jeu (« Voir son journal » de la fiche). Quitte la restriction en changeant de section. */
   const [journalGameId, setJournalGameId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  // Menu contextuel : l'état pour l'affichage, une copie dans une ref pour les écouteurs globaux.
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const menuRef = useRef<MenuState | null>(null);
+  /** Heure de la dernière ouverture au clavier : le `contextmenu` que la WebView envoie ensuite est ignoré. */
+  const keyMenuAt = useRef(0);
+  /** Champ de la fiche à ouvrir dès qu'elle est affichée (Renommer, Nouvelle collection… du menu). */
+  const [ficheEdit, setFicheEdit] = useState<{ id: string; kind: FicheEdit } | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   /** Jeux lancés depuis Ludex dont un processus tourne. */
   const [playing, setPlaying] = useState<ReadonlySet<string>>(() => new Set());
@@ -147,6 +182,14 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
   }, []);
+
+  /**
+   * Toast d'une action réversible, d'où qu'elle vienne (fiche, menu contextuel, Ctrl+D, manette) :
+   * « Annuler » pendant 5 s rejoue l'action en sens inverse, qui propose à son tour « Annuler ».
+   */
+  const showUndo = useCallback((title: string, undo: () => void) => {
+    showToast({ title, action: { label: "Annuler", run: undo } }, UNDO_MS);
+  }, [showToast]);
 
   const goTo = useCallback((id: string) => {
     setSectionId(id);
@@ -396,31 +439,25 @@ export default function App() {
     patchGame(game.id, { favorite: value });
     try {
       await setFavorite(game.id, value);
+      showUndo(value ? `${game.title} ajouté aux favoris` : `${game.title} retiré des favoris`, () => toggleFavorite({ ...game, favorite: value }));
     } catch (e) {
       patchGame(game.id, { favorite: !value });
       showToast({ title: "Favori non enregistré", detail: String(e), error: true }, 5000);
     }
-  }, [patchGame, showToast]);
+  }, [patchGame, showToast, showUndo]);
 
   const toggleHidden = useCallback(async (game: Game) => {
     const value = !game.hidden;
     patchGame(game.id, { hidden: value });
     try {
       await setHidden(game.id, value);
-      if (value) {
-        setOpen(false);
-        showToast({
-          title: `${game.title} est masqué`,
-          action: { label: "Annuler", run: () => toggleHidden({ ...game, hidden: true }) },
-        }, 6000);
-      } else {
-        showToast({ title: `${game.title} est de retour dans la bibliothèque` });
-      }
+      if (value) setOpen(false);
+      showUndo(value ? `${game.title} est masqué` : `${game.title} est de retour dans la bibliothèque`, () => toggleHidden({ ...game, hidden: value }));
     } catch (e) {
       patchGame(game.id, { hidden: !value });
       showToast({ title: "Changement non enregistré", detail: String(e), error: true }, 5000);
     }
-  }, [patchGame, showToast]);
+  }, [patchGame, showToast, showUndo]);
 
   /** Statut de progression, affiché tout de suite, puis « Annuler » pendant 5 s. */
   const changeStatus = useCallback(async (game: Game, status: Status | null) => {
@@ -429,15 +466,12 @@ export default function App() {
     patchGame(game.id, { status });
     try {
       await setStatus(game.id, status);
-      showToast({
-        title: status ? `${game.title} : ${STATUS_LABEL[status]}` : `${game.title} : statut retiré`,
-        action: { label: "Annuler", run: () => changeStatus({ ...game, status }, before) },
-      }, 5000);
+      showUndo(status ? `${game.title} : ${STATUS_LABEL[status]}` : `${game.title} : statut retiré`, () => changeStatus({ ...game, status }, before));
     } catch (e) {
       patchGame(game.id, { status: before });
       showToast({ title: "Statut non enregistré", detail: String(e), error: true }, 5000);
     }
-  }, [patchGame, showToast]);
+  }, [patchGame, showToast, showUndo]);
 
   const changeNote = useCallback(async (game: Game, note: string) => {
     patchGame(game.id, { note: note.trim() || null });
@@ -455,14 +489,14 @@ export default function App() {
   const toggleCollection = useCallback(async (game: Game, collection: Collection, value: boolean) => {
     try {
       setMine(await setInCollection(collection.id, game.id, value));
-      showToast({
-        title: value ? `${game.title} ajouté à « ${collection.name} »` : `${game.title} retiré de « ${collection.name} »`,
-        action: { label: "Annuler", run: () => toggleCollection(game, collection, !value) },
-      }, 5000);
+      showUndo(
+        value ? `${game.title} ajouté à « ${collection.name} »` : `${game.title} retiré de « ${collection.name} »`,
+        () => toggleCollection(game, collection, !value),
+      );
     } catch (e) {
       showToast({ title: "Collection non modifiée", detail: String(e), error: true }, 5000);
     }
-  }, [showToast]);
+  }, [showToast, showUndo]);
 
   /** Nouvelle collection : depuis une fiche (le jeu y entre), ou depuis la barre (on l'ouvre). */
   const newCollection = useCallback(async (name: string, game: Game | null) => {
@@ -470,11 +504,10 @@ export default function App() {
       const { id, mine } = await createCollection(name, game?.id ?? null);
       setMine(mine);
       const created = mine.find((c) => c.id === id);
-      if (game) {
-        showToast({
-          title: `${game.title} ajouté à « ${created?.name ?? name} »`,
-          action: created && { label: "Annuler", run: () => toggleCollection(game, created, false) },
-        }, 5000);
+      if (game && created) {
+        showUndo(`${game.title} ajouté à « ${created.name} »`, () => toggleCollection(game, created, false));
+      } else if (game) {
+        showToast({ title: `${game.title} ajouté à « ${name} »` });
       } else {
         showToast({ title: `Collection « ${created?.name ?? name} » créée`, detail: "Ajoute des jeux depuis leur fiche, bouton Collections" });
         goTo(`col:${id}`);
@@ -482,7 +515,7 @@ export default function App() {
     } catch (e) {
       showToast({ title: "Collection non créée", detail: String(e), error: true }, 5000);
     }
-  }, [goTo, showToast, toggleCollection]);
+  }, [goTo, showToast, showUndo, toggleCollection]);
 
   const [renamingCollection, setRenamingCollection] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -618,8 +651,95 @@ export default function App() {
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
   const sectionIds = sections.map((s) => s.id);
-  const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar });
-  live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar };
+  const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games });
+  live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games };
+
+  /** Ouvre la fiche d'un jeu : sur place s'il est dans la grille affichée, sinon dans « Tous les jeux ». */
+  const showFiche = (game: Game, edit?: FicheEdit) => {
+    const s = live.current;
+    if (!s.custom && s.results.some((g) => g.id === game.id)) {
+      setSelectedId(game.id);
+      setOpen(true);
+    } else {
+      openGame(game);
+    }
+    setFicheEdit(edit ? { id: game.id, kind: edit } : null);
+  };
+
+  const openMenu = (m: MenuState) => {
+    if (!live.current.games.some((g) => g.id === m.gameId)) return;
+    menuRef.current = m;
+    setMenu(m);
+  };
+  /** `restore` : le focus revient à la jaquette, la tuile ou la ligne d'où le menu est parti. */
+  const closeMenu = useCallback((restore: boolean) => {
+    const m = menuRef.current;
+    menuRef.current = null;
+    setMenu(null);
+    if (restore && m?.origin?.isConnected) m.origin.focus({ preventScroll: true });
+  }, []);
+
+  /**
+   * Touche Menu, Maj+F10 ou bouton Menu de la manette : menu du jeu qui a le focus (jaquette, tuile,
+   * ligne de l'historique), sinon du jeu sélectionné dans la grille, ouvert au milieu de son élément.
+   */
+  const menuFromFocus = () => {
+    const s = live.current;
+    const focused = document.activeElement?.closest<HTMLElement>("[data-game]");
+    const holder = focused && scrollRef.current?.contains(focused) ? focused : null;
+    const id = holder?.dataset.game ?? (s.custom ? undefined : s.selected?.id);
+    if (!id) return;
+    const el = holder ?? scrollRef.current?.querySelector<HTMLElement>(`[data-game="${CSS.escape(id)}"]`) ?? null;
+    const r = el?.getBoundingClientRect();
+    const at = r ? { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 120) } : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    keyMenuAt.current = Date.now();
+    openMenu({ gameId: id, at, keyboard: true, origin: el && focusTarget(el) });
+  };
+
+  const runMenu = (game: Game, a: MenuAction) => {
+    switch (a.kind) {
+      case "play":
+        return void play(game);
+      case "open":
+        return showFiche(game);
+      case "favorite":
+        return void toggleFavorite(game);
+      case "status":
+        return void changeStatus(game, a.status);
+      case "collection": {
+        const c = collections?.mine.find((c) => c.id === a.id);
+        return void (c && toggleCollection(game, c, a.value));
+      }
+      case "newCollection":
+        return showFiche(game, "collection");
+      case "folder":
+        return void openFolder(game);
+      case "rename":
+        return showFiche(game, "rename");
+      case "hide":
+        return void toggleHidden(game);
+    }
+  };
+  const menuGame = menu ? games.find((g) => g.id === menu.gameId) ?? null : null;
+  const menuEntries = useMemo(() => (menuGame ? gameMenu(menuGame, collections?.mine ?? []) : []), [menuGame, collections]);
+
+  // Clic droit : menu maison sur une jaquette, une tuile ou une ligne de l'historique ; ailleurs, le
+  // menu natif de la WebView (Recharger, Inspecter…) est coupé, sauf dans les champs de saisie
+  // (copier, coller, correcteur) et, en développement, avec Maj pour garder « Inspecter ».
+  useEffect(() => {
+    const onContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, [contenteditable]:not([contenteditable='false'])")) return;
+      if (import.meta.env.DEV && e.shiftKey) return;
+      e.preventDefault();
+      if (Date.now() - keyMenuAt.current < 1000) return; // déjà ouvert par la touche Menu ou Maj+F10
+      const holder = target.closest<HTMLElement>("[data-game]");
+      if (!holder?.dataset.game || !scrollRef.current?.contains(holder)) return;
+      openMenu({ gameId: holder.dataset.game, at: { x: e.clientX, y: e.clientY }, keyboard: false, origin: focusTarget(holder) });
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, []);
 
   // Navigation par zones, au clavier comme à la manette : la barre latérale à gauche, le contenu à
   // droite. Gauche depuis la première colonne (ou depuis une section à elle) entre dans la barre ;
@@ -732,6 +852,9 @@ export default function App() {
           setSelectedId(s.selected.id);
           focusCard(s.selected.id);
         }
+      } else if (key === "ContextMenu" || (e.shiftKey && key === "F10")) {
+        e.preventDefault(); // sinon le menu natif de la WebView
+        menuFromFocus();
       } else if (key === "Escape") {
         back();
       } else if (key.length === 1 && key !== " " && !ctrl && !e.altKey) {
@@ -800,7 +923,17 @@ export default function App() {
   const padConnected = useGamepad((action) => {
     setPadHints(true);
     const s = live.current;
+    // Menu contextuel ouvert : la manette le pilote comme le clavier (B ou Menu le ferment).
+    if (menuRef.current) {
+      const key = PAD_MENU_KEYS[action];
+      const target = document.activeElement?.closest(".cmenu-layer") ? document.activeElement : document.querySelector(".cmenu");
+      if (key) target?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      return;
+    }
     switch (action) {
+      case "menu":
+        menuFromFocus();
+        break;
       case "up":
       case "down":
       case "left":
@@ -1105,6 +1238,8 @@ export default function App() {
                   onNote={changeNote}
                   onToggleCollection={toggleCollection}
                   onCreateCollection={(name, game) => newCollection(name, game)}
+                  edit={ficheEdit?.id === g.id ? ficheEdit.kind : null}
+                  onEditStarted={() => setFicheEdit(null)}
                 />
               )}
             />
@@ -1121,6 +1256,7 @@ export default function App() {
           <span><kbd>LB</kbd><kbd>RB</kbd> section</span>
           <span><kbd>LT</kbd><kbd>RT</kbd> filtre</span>
           <span><kbd>Vue</kbd> tri</span>
+          <span><kbd>Menu</kbd> actions</span>
           <span><kbd className="pad">B</kbd> fermer</span>
         </footer>
       ) : (
@@ -1129,11 +1265,24 @@ export default function App() {
           <span><kbd>Entrée</kbd> jouer</span>
           <span><kbd>Espace</kbd> fiche</span>
           <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
+          <span><kbd>Maj</kbd><kbd>F10</kbd> actions</span>
           <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, sections.length)}</kbd> section</span>
           <span><kbd>Ctrl</kbd><kbd>N</kbd> ajouter</span>
           <span><kbd>F5</kbd> rescanner</span>
           <span><kbd>Échap</kbd> fermer</span>
         </footer>
+      )}
+
+      {menu && menuGame && (
+        <ContextMenu
+          key={`${menu.gameId}-${menu.at.x}-${menu.at.y}`}
+          entries={menuEntries}
+          at={menu.at}
+          label={`Actions pour ${menuGame.title}`}
+          keyboard={menu.keyboard}
+          onAction={(a) => runMenu(menuGame, a)}
+          onClose={closeMenu}
+        />
       )}
 
       <div className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`} role="status" aria-live="polite">
