@@ -101,6 +101,14 @@ export const GamepadIcon = () => (
 export const ImageIcon = () => (
   <svg {...base}><rect x="3" y="4.5" width="18" height="15" rx="1.5" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="9" r="1.5" /></svg>
 );
+/** Image de fond : un cadre large avec un paysage. */
+export const WideImageIcon = () => (
+  <svg {...base}><rect x="2.5" y="6.5" width="19" height="11" rx="1.5" /><path d="m2.5 15 5-4 4 3.5 3-2.5 7 5" /></svg>
+);
+/** Retour à l'origine : une flèche qui revient en arrière. */
+export const UndoIcon = () => (
+  <svg {...base}><path d="M9 14 4.5 9.5 9 5" /><path d="M4.5 9.5h10a5 5 0 0 1 0 10H11" /></svg>
+);
 /** Sauvegardes : une disquette. */
 export const SaveIcon = () => (
   <svg {...base}>

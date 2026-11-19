@@ -3,6 +3,7 @@
 //! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur, et
 //! réglages de l'application (zone de notification, lancement avec Windows, copie des sauvegardes).
 
+use crate::covers::{CustomArt, Kind, Picked};
 use crate::library::manual::{self, Custom, ManualGame};
 use crate::library::{Game, PlaytimeSource};
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,9 @@ pub struct UserData {
     pub exes: BTreeMap<String, PathBuf>,
     /// Titre choisi par l'utilisateur, par id (jeux détectés ; un jeu manuel garde le sien).
     pub titles: BTreeMap<String, String>,
+    /// Jaquette et image de fond choisies par l'utilisateur, par id (`covers.rs`). Gardées même
+    /// si le jeu quitte la bibliothèque : il les retrouve en revenant.
+    pub covers: BTreeMap<String, CustomArt>,
     /// Réglages de l'application (zone de notification, lancement avec Windows).
     pub settings: Settings,
 }
@@ -146,6 +150,17 @@ impl UserData {
             Some(t) => drop(self.titles.insert(id.to_string(), t)),
             None => drop(self.titles.remove(id)),
         }
+    }
+
+    /// Image perso choisie (`Some`) ou retirée (`None`). Renvoie l'ancien choix.
+    pub fn set_cover(&mut self, id: &str, kind: Kind, value: Option<Picked>) -> Option<Picked> {
+        let entry = self.covers.entry(id.to_string()).or_default();
+        let old = entry.get(kind).cloned();
+        entry.set(kind, value);
+        if entry.is_empty() {
+            self.covers.remove(id);
+        }
+        old
     }
 
     /// Jeux manuels et corrections de l'utilisateur, appliqués à une bibliothèque scannée.
@@ -316,6 +331,27 @@ mod tests {
         assert_eq!(old.settings, Settings::default());
         let partial: UserData = serde_json::from_str(r#"{"settings":{"launchAtStartup":true}}"#).unwrap();
         assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup);
+    }
+
+    #[test]
+    fn custom_covers_are_set_reset_and_saved() {
+        let path = std::env::temp_dir().join(format!("ludex-test-covers-{}.json", std::process::id()));
+        let mut data = UserData::default();
+        let picked = |at| Picked { ext: "png".into(), at };
+        assert_eq!(data.set_cover("riot:valorant", Kind::Cover, Some(picked(1))), None);
+        assert_eq!(data.set_cover("riot:valorant", Kind::Cover, Some(picked(2))), Some(picked(1)));
+        data.set_cover("riot:valorant", Kind::Hero, Some(picked(3)));
+        data.save(&path).unwrap();
+        let loaded = UserData::load(&path);
+        assert_eq!(loaded.covers.get("riot:valorant").and_then(|c| c.get(Kind::Hero)), Some(&picked(3)));
+        // Jaquette d'origine : l'entrée disparaît quand plus rien n'est choisi.
+        data.set_cover("riot:valorant", Kind::Cover, None);
+        assert!(data.covers.contains_key("riot:valorant"));
+        data.set_cover("riot:valorant", Kind::Hero, None);
+        assert!(data.covers.is_empty());
+        data.set_cover("steam:730", Kind::Hero, None);
+        assert!(data.covers.is_empty());
+        let _ = fs::remove_file(path);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { gameHistory, gameScreenshots, MAX_TITLE, PLATFORM_LABEL, type Game, type PastSession, type Screenshot } from "../lib/api";
+import { gameHistory, gameScreenshots, MAX_TITLE, PLATFORM_LABEL, type ArtKind, type Game, type PastSession, type Screenshot } from "../lib/api";
 import {
   formatAchievements,
   formatDate,
@@ -13,7 +13,7 @@ import {
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { SavesPanel } from "./SavesPanel";
 
 interface Props {
@@ -30,6 +30,10 @@ interface Props {
   onChangeExe: (game: Game) => void;
   /** Titre vide : retour au titre d'origine. */
   onRename: (game: Game, title: string) => void;
+  /** Choisir une jaquette ou une image de fond perso (sélecteur ouvert côté Rust). */
+  onChooseArt: (game: Game, kind: ArtKind) => void;
+  /** Retirer les images perso du jeu : retour aux images d'origine. */
+  onResetArt: (game: Game) => void;
   /** Jeux ajoutés à la main seulement. */
   onRemove: (game: Game) => void;
   onClose: () => void;
@@ -122,6 +126,12 @@ export function lastSessionText(game: Game, last: PastSession | null): { text: s
   return { text: `${relativeTime(Math.max(end, launcherDate))}, ${formatDuration(last.secs)}`, title };
 }
 
+/** Libellé du retour aux images d'origine, selon ce qui a été remplacé. */
+function resetLabel(custom: ArtKind[]): string {
+  if (custom.length > 1) return "Jaquette et image de fond d'origine";
+  return custom[0] === "hero" ? "Image de fond d'origine" : "Jaquette d'origine";
+}
+
 /** Vignettes montrées dans la fiche ; la dernière annonce les suivantes (« +12 »). */
 const STRIP_SHOTS = 6;
 
@@ -180,7 +190,7 @@ function SavesSection({ gameId, playing }: { gameId: string; playing: boolean })
 }
 
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
-export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
+export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onChooseArt, onResetArt, onRemove, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
   const details = detailsLine(game);
   const description = game.details?.description;
@@ -246,6 +256,17 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           >
             <PencilIcon />
           </button>
+          <button type="button" className="btn-icon" aria-label="Changer la jaquette" title="Changer la jaquette" onClick={() => onChooseArt(game, "cover")}>
+            <ImageIcon />
+          </button>
+          <button type="button" className="btn-icon" aria-label="Changer l'image de fond" title="Changer l'image de fond" onClick={() => onChooseArt(game, "hero")}>
+            <WideImageIcon />
+          </button>
+          {game.customArt.length > 0 && (
+            <button type="button" className="btn-icon" aria-label={resetLabel(game.customArt)} title={resetLabel(game.customArt)} onClick={() => onResetArt(game)}>
+              <UndoIcon />
+            </button>
+          )}
           <button
             type="button"
             className="btn-icon"

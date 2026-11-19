@@ -108,6 +108,8 @@ pub struct Game {
     pub steam_appid: Option<u32>,
     /// Genres, studio, éditeur, sortie et description (`metadata.rs`), `None` tant qu'inconnus.
     pub details: Option<crate::metadata::Details>,
+    /// Images choisies par l'utilisateur (`covers.rs`) : jaquette, image de fond.
+    pub custom_art: Vec<crate::covers::Kind>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -236,6 +238,7 @@ impl Game {
             local_art: LocalArt::default(),
             steam_appid: None,
             details: None,
+            custom_art: Vec::new(),
         }
     }
 
