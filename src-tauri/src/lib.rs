@@ -6,6 +6,7 @@ mod metadata;
 mod recap;
 mod screenshots;
 mod saves;
+mod moods;
 mod session;
 mod showcase;
 mod store;

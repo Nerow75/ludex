@@ -14,6 +14,7 @@ import {
   onTrayHint,
   onTrayLaunch,
   openInstallDir,
+  MOOD_LABEL,
   PLATFORM_LABEL,
   PLATFORMS,
   removeGame,
@@ -24,6 +25,7 @@ import {
   type Game,
   type LibraryEvent,
   type LibraryUpdate,
+  type Mood,
   type ScanResult,
   type SessionEvent,
   type UpdateInfo,
@@ -31,7 +33,24 @@ import {
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { useGamepad } from "./lib/gamepad";
-import { matchesFilter, recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
+import {
+  hasFacets,
+  libraryMoods,
+  libraryTags,
+  matchesFacets,
+  matchesFilter,
+  NO_FACETS,
+  recentGames,
+  remember,
+  rememberFacets,
+  remembered,
+  rememberedFacets,
+  selectGames,
+  SORT_LABEL,
+  type Facets,
+  type Filter,
+  type Sort,
+} from "./lib/library";
 import { SECTION_IDS, SECTIONS, type SectionContext } from "./lib/sections";
 import { GameStrip } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
@@ -61,6 +80,8 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
+  // Tag Steam et ambiance choisis, en plus du filtre par launcher.
+  const [facets, setFacets] = useState<Facets>(rememberedFacets);
   // Barre latérale : section affichée et barre repliée (icônes seules), gardées entre deux lancements.
   const [sectionId, setSectionId] = useState(() => remembered("section", SECTION_IDS, SECTION_IDS[0]));
   const [collapsed, setCollapsed] = useState(() => remembered("sidebar", ["open", "collapsed"], "open") === "collapsed");
@@ -79,7 +100,7 @@ export default function App() {
   const custom = !query && !!view.render;
   const scoped = useMemo(() => (view.scope ? games.filter(view.scope) : games), [games, view]);
   const activeFilter: Filter = view.filters && !view.filters(filter) ? "all" : filter;
-  const results = useMemo(() => selectGames(scoped, activeFilter, sort, query), [scoped, activeFilter, sort, query]);
+  const results = useMemo(() => selectGames(scoped, activeFilter, sort, query, facets), [scoped, activeFilter, sort, query, facets]);
   const recent = useMemo(() => recentGames(games, 4), [games]);
   const selected =
     results.find((g) => g.id === selectedId) ??
@@ -106,14 +127,37 @@ export default function App() {
     });
   }, []);
 
+  const changeFacets = useCallback((f: Facets) => {
+    setFacets(f);
+    setOpen(false);
+    rememberFacets(f);
+  }, []);
+
   /** Ouvre la fiche d'un jeu dans « Tous les jeux », avec un filtre qui le montre. */
   const openGame = useCallback((game: Game) => {
     goTo("all");
     setQuery("");
     setFilter((f) => (game.hidden ? "hidden" : f !== "favorites" && matchesFilter(game, f) ? f : "all"));
+    setFacets((f) => {
+      if (matchesFacets(game, f)) return f;
+      rememberFacets(NO_FACETS);
+      return NO_FACETS;
+    });
     setSelectedId(game.id);
     setOpen(true);
   }, [goTo]);
+
+  /** Jeux d'un tag ou d'une ambiance (page Tags, fiche) : « Tous les jeux », tous launchers confondus. */
+  const showFacets = useCallback((f: Facets) => {
+    goTo("all");
+    setQuery("");
+    setFilter("all");
+    remember("filter", "all");
+    changeFacets(f);
+    setSelectedId(null);
+  }, [goTo, changeFacets]);
+  const showTag = useCallback((tag: string) => showFacets({ tag, mood: null }), [showFacets]);
+  const showMood = useCallback((mood: Mood) => showFacets({ tag: null, mood }), [showFacets]);
 
   /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
   const refresh = useCallback(async (manual = false) => {
@@ -339,8 +383,9 @@ export default function App() {
       const u = await addGame();
       if (!u) return; // sélection annulée
       applyUpdate(u);
-      // Le nouveau jeu doit être visible : ni filtre qui l'exclut, ni recherche.
+      // Le nouveau jeu doit être visible : ni filtre qui l'exclut, ni recherche (ni tag : il n'a pas encore de fiche).
       setFilter((f) => (f === "all" || f === "other" ? f : "all"));
+      changeFacets(NO_FACETS);
       goTo(SECTION_IDS[0]);
       setQuery("");
       setOpen(true);
@@ -350,7 +395,7 @@ export default function App() {
     } finally {
       adding.current = false;
     }
-  }, [applyUpdate, goTo, showToast]);
+  }, [applyUpdate, goTo, changeFacets, showToast]);
 
   const changeExe = useCallback(async (game: Game) => {
     try {
@@ -391,8 +436,8 @@ export default function App() {
     requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
-  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar });
-  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar };
+  const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar });
+  live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar };
 
   // Navigation par zones, au clavier comme à la manette : la barre latérale à gauche, le contenu à
   // droite. Gauche depuis la première colonne (ou depuis une section à elle) entre dans la barre ;
@@ -445,11 +490,12 @@ export default function App() {
     focusCard(next.id);
   };
 
-  /** Échap ou B : replie la fiche, sinon efface la recherche. */
+  /** Échap ou B : replie la fiche, sinon efface la recherche, sinon retire le tag et l'ambiance. */
   const back = () => {
     const s = live.current;
     if (s.open) setOpen(false);
     else if (s.query) setQuery("");
+    else if (!s.custom && hasFacets(s.facets)) s.changeFacets(NO_FACETS);
   };
 
   // Indices de la barre du bas : ceux de la manette après une action à la manette, ceux du clavier sinon.
@@ -474,6 +520,8 @@ export default function App() {
       const onNav = target === document.body || target.matches(".card__hit, .tile__hit, .side__item, [data-nav]");
       const ctrl = e.ctrlKey || e.metaKey;
       const key = e.key;
+      // Liste déroulante (tag, ambiance) : ses touches lui reviennent, sauf les raccourcis avec Ctrl et F5.
+      if (target instanceof HTMLSelectElement && !ctrl && key !== "F5") return;
 
       if ((ctrl && key.toLowerCase() === "k") || (key === "/" && !inInput)) {
         e.preventDefault();
@@ -543,7 +591,11 @@ export default function App() {
     (g: Game) => (sort === "size" ? formatSize(g.sizeOnDisk) : sort === "playtime" ? formatPlaytime(g.playtimeMinutes) : relativeTime(g.lastPlayed)),
     [sort],
   );
-  const count = (f: Filter) => selectGames(scoped, f, sort, "").length;
+  const count = (f: Filter) => selectGames(scoped, f, sort, "", facets).length;
+  // Choix des listes Tag et Ambiance : jeux de la section et du filtre par launcher.
+  const facetPool = useMemo(() => scoped.filter((g) => matchesFilter(g, activeFilter)), [scoped, activeFilter]);
+  const tagChoices = useMemo(() => libraryTags(facetPool), [facetPool]);
+  const moodChoices = useMemo(() => libraryMoods(facetPool).filter((m) => m.count > 0 || m.mood === facets.mood), [facetPool, facets.mood]);
   // Un filtre par launcher qui a au moins un jeu (un launcher installé mais vide n'encombre pas la barre),
   // parmi ceux que la section propose.
   const filters = FILTERS.filter(
@@ -601,7 +653,7 @@ export default function App() {
     }
   });
   const showPadHints = padConnected && padHints;
-  const sectionContext: SectionContext = { games, playing, openGame, play };
+  const sectionContext: SectionContext = { games, playing, openGame, play, showTag, showMood };
 
   return (
     <div
@@ -632,7 +684,7 @@ export default function App() {
               setOpen(false);
             }}
             onKeyDown={onSearchKey}
-            placeholder="Rechercher un jeu"
+            placeholder="Rechercher un jeu, un studio, un tag"
             aria-label="Rechercher un jeu"
             spellCheck={false}
             autoComplete="off"
@@ -707,7 +759,7 @@ export default function App() {
 
         {scan && !emptyLibrary && custom && view.render?.(sectionContext)}
 
-        {scan && !emptyLibrary && !custom && view.resume && !query && activeFilter === "all" && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
+        {scan && !emptyLibrary && !custom && view.resume && !query && activeFilter === "all" && !hasFacets(facets) && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
 
         {scan && !emptyLibrary && !custom && (
           <section aria-labelledby="lib-title">
@@ -720,13 +772,62 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <select
+                className="pick"
+                aria-label="Filtrer par ambiance"
+                value={facets.mood ?? ""}
+                onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
+              >
+                <option value="">Ambiance</option>
+                {moodChoices.map(({ mood, count }) => (
+                  <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
+                ))}
+              </select>
+              <select
+                className="pick"
+                aria-label="Filtrer par tag Steam"
+                value={facets.tag ?? ""}
+                onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
+              >
+                <option value="">Tag</option>
+                {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
+                {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
+                {tagChoices.map(({ name, count }) => (
+                  <option key={name} value={name}>{name} ({count})</option>
+                ))}
+              </select>
               <div className="seg" role="group" aria-label="Trier">
                 {SORTS.map((s) => (
                   <button key={s} type="button" aria-pressed={sort === s} onClick={() => changeSort(s)}>{SORT_LABEL[s]}</button>
                 ))}
               </div>
             </div>
-            {results.length === 0 && <NoResults filter={activeFilter} section={view.resume ? null : view.label} query={query} onClear={() => setQuery("")} />}
+            {hasFacets(facets) && (
+              <ul className="pills" aria-label="Filtres actifs">
+                {facets.mood && (
+                  <li className="pill">
+                    Ambiance : {MOOD_LABEL[facets.mood]}
+                    <button type="button" aria-label={`Retirer le filtre ${MOOD_LABEL[facets.mood]}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, mood: null })}>×</button>
+                  </li>
+                )}
+                {facets.tag && (
+                  <li className="pill">
+                    Tag : {facets.tag}
+                    <button type="button" aria-label={`Retirer le filtre ${facets.tag}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, tag: null })}>×</button>
+                  </li>
+                )}
+              </ul>
+            )}
+            {results.length === 0 && (
+              <NoResults
+                filter={activeFilter}
+                section={view.resume ? null : view.label}
+                query={query}
+                facets={facets}
+                onClear={() => setQuery("")}
+                onClearFacets={() => changeFacets(NO_FACETS)}
+              />
+            )}
             <LibraryGrid
               games={results}
               selectedId={selected?.id ?? null}
@@ -748,6 +849,8 @@ export default function App() {
                   onChangeExe={changeExe}
                   onRename={rename}
                   onRemove={remove}
+                  onTag={showTag}
+                  onMood={showMood}
                   onClose={() => setOpen(false)}
                 />
               )}
@@ -821,7 +924,27 @@ function libraryToast({ added, removed }: LibraryEvent): Toast | null {
   return removed.length ? { title: gone, detail: list(removed) } : null;
 }
 
-function NoResults({ filter, section, query, onClear }: { filter: Filter; section: string | null; query: string; onClear: () => void }) {
+interface NoResultsProps {
+  filter: Filter;
+  section: string | null;
+  query: string;
+  facets: Facets;
+  onClear: () => void;
+  onClearFacets: () => void;
+}
+
+function NoResults({ filter, section, query, facets, onClear, onClearFacets }: NoResultsProps) {
+  if (!query && hasFacets(facets)) {
+    const what = [facets.mood && `l'ambiance « ${MOOD_LABEL[facets.mood]} »`, facets.tag && `le tag « ${facets.tag} »`].filter(Boolean).join(" et ");
+    return (
+      <EmptyState
+        title={`Aucun jeu avec ${what}`}
+        action={<button type="button" className="btn-ghost" onClick={onClearFacets}>Retirer les filtres</button>}
+      >
+        {filter !== "all" ? `Dans « ${FILTER_LABEL[filter]} ». ` : ""}Les tags et les ambiances viennent de la boutique Steam : les jeux sans fiche Steam n'en ont pas
+      </EmptyState>
+    );
+  }
   if (query) {
     return (
       <EmptyState
@@ -829,7 +952,7 @@ function NoResults({ filter, section, query, onClear }: { filter: Filter; sectio
         title={`Aucun jeu ne correspond à « ${query} »`}
         action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
       >
-        La recherche porte sur le titre{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
+        La recherche porte sur le titre, le studio et les tags{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
       </EmptyState>
     );
   }

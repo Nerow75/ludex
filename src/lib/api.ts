@@ -8,10 +8,23 @@ export type SessionPhase = "detecting" | "running" | "ended";
 
 export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "other"];
 
+/** Ambiance tirée des tags Steam et des catégories de la boutique (`moods.rs`). */
+export type Mood = "chill" | "intense" | "story" | "friends";
+export const MOODS: readonly Mood[] = ["chill", "intense", "story", "friends"];
+export const MOOD_LABEL: Record<Mood, string> = { chill: "Chill", intense: "Intense", story: "Histoire", friends: "Entre amis" };
+
+/** Prise en charge de la manette annoncée par la boutique Steam. */
+export type ControllerSupport = "full" | "partial";
+
 /** Fiche lue sur la boutique Steam pour les jeux dont on connaît l'appid. */
 export interface GameDetails {
   /** Du plus voté au moins voté, trois au plus. */
   genres: string[];
+  /** Tags Steam en français, du plus voté au moins voté, dix au plus (genres compris). */
+  tags: string[];
+  moods: Mood[];
+  /** `null` : la boutique n'en dit rien. */
+  controller: ControllerSupport | null;
   developers: string[];
   publishers: string[];
   /** Première sortie (secondes Unix). */

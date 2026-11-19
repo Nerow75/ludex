@@ -165,6 +165,38 @@ kbd {
 .seg button[aria-pressed="true"] { background: var(--lx-surface-2); color: var(--lx-text); }
 .seg em { font-style: normal; font-family: var(--lx-font-mono); font-size: 12px; color: var(--lx-text-3); }
 
+/* ---------- Tags et ambiances ---------- */
+/* Listes Ambiance et Tag de la barre, pastilles des filtres actifs, puces de la fiche et page Tags. */
+.pick {
+  height: 38px; max-width: 200px; padding: 0 8px; border-radius: var(--lx-radius-m); border: 1px solid var(--lx-border);
+  background: color-mix(in srgb, var(--lx-surface) 85%, transparent); color: var(--lx-text-2); font: 13px var(--lx-font-body);
+}
+.pick:hover { color: var(--lx-text); }
+.pick option { background: var(--lx-surface); color: var(--lx-text); }
+.pills { list-style: none; display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 16px; padding: 0; }
+.pill {
+  display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; font-size: 13px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m); background: var(--lx-surface); color: var(--lx-text);
+}
+.pill button {
+  width: 24px; height: 24px; border: 0; border-radius: 6px; background: none; color: var(--lx-text-3);
+  font-size: 16px; line-height: 1; display: grid; place-items: center; transition: color .15s, background-color .15s;
+}
+.pill button:hover { background: var(--lx-surface-2); color: var(--lx-text); }
+.chips, .tags { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
+.chip {
+  height: 24px; padding: 0 8px; border: 1px solid var(--lx-border); border-radius: 6px; background: none;
+  color: var(--lx-text-2); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; transition: color .15s, background-color .15s;
+}
+.chip:hover { background: var(--lx-surface-2); color: var(--lx-text); }
+.chip.is-mood { color: var(--lx-accent-text); border-color: color-mix(in srgb, var(--lx-accent) 40%, var(--lx-border)); }
+.chip em { font-style: normal; font-family: var(--lx-font-mono); font-size: 12px; color: var(--lx-text-3); }
+.tags { gap: 8px; max-width: 960px; }
+.tags .chip { height: 32px; padding: 0 12px; font-size: 14px; border-radius: var(--lx-radius-m); }
+.tags__head { font-size: 14px; font-weight: 500; color: var(--lx-text-3); margin: 24px 0 12px; }
+.bar + .tags__head { margin-top: 0; }
+.tags__note { margin-top: 24px; font-size: 13px; color: var(--lx-text-3); max-width: 72ch; }
+
 /* ---------- Visuels larges et logos ---------- */
 .art {
   position: absolute; inset: 0; overflow: hidden;
