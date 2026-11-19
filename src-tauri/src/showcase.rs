@@ -240,7 +240,7 @@ pub struct Showcase {
 /// Chiffres de la vitrine. `games` : jeux avec une progression de succès connue ; `details` : la
 /// liste complète (pourcentages appliqués) des jeux qui en ont débloqué au moins un.
 pub fn build(games: &[Game], details: &[(&Game, Vec<Achievement>)]) -> Showcase {
-    let with = || games.iter().filter_map(|g| g.achievements.map(|a| (g, a))).filter(|(_, a)| a.total > 0);
+    let with = || games.iter().filter_map(|g| g.achievements.as_ref().map(|a| (g, a))).filter(|(_, a)| a.total > 0);
     let mut perfect: Vec<Perfect> = with()
         .filter(|(_, a)| a.unlocked >= a.total)
         .map(|(g, a)| Perfect { game_id: g.id.clone(), game_title: g.title.clone(), total: a.total, completed_at: a.last_unlocked })
@@ -301,7 +301,7 @@ mod tests {
 
     fn game(appid: &str, title: &str, unlocked: u32, total: u32, last: Option<u64>) -> Game {
         let mut g = Game::new(Platform::Steam, appid, title, Launch::Uri(String::new()));
-        g.achievements = Some(Achievements { unlocked, total, last_unlocked: last });
+        g.achievements = Some(Achievements { unlocked, total, last_unlocked: last, unlock_times: Vec::new() });
         g
     }
 
@@ -409,7 +409,7 @@ mod tests {
         let games: Vec<Game> = crate::library::scan().games.into_iter().filter(|g| g.achievements.is_some()).collect();
         println!("Scan : {:?}, {} jeux avec succès", start.elapsed(), games.len());
         let stats = crate::library::SteamStats::locate().expect("Steam introuvable");
-        let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.is_some_and(|a| a.unlocked > 0)).collect();
+        let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.as_ref().is_some_and(|a| a.unlocked > 0)).collect();
         let appids: Vec<u32> = unlocked.iter().filter_map(|g| g.platform_id.parse().ok()).collect();
 
         let dir = std::env::temp_dir().join("ludex-showcase-this-pc");

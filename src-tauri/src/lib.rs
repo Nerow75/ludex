@@ -834,7 +834,7 @@ async fn showcase(app: AppHandle) -> Result<showcase::Showcase, String> {
             .filter(|g| g.platform == Platform::Steam && !g.hidden && g.achievements.is_some())
             .cloned()
             .collect();
-        let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.is_some_and(|a| a.unlocked > 0)).collect();
+        let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.as_ref().is_some_and(|a| a.unlocked > 0)).collect();
         let appids: Vec<u32> = unlocked.iter().filter_map(|g| g.platform_id.parse().ok()).collect();
         refresh_global(&state, &appids);
         let Some(stats) = library::SteamStats::locate() else { return Ok(showcase::build(&games, &[])) };
