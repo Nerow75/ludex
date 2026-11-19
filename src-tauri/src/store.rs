@@ -69,11 +69,21 @@ pub struct Settings {
     pub saves_dir: Option<PathBuf>,
     /// Copie des sauvegardes à la fin de chaque partie (une minute au moins). Active par défaut.
     pub auto_saves: bool,
+    /// Raccourci clavier global qui ouvre la recherche rapide (`quick.rs`), au format du plugin
+    /// (« Alt+Space », « Ctrl+Shift+L »). Vide : désactivé. Modifiable plus tard par un écran Paramètres.
+    pub quick_shortcut: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false, saves_dir: None, auto_saves: true }
+        Settings {
+            keep_in_tray: true,
+            launch_at_startup: false,
+            tray_hint_shown: false,
+            saves_dir: None,
+            auto_saves: true,
+            quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
+        }
     }
 }
 
@@ -409,11 +419,16 @@ mod tests {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
         assert!(s.auto_saves && s.saves_dir.is_none());
+        assert_eq!(s.quick_shortcut, "Alt+Space");
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
         let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
         assert_eq!(old.settings, Settings::default());
         let partial: UserData = serde_json::from_str(r#"{"settings":{"launchAtStartup":true}}"#).unwrap();
         assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup);
+        assert_eq!(partial.settings.quick_shortcut, "Alt+Space");
+        // Raccourci désactivé par l'utilisateur : la chaîne vide est gardée telle quelle.
+        let off: UserData = serde_json::from_str(r#"{"settings":{"quickShortcut":""}}"#).unwrap();
+        assert!(off.settings.quick_shortcut.is_empty());
     }
 
     #[test]
@@ -524,6 +539,7 @@ mod tests {
         data.settings.tray_hint_shown = true;
         data.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
         data.settings.auto_saves = false;
+        data.settings.quick_shortcut = "Ctrl+Shift+L".to_string();
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));
