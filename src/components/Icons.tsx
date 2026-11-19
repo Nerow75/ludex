@@ -125,3 +125,7 @@ export const SaveIcon = () => (
     <path d="M8.5 4.5v4h6v-4M8.5 19.5v-6h7v6" />
   </svg>
 );
+/** Coche : entrée choisie d'un menu (statut, collection). */
+export const CheckIcon = () => (
+  <svg {...base}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+);
