@@ -117,6 +117,8 @@ pub struct Game {
     pub note: Option<String>,
     /// Images choisies par l'utilisateur (`covers.rs`) : jaquette, image de fond.
     pub custom_art: Vec<crate::covers::Kind>,
+    /// Durée de vie moyenne (HowLongToBeat, `hltb.rs`), `None` tant qu'inconnue.
+    pub hltb: Option<crate::hltb::Hltb>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -249,6 +251,7 @@ impl Game {
             status: None,
             note: None,
             custom_art: Vec::new(),
+            hltb: None,
         }
     }
 

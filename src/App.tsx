@@ -13,6 +13,7 @@ import {
   onGameArt,
   onGameDetails,
   onGameSize,
+  onGameHltb,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -327,6 +328,12 @@ export default function App() {
   // Tailles mesurées par Ludex (jeux sans taille du launcher) : tri « Taille » et section Stockage.
   useEffect(() => {
     const unlisten = onGameSize(({ id, sizeOnDisk }) => patchGame(id, { sizeOnDisk }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Durées de vie (HowLongToBeat) reçues en arrière-plan après le scan.
+  useEffect(() => {
+    const unlisten = onGameHltb(({ id, hltb }) => patchGame(id, { hltb }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 

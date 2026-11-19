@@ -32,6 +32,18 @@ export interface GameDetails {
   description: string | null;
 }
 
+/** Durées moyennes HowLongToBeat, en minutes (`null` : pas assez de joueurs). */
+export interface Hltb {
+  /** Nom du jeu sur HowLongToBeat. */
+  name: string;
+  /** Histoire principale. */
+  main: number | null;
+  /** Histoire et extras. */
+  plus: number | null;
+  /** Tout à 100 %. */
+  full: number | null;
+}
+
 /** Succès débloqués sur le total, lus dans le cache local de Steam. */
 export interface Achievements {
   unlocked: number;
@@ -90,6 +102,8 @@ export interface Game {
   status: Status | null;
   /** Note perso, `null` : aucune. */
   note: string | null;
+  /** Durée de vie (HowLongToBeat) ; `null` tant qu'inconnue. */
+  hltb: Hltb | null;
 }
 
 /** Progression d'un jeu : valeur fermée, vérifiée côté Rust. */
@@ -382,6 +396,13 @@ export interface DetailsEvent {
 }
 export const onGameDetails = (handler: (event: DetailsEvent) => void): Promise<UnlistenFn> =>
   listen<DetailsEvent>("game-details", (e) => handler(e.payload));
+/** Durée de vie reçue après le scan (HowLongToBeat, en arrière-plan). */
+export interface HltbEvent {
+  id: string;
+  hltb: Hltb;
+}
+export const onGameHltb = (handler: (event: HltbEvent) => void): Promise<UnlistenFn> =>
+  listen<HltbEvent>("game-hltb", (e) => handler(e.payload));
 export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
   listen<SessionEvent>("game-session", (e) => handler(e.payload));
 /** Bibliothèque relue sans demande du front : jeu installé ou désinstallé, ou retour sur la fenêtre
