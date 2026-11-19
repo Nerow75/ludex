@@ -293,7 +293,7 @@ pub fn watched_dirs() -> WatchedDirs {
 }
 
 pub use epic::item_installed;
-pub use steam::manifest_installed;
+pub use steam::{manifest_installed, steam_root};
 
 pub fn scan() -> ScanResult {
     // Un jeu peut avoir été installé depuis le dernier scan : les disques sont relus.

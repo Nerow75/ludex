@@ -88,3 +88,18 @@ export function installNote(state: InstallState, launcher: string): string | nul
 
 /** « 10 décembre 2020 ». */
 export const formatDate = (ts: number) => fullDate.format(new Date(ts * 1000));
+
+const dateTime = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** « 19 nov. 2026, 21:04 ». */
+export const formatDateTime = (ts: number) => dateTime.format(new Date(ts * 1000));
+
+const oneDecimal = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+
+/** Petites tailles comprises : « 12 Ko », « 1,4 Mo », « 2,1 Go ». */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1e3) return `${bytes} o`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} Ko`;
+  if (bytes < 1e9) return `${oneDecimal.format(bytes / 1e6)} Mo`;
+  return `${oneDecimal.format(bytes / 1e9)} Go`;
+}

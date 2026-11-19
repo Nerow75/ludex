@@ -12,6 +12,7 @@ import {
 } from "../lib/format";
 import { Art, Logo } from "./Art";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
+import { SavesPanel } from "./SavesPanel";
 
 interface Props {
   game: Game;
@@ -119,6 +120,17 @@ function lastSessionText(game: Game, last: PastSession | null): { text: string; 
   return { text: `${relativeTime(Math.max(end, launcherDate))}, ${formatDuration(last.secs)}`, title };
 }
 
+/** Section « Sauvegardes » repliée : les dossiers ne sont lus qu'à l'ouverture. */
+function SavesSection({ gameId, playing }: { gameId: string; playing: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="strip__saves" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Sauvegardes</summary>
+      {open && <SavesPanel gameId={gameId} playing={playing} />}
+    </details>
+  );
+}
+
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
 export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
@@ -202,6 +214,7 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
           )}
         </div>
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
+        <SavesSection key={game.id} gameId={game.id} playing={playing} />
       </div>
       <button type="button" className="strip__close" aria-label="Fermer la fiche" title="Fermer (Échap)" onClick={onClose}>
         <CloseIcon />

@@ -65,6 +65,8 @@ pub struct Update {
     pub game_id: String,
     pub phase: Phase,
     pub credit_secs: u64,
+    /// Session terminée et gardée dans l'historique (une minute au moins) : déclenche la copie des sauvegardes.
+    pub finished: Option<PastSession>,
 }
 
 /// Heure actuelle en secondes Unix.
@@ -320,8 +322,8 @@ fn resume_open(journal: &Journal, sessions: &mut Vec<Session>, finished: &mut Ve
             Some(s) => sessions.push(s),
             None => {
                 let (past, credit_secs) = close_stale(&open);
-                finished.extend(past);
-                updates.push(Update { game_id: open.game_id, phase: Phase::Ended, credit_secs });
+                finished.extend(past.clone());
+                updates.push(Update { game_id: open.game_id, phase: Phase::Ended, credit_secs, finished: past });
             }
         }
     }
@@ -370,9 +372,8 @@ impl Tracker {
                 sessions.retain_mut(|s| {
                     let seen = s.sees(&procs);
                     let tick = s.tick(now, seen);
-                    if tick.phase == Phase::Ended {
-                        finished.extend(s.past());
-                    }
+                    let past = if tick.phase == Phase::Ended { s.past() } else { None };
+                    finished.extend(past.clone());
                     if tick.credit_secs > 0 || s.reported != Some(tick.phase) {
                         s.reported = Some(tick.phase);
                         if let Ok(mut map) = shared.lock() {
@@ -382,7 +383,7 @@ impl Tracker {
                                 map.insert(s.game_id.clone(), tick.phase);
                             }
                         }
-                        updates.push(Update { game_id: s.game_id.clone(), phase: tick.phase, credit_secs: tick.credit_secs });
+                        updates.push(Update { game_id: s.game_id.clone(), phase: tick.phase, credit_secs: tick.credit_secs, finished: past });
                     }
                     tick.phase != Phase::Ended
                 });
@@ -439,6 +440,17 @@ impl Tracker {
             .map(|map| map.iter().map(|(id, phase)| (id.clone(), *phase)).collect())
             .unwrap_or_default()
     }
+}
+
+/// Un processus du jeu tourne-t-il en ce moment, lancé ou non depuis Ludex ? Relevé ponctuel
+/// (avant une restauration de sauvegardes). Sans dossier connu : faux.
+pub fn game_running(game: &Game) -> bool {
+    let roots = roots_for(game);
+    if roots.is_empty() {
+        return false;
+    }
+    let session = Session::new(&game.id, roots, false, Instant::now());
+    running_processes(&mut None).iter().any(|p| session.owns(&p.exe))
 }
 
 #[cfg(test)]

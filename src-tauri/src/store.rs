@@ -1,7 +1,7 @@
 //! Préférences de l'utilisateur, gardées dans un fichier JSON du dossier de données de l'app :
 //! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex, temps de jeu
 //! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur, et
-//! réglages de l'application (zone de notification, lancement avec Windows).
+//! réglages de l'application (zone de notification, lancement avec Windows, copie des sauvegardes).
 
 use crate::library::manual::{self, Custom, ManualGame};
 use crate::library::{Game, PlaytimeSource};
@@ -44,11 +44,15 @@ pub struct Settings {
     pub launch_at_startup: bool,
     /// L'explication « Ludex tourne encore » a déjà été montrée à la première fermeture.
     pub tray_hint_shown: bool,
+    /// Dossier des copies de sauvegardes, choisi avec le sélecteur natif. `None` : `Documents\Ludex\Sauvegardes`.
+    pub saves_dir: Option<PathBuf>,
+    /// Copie des sauvegardes à la fin de chaque partie (une minute au moins). Active par défaut.
+    pub auto_saves: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false }
+        Settings { keep_in_tray: true, launch_at_startup: false, tray_hint_shown: false, saves_dir: None, auto_saves: true }
     }
 }
 
@@ -306,6 +310,7 @@ mod tests {
     fn settings_default_to_tray_without_autostart() {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
+        assert!(s.auto_saves && s.saves_dir.is_none());
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
         let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
         assert_eq!(old.settings, Settings::default());
@@ -321,6 +326,8 @@ mod tests {
         data.add_playtime("epic:Sugar", 4200);
         data.settings.keep_in_tray = false;
         data.settings.tray_hint_shown = true;
+        data.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
+        data.settings.auto_saves = false;
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));

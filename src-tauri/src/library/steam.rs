@@ -128,7 +128,7 @@ fn local_art(cache: &Path, appid: &str) -> LocalArt {
     LocalArt { cover: pick(COVER_FILES), hero: pick(HERO_FILES), logo: pick(LOGO_FILES), icon: None }
 }
 
-fn steam_root() -> Option<PathBuf> {
+pub fn steam_root() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
