@@ -36,6 +36,7 @@ import {
   releaseYear,
   shortArgs,
 } from "../lib/format";
+import { downloadDetail } from "../lib/install";
 import { remember, remembered } from "../lib/library";
 import { spatialNext, type Direction } from "../lib/spatial";
 import { AchievementList } from "./AchievementList";
@@ -546,6 +547,7 @@ export function GameStrip({
   const tags = d?.tags ?? [];
   const lastSession = lastSessionText(game, history?.[0] ?? null);
   const install = installNote(game.installState, PLATFORM_LABEL[game.platform]);
+  const rate = downloadDetail(game.download);
   const achievements = game.achievements && game.achievements.total > 0 ? game.achievements : null;
   const lifespan = lifespanStat(game);
 
@@ -602,7 +604,7 @@ export function GameStrip({
             >
               <StarIcon filled={game.favorite} />
             </button>
-            {install && <span className="live is-pending">{install}</span>}
+            {install && <span className="live is-pending">{install}{rate && ` · ${rate}`}</span>}
           </div>
         </div>
       </header>

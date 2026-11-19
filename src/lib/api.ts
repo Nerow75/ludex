@@ -87,6 +87,8 @@ export interface Game {
   achievements: Achievements | null;
   /** Mise à jour ou téléchargement en attente, `ready` sinon. */
   installState: InstallState;
+  /** Débit du téléchargement en cours, posé par le front depuis `game-install` (jamais par le scan). */
+  download?: DownloadRate;
   /** Application plutôt qu'un jeu (masquée par défaut). */
   isTool: boolean;
   /** Ajouté à la main (« Autres ») : il peut être retiré. */
@@ -385,6 +387,20 @@ export interface SizeEvent {
 }
 export const onGameSize = (handler: (event: SizeEvent) => void): Promise<UnlistenFn> =>
   listen<SizeEvent>("game-size", (e) => handler(e.payload));
+/** Débit estimé d'un téléchargement : octets par seconde, secondes restantes (`null` : inconnus). */
+export interface DownloadRate {
+  speed: number | null;
+  remaining: number | null;
+}
+/** État d'installation changé pendant un téléchargement ou une mise à jour Steam (manifeste relu, sans rescan).
+ * Envoyé seulement quand l'état, le % ou la taille change. */
+export interface InstallEvent extends DownloadRate {
+  id: string;
+  installState: InstallState;
+  sizeOnDisk: number | null;
+}
+export const onGameInstall = (handler: (event: InstallEvent) => void): Promise<UnlistenFn> =>
+  listen<InstallEvent>("game-install", (e) => handler(e.payload));
 /** Jaquette trouvée après le scan (recherche sur la boutique Steam en arrière-plan), image passée
  * en cache, ou jaquette perso choisie ou retirée. */
 export interface ArtEvent {

@@ -198,7 +198,7 @@ function ShelfItem({ game, meta, openGame, play }: { game: Game; meta: ReactNode
   return (
     <li className="shelf__item" data-game={game.id}>
       <button type="button" className="shelf__hit" data-nav onClick={() => openGame(game)} onDoubleClick={() => play(game)} aria-label={game.title}>
-        <Cover game={game} />
+        <Cover game={game} progress />
         <span className="shelf__name">{game.title}</span>
         <span className="shelf__meta">{meta}</span>
       </button>

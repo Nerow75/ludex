@@ -290,6 +290,36 @@ pub fn manifest_installed(text: &str) -> Option<bool> {
     Some(is_installed(app))
 }
 
+/// Ce qu'un manifeste dit de l'installation d'un jeu, relu seul par la surveillance (`watch.rs`)
+/// pendant un téléchargement : mêmes règles que le scan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManifestState {
+    pub appid: String,
+    /// Jeu listé par le scan (`listed`).
+    pub installed: bool,
+    pub install_state: InstallState,
+    pub size_on_disk: Option<u64>,
+    /// Octets téléchargés et à télécharger, pour estimer le débit.
+    pub downloaded: u64,
+    pub to_download: Option<u64>,
+}
+
+/// Lit un manifeste `appmanifest_*.acf`. `None` : illisible (en cours d'écriture) ou appid absent.
+pub fn read_manifest(text: &str) -> Option<ManifestState> {
+    let doc = vdf::parse(text);
+    let app = doc.get("AppState")?;
+    let appid = app.str("appid").filter(|a| !a.is_empty() && a.bytes().all(|b| b.is_ascii_digit()))?;
+    let flags: u32 = app.str("StateFlags")?.parse().ok()?;
+    Some(ManifestState {
+        appid: appid.to_string(),
+        installed: listed(flags, app),
+        install_state: install_state(flags, app),
+        size_on_disk: number(app, "SizeOnDisk"),
+        downloaded: number(app, "BytesDownloaded").unwrap_or(0),
+        to_download: number(app, "BytesToDownload"),
+    })
+}
+
 /// Dossiers `steamapps` de toutes les bibliothèques Steam (là où Steam écrit ses manifestes).
 pub fn steamapps_dirs() -> Vec<PathBuf> {
     let Some(root) = steam_root() else { return Vec::new() };
@@ -534,6 +564,42 @@ mod tests {
         assert_eq!(super::manifest_installed(&manifest("1026")), Some(false)); // téléchargement
         assert_eq!(super::manifest_installed(r#""AppState" { "appid" "10" "#), None); // en cours d'écriture
         assert_eq!(super::manifest_installed(""), None);
+    }
+
+    /// Manifestes complets tels que Steam les écrit pendant une mise à jour de Counter-Strike 2.
+    fn written(flags: u32, to_download: u64, downloaded: u64, size: u64) -> String {
+        format!(
+            "\"AppState\"\n{{\n\t\"appid\"\t\t\"730\"\n\t\"universe\"\t\t\"1\"\n\t\"name\"\t\t\"Counter-Strike 2\"\n\
+             \t\"StateFlags\"\t\t\"{flags}\"\n\t\"installdir\"\t\t\"Counter-Strike Global Offensive\"\n\
+             \t\"SizeOnDisk\"\t\t\"{size}\"\n\t\"buildid\"\t\t\"26334290\"\n\t\"TargetBuildID\"\t\t\"26393695\"\n\
+             \t\"BytesToDownload\"\t\t\"{to_download}\"\n\t\"BytesDownloaded\"\t\t\"{downloaded}\"\n\
+             \t\"BytesToStage\"\t\t\"0\"\n\t\"BytesStaged\"\t\t\"0\"\n}}\n"
+        )
+    }
+
+    #[test]
+    fn reads_a_manifest_written_during_an_update() {
+        use crate::library::InstallState::*;
+        let read = |text: &str| super::read_manifest(text).unwrap();
+        // File d'attente, téléchargement, pause, puis fin : le jeu reste listé tout du long.
+        let queued = read(&written(1030, 96_837_264, 0, 40_000_000_000));
+        assert_eq!((queued.appid.as_str(), queued.installed, queued.install_state), ("730", true, Queued));
+        let running = read(&written(2 | 1024 | 256 | 1_048_576, 96_837_264, 48_418_632, 40_000_000_000));
+        assert_eq!(running.install_state, Updating { progress: Some(50) });
+        assert!(running.installed);
+        assert_eq!((running.downloaded, running.to_download), (48_418_632, Some(96_837_264)));
+        let paused = read(&written(2 | 1024 | 512, 96_837_264, 72_000_000, 40_000_000_000));
+        assert_eq!(paused.install_state, Paused { progress: Some(74) });
+        let done = read(&written(4, 0, 0, 40_096_837_264));
+        assert_eq!(done.install_state, Ready);
+        assert_eq!(done.size_on_disk, Some(40_096_837_264));
+        assert_eq!(done.to_download, None);
+        // Première installation (buildid 0) : pas listée.
+        let first = read(&written(1026, 100, 10, 0).replace("26334290", "0"));
+        assert!(!first.installed);
+        // En cours d'écriture ou appid illisible.
+        assert_eq!(super::read_manifest("\"AppState\"\n{\n\t\"appid\"\t\t\"730\""), None);
+        assert_eq!(super::read_manifest(&written(4, 0, 0, 1).replace("\"730\"", "\"../x\"")), None);
     }
 
     #[test]

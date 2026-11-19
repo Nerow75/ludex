@@ -244,7 +244,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
                           onClick={() => (on ? setFicheId(g.id) : setFocusKey(key))}
                           onDoubleClick={() => onPlay(g)}
                         >
-                          <Cover game={g} />
+                          <Cover game={g} progress />
                           {playing.has(g.id) && <span className="couch__live live">En jeu</span>}
                         </button>
                       </li>

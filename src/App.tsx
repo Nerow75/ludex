@@ -16,6 +16,7 @@ import {
   onGameArt,
   onGameDetails,
   onGameSize,
+  onGameInstall,
   onGameHltb,
   onGameSession,
   onLibraryChanged,
@@ -95,6 +96,7 @@ import { LibraryGrid } from "./components/LibraryGrid";
 import { LibraryList } from "./components/LibraryList";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
 import { spatialNext } from "./lib/spatial";
+import { installPatch } from "./lib/install";
 import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, GridIcon, ListIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
 import { SettingsView } from "./components/SettingsView";
@@ -428,6 +430,12 @@ export default function App() {
   // Tailles mesurées par Ludex (jeux sans taille du launcher) : tri « Taille » et section Stockage.
   useEffect(() => {
     const unlisten = onGameSize(({ id, sizeOnDisk }) => patchGame(id, { sizeOnDisk }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Téléchargements et mises à jour Steam suivis en direct (manifeste relu, sans rescan ni spinner).
+  useEffect(() => {
+    const unlisten = onGameInstall((e) => patchGame(e.id, installPatch(e)));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 
