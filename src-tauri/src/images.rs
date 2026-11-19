@@ -26,7 +26,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Hôtes autorisés, comparés à l'identique (aucun sous-domaine, aucun port).
-const HOSTS: &[&str] = &["cdn.cloudflare.steamstatic.com", "shared.akamai.steamstatic.com"];
+const HOSTS: &[&str] = &["cdn.cloudflare.steamstatic.com", "shared.akamai.steamstatic.com", STORE_HOST];
+/// Images du catalogue public du Microsoft Store (`art.rs`).
+pub const STORE_HOST: &str = "store-images.s-microsoft.com";
 const MAX_BYTES: u64 = 8 * 1024 * 1024;
 const RETRY_MISSING: u64 = 7 * 24 * 3600;
 const PURGE_AFTER: u64 = 60 * 24 * 3600;
@@ -76,12 +78,25 @@ pub fn game_dir(game: &Game) -> String {
     format!("{}/{}", clean_id(platform), clean_id(&game.platform_id))
 }
 
-/// URL téléchargeable : `https://`, hôte de la liste blanche, chemin simple (ni requête, ni `..`,
-/// ni caractère encodé, ni identifiants, ni port).
+/// URL téléchargeable : `https://`, hôte de la liste blanche, chemin simple (ni `..`, ni caractère
+/// encodé, ni identifiants, ni port), sans requête, sauf la taille demandée au Microsoft Store.
 pub fn allowed(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://") else { return false };
     let Some((host, path)) = rest.split_once('/') else { return false };
-    HOSTS.contains(&host) && !path.is_empty() && !path.contains("..") && path.chars().all(|c| c.is_ascii_alphanumeric() || "/_-.".contains(c))
+    let (path, query) = match path.split_once('?') {
+        // Microsoft Store : `image/<nom>` seulement, avec au plus `?w=<n>` ou `?w=<n>&h=<n>`.
+        Some((path, query)) if host == STORE_HOST && path.starts_with("image/") => (path, Some(query)),
+        Some(_) => return false,
+        None => (path, None),
+    };
+    let size = |q: &str| q.split('&').zip(["w=", "h="]).all(|(part, key)| {
+        part.strip_prefix(key).is_some_and(|n| (1..=4).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit()))
+    });
+    HOSTS.contains(&host)
+        && !path.is_empty()
+        && !path.contains("..")
+        && path.chars().all(|c| c.is_ascii_alphanumeric() || "/_-.".contains(c))
+        && query.is_none_or(|q| q.split('&').count() <= 2 && size(q))
 }
 
 /// Type d'une image d'après sa signature : extension, ou `None` si ce n'est ni JPEG, ni PNG, ni WebP.
@@ -447,9 +462,26 @@ mod tests {
     }
 
     #[test]
-    fn allows_only_steam_cdn_hosts() {
+    fn allows_only_known_image_hosts() {
         assert!(allowed(&format!("{CDN}/library_hero.jpg")));
         assert!(allowed("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1/df4e/library_capsule_2x.jpg"));
+        let store = "https://store-images.s-microsoft.com/image/apps.18996.1412.f9de4a96-0ee4.caf661a7";
+        assert!(allowed(store));
+        assert!(allowed(&format!("{store}?w=600&h=900")));
+        assert!(allowed(&format!("{store}?w=1920")));
+        for url in [
+            format!("{store}?h=900"),
+            format!("{store}?w=600&h=900&x=1"),
+            format!("{store}?w=600&"),
+            format!("{store}?w=60000"),
+            format!("{store}?w=-1"),
+            format!("{store}?url=https://evil.com"),
+            "https://store-images.s-microsoft.com/other/a?w=600".to_string(),
+            "https://evil.s-microsoft.com/image/a".to_string(),
+            "https://cdn.cloudflare.steamstatic.com/image/a?w=600".to_string(),
+        ] {
+            assert!(!allowed(&url), "{url}");
+        }
         for url in [
             "http://cdn.cloudflare.steamstatic.com/steam/apps/730/logo.png",
             "https://cdn.cloudflare.steamstatic.com.evil.com/a.jpg",
