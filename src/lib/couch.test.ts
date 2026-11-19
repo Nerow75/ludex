@@ -91,7 +91,7 @@ describe("couchKeyAction : clavier", () => {
   it("touches reconnues", () => {
     const touches = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", " ", "PageUp", "PageDown", "Home", "End", "Escape", "Backspace", "F11"];
     expect(touches.map((key) => couchKeyAction({ key }))).toEqual([
-      "up", "down", "left", "right", "confirm", "fiche", "prevRow", "nextRow", "first", "last", "back", "back", "exit",
+      "up", "down", "left", "right", "confirm", "fiche", "prevRow", "nextRow", "first", "last", "back", "back", "fullscreen",
     ]);
   });
   it("Ctrl+D favori, autres raccourcis ignorés", () => {

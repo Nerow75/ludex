@@ -72,6 +72,7 @@ export type CouchAction =
   | "first"
   | "last"
   | "back"
+  | "fullscreen"
   | "exit";
 
 interface KeyLike {
@@ -84,7 +85,8 @@ interface KeyLike {
 /**
  * Touche du clavier : flèches, Entrée (jouer, ou le bouton choisi dans la fiche), Espace (fiche),
  * Ctrl+D (favori, comme dans la bibliothèque), Page précédente / suivante (rangée), Début / Fin
- * (bout de la rangée), Échap ou Retour arrière (retour, puis sortie), F11 (sortie). `null` : rien.
+ * (bout de la rangée), Échap ou Retour arrière (retour, puis sortie), F11 (vrai plein écran si le
+ * réglage le permet, sinon sortie). `null` : rien.
  */
 export function couchKeyAction(e: KeyLike): CouchAction | null {
   const ctrl = !!(e.ctrlKey || e.metaKey);
@@ -103,7 +105,7 @@ export function couchKeyAction(e: KeyLike): CouchAction | null {
     case "End": return "last";
     case "Escape":
     case "Backspace": return "back";
-    case "F11": return "exit";
+    case "F11": return "fullscreen";
     default: return null;
   }
 }

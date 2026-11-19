@@ -6,8 +6,9 @@ import {
   createCollection,
   deleteCollection,
   chooseCover,
-  enterFullscreen,
-  exitFullscreen,
+  enterCouchWindow,
+  leaveCouchWindow,
+  toggleCouchFullscreen,
   gameSessions,
   getCollections,
   installUpdate,
@@ -1059,10 +1060,16 @@ export default function App() {
     setCouchMode(false);
     requestAnimationFrame(focusContent);
   };
-  // Plein écran réel de la fenêtre (commandes Rust sans argument), le temps du mode canapé.
+  // Fenêtre agrandie le temps du mode canapé (commandes Rust sans argument). Pas de plein écran par
+  // défaut : certains écrans VRR clignotent ; F11 le demande si le réglage `couchFullscreen` le permet.
   useEffect(() => {
-    (showCouch ? enterFullscreen() : exitFullscreen()).catch((e) => console.error("Plein écran :", e));
+    (showCouch ? enterCouchWindow() : leaveCouchWindow()).catch((e) => console.error("Fenêtre du mode canapé :", e));
   }, [showCouch]);
+  const couchFullscreen = () => {
+    toggleCouchFullscreen()
+      .then((on) => on === null && leaveCouch())
+      .catch((e) => console.error("Plein écran :", e));
+  };
   /** Écran de premier lancement fermé : il ne reviendra plus, puis `then` (section à ouvrir). */
   const closeWelcome = (then: () => void) => {
     setWelcomeInfo(null);
@@ -1091,7 +1098,7 @@ export default function App() {
 
       {/* Barre de titre : le fond de la rangée du haut et de l'indication déplace la fenêtre,
           double clic = agrandir ou restaurer ; boutons de la fenêtre dans le coin (WindowControls). */}
-      {/* En plein écran (mode canapé), pas de boutons de fenêtre : on en sort par F11, Échap ou B. */}
+      {/* Mode canapé : pas de boutons de fenêtre (le mode a son ×) ; on en sort par Échap, B, Guide ou Vue + Menu. */}
       {!showCouch && <WindowControls />}
       <header className="top" data-tauri-drag-region>
         <span className="brand" data-tauri-drag-region="deep"><LudexMark />Ludex</span>
@@ -1403,6 +1410,7 @@ export default function App() {
           onPlay={play}
           onFavorite={toggleFavorite}
           onExit={leaveCouch}
+          onFullscreen={couchFullscreen}
           control={couchControl}
         />
       )}

@@ -20,6 +20,8 @@ interface Props {
   onPlay: (game: Game) => void;
   onFavorite: (game: Game) => void;
   onExit: () => void;
+  /** F11 : vrai plein écran si le réglage le permet (sinon App quitte le mode). */
+  onFullscreen: () => void;
   /** Actions de la manette, relayées par App (une seule boucle de lecture des manettes). */
   control: MutableRefObject<((a: CouchAction) => void) | null>;
 }
@@ -30,7 +32,7 @@ const BACKDROP_DELAY = 140;
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const scrollBehavior = (): ScrollBehavior => (reducedMotion() ? "auto" : "smooth");
 
-export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onExit, control }: Props) {
+export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onExit, onFullscreen, control }: Props) {
   const rows = useMemo(() => couchRows(games, playing), [games, playing]);
   const byId = useMemo(() => new Map(games.map((g) => [g.id, g])), [games]);
   const [focusKey, setFocusKey] = useState<string | null>(() => initialFocus(rows, games, playing));
@@ -132,10 +134,13 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
           return buttons[Math.min(buttons.length - 1, Math.max(0, (i < 0 ? 0 : i) + (a === "right" ? 1 : -1)))]?.focus();
         case "exit":
           return onExit();
+        case "fullscreen":
+          return onFullscreen();
         default:
           return;
       }
     }
+    if (a === "fullscreen") return onFullscreen();
     if (!current) return a === "back" || a === "exit" ? onExit() : undefined;
     const from = root.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(couchKey(current.row, current.game.id))}"]`);
     const rowIndex = rows.findIndex((r) => r.id === current.row);
@@ -207,7 +212,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
       <header className="couch__top">
         <span className="couch__brand"><LudexMark size={28} />Ludex</span>
         <TopInfo playing={playing} />
-        <button type="button" className="couch__quit" tabIndex={-1} onClick={onExit} aria-label="Quitter le mode canapé" title="Quitter le mode canapé (F11)">
+        <button type="button" className="couch__quit" tabIndex={-1} onClick={onExit} aria-label="Quitter le mode canapé" title="Quitter le mode canapé (Échap)">
           <CloseIcon />
         </button>
       </header>
