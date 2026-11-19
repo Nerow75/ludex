@@ -45,9 +45,10 @@ type Load = { state: "idle" } | { state: "loading" } | { state: "ready"; list: A
 /**
  * Liste complète des succès d'un jeu, repliée par défaut : lue à l'ouverture seulement (et relue
  * quand le nombre de succès débloqués change). Non débloqués les plus faciles d'abord, puis débloqués.
+ * `expanded` : ouverte d'emblée, sans bouton (onglet « Succès » de la fiche, lu à son ouverture).
  */
-export function AchievementList({ game }: { game: Game }) {
-  const [open, setOpen] = useState(false);
+export function AchievementList({ game, expanded = false }: { game: Game; expanded?: boolean }) {
+  const [open, setOpen] = useState(expanded);
   const [load, setLoad] = useState<Load>({ state: "idle" });
   const unlocked = game.achievements?.unlocked ?? 0;
   const total = game.achievements?.total ?? 0;
@@ -67,10 +68,12 @@ export function AchievementList({ game }: { game: Game }) {
   if (!game.achievements || total === 0) return null;
   return (
     <div className="achs">
-      <button type="button" className="achs__toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <TrophyIcon />
-        {open ? "Masquer les succès" : `Voir les ${total} succès`}
-      </button>
+      {!expanded && (
+        <button type="button" className="achs__toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <TrophyIcon />
+          {open ? "Masquer les succès" : `Voir les ${total} succès`}
+        </button>
+      )}
       {open && load.state === "loading" && <p className="achs__note">Lecture des succès…</p>}
       {open && load.state === "error" && <p className="achs__note">Succès illisibles pour l'instant</p>}
       {open && load.state === "ready" && load.list.length === 0 && <p className="achs__note">Steam n'a pas encore de détail pour ce jeu</p>}
