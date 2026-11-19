@@ -108,6 +108,10 @@ pub struct Game {
     pub steam_appid: Option<u32>,
     /// Genres, studio, éditeur, sortie et description (`metadata.rs`), `None` tant qu'inconnus.
     pub details: Option<crate::metadata::Details>,
+    /// Progression choisie par l'utilisateur (`collections.rs`), `None` : aucun statut.
+    pub status: Option<crate::collections::Status>,
+    /// Note perso de l'utilisateur, déjà nettoyée.
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -232,6 +236,8 @@ impl Game {
             local_art: LocalArt::default(),
             steam_appid: None,
             details: None,
+            status: None,
+            note: None,
         }
     }
 
@@ -293,7 +299,7 @@ pub fn watched_dirs() -> WatchedDirs {
 }
 
 pub use epic::item_installed;
-pub use steam::manifest_installed;
+pub use steam::{cloud_storage_file, manifest_installed};
 
 pub fn scan() -> ScanResult {
     // Un jeu peut avoir été installé depuis le dernier scan : les disques sont relus.

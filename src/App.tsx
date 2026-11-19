@@ -3,7 +3,10 @@ import {
   availableUpdate,
   addGame,
   changeExecutable,
+  createCollection,
+  deleteCollection,
   gameSessions,
+  getCollections,
   installUpdate,
   launchGame,
   onGameArt,
@@ -16,28 +19,53 @@ import {
   openInstallDir,
   PLATFORM_LABEL,
   PLATFORMS,
+  MAX_COLLECTION_NAME,
   removeGame,
+  renameCollection,
   renameGame,
   scanLibrary,
   setFavorite,
   setHidden,
+  setInCollection,
+  setNote,
+  setStatus,
+  STATUS_LABEL,
+  type Collection,
+  type CollectionsInfo,
   type Game,
   type LibraryEvent,
   type LibraryUpdate,
   type ScanResult,
   type SessionEvent,
+  type Status,
   type UpdateInfo,
 } from "./lib/api";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { useGamepad } from "./lib/gamepad";
-import { matchesFilter, recentGames, remember, remembered, selectGames, SORT_LABEL, type Filter, type Sort } from "./lib/library";
-import { SECTION_IDS, SECTIONS, type SectionContext } from "./lib/sections";
+import {
+  matchesFilter,
+  matchesStatus,
+  recentGames,
+  remember,
+  remembered,
+  rememberedText,
+  selectGames,
+  SORT_LABEL,
+  STATUS_FILTER_LABEL,
+  STATUS_FILTERS,
+  type Filter,
+  type Sort,
+  type StatusFilter,
+} from "./lib/library";
+import { collectionSections, SECTIONS, type Section, type SectionContext } from "./lib/sections";
 import { GameStrip } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { ResumeRow } from "./components/ResumeRow";
-import { DownloadIcon, LudexMark, PlusIcon, RefreshIcon, SearchIcon } from "./components/Icons";
+import { SHIFT_EVENT } from "./components/ProgressBoard";
+import { InlineInput } from "./components/InlineInput";
+import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 
 interface Toast {
@@ -61,8 +89,12 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => remembered("status", STATUS_FILTERS, "any"));
   // Barre latérale : section affichée et barre repliée (icônes seules), gardées entre deux lancements.
-  const [sectionId, setSectionId] = useState(() => remembered("section", SECTION_IDS, SECTION_IDS[0]));
+  // Une section de collection est vérifiée à l'affichage (collection supprimée : première section).
+  const [sectionId, setSectionId] = useState(() => rememberedText("section") ?? SECTIONS[0].id);
+  /** Collections de l'utilisateur et de Steam, relues avec la bibliothèque. */
+  const [collections, setCollections] = useState<CollectionsInfo | null>(null);
   const [collapsed, setCollapsed] = useState(() => remembered("sidebar", ["open", "collapsed"], "open") === "collapsed");
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
@@ -74,10 +106,15 @@ export default function App() {
 
   // Les applis masquées (Wallpaper Engine…) restent dans le scan mais n'apparaissent que dans « Masqués ».
   const games = scan?.games ?? [];
+  // Sections fixes, puis une par collection (après : les raccourcis Ctrl+1… des fixes ne bougent pas).
+  const sections = useMemo<Section[]>(() => [...SECTIONS, ...collectionSections(collections, games)], [collections, games]);
   // Section : un écran à elle (`render`, sauf pendant une recherche), sinon la grille restreinte à `scope`.
-  const view = SECTIONS.find((s) => s.id === sectionId) ?? SECTIONS[0];
+  const view = sections.find((s) => s.id === sectionId) ?? sections[0];
   const custom = !query && !!view.render;
-  const scoped = useMemo(() => (view.scope ? games.filter(view.scope) : games), [games, view]);
+  const scoped = useMemo(
+    () => (view.scope ? games.filter(view.scope) : games).filter((g) => matchesStatus(g, statusFilter)),
+    [games, view, statusFilter],
+  );
   const activeFilter: Filter = view.filters && !view.filters(filter) ? "all" : filter;
   const results = useMemo(() => selectGames(scoped, activeFilter, sort, query), [scoped, activeFilter, sort, query]);
   const recent = useMemo(() => recentGames(games, 4), [games]);
@@ -111,14 +148,23 @@ export default function App() {
     goTo("all");
     setQuery("");
     setFilter((f) => (game.hidden ? "hidden" : f !== "favorites" && matchesFilter(game, f) ? f : "all"));
+    setStatusFilter((f) => (matchesStatus(game, f) ? f : "any"));
     setSelectedId(game.id);
     setOpen(true);
   }, [goTo]);
+
+  /** Collections relues (celles de Steam ont pu changer) ; sans elles, la barre n'a que les sections fixes. */
+  const loadCollections = useCallback(() => {
+    getCollections()
+      .then(setCollections)
+      .catch(() => {});
+  }, []);
 
   /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
   const refresh = useCallback(async (manual = false) => {
     setScanning(true);
     setScanError(null);
+    loadCollections();
     try {
       const result = await scanLibrary();
       setScan(result);
@@ -131,7 +177,7 @@ export default function App() {
     } finally {
       setScanning(false);
     }
-  }, [showToast]);
+  }, [showToast, loadCollections]);
 
   useEffect(() => void refresh(), [refresh]);
 
@@ -202,11 +248,12 @@ export default function App() {
     const unlisten = onLibraryChanged((e) => {
       setScan(e.scan);
       setScanError(null);
+      loadCollections();
       const t = libraryToast(e);
       if (t) showToast(t, 5000);
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
-  }, [showToast]);
+  }, [showToast, loadCollections]);
 
   // Zone de notification : jeu lancé depuis son menu, et explication à la première fermeture
   // (la fenêtre se cache quelques secondes après).
@@ -315,6 +362,93 @@ export default function App() {
     }
   }, [patchGame, showToast]);
 
+  /** Statut de progression, affiché tout de suite, puis « Annuler » pendant 5 s. */
+  const changeStatus = useCallback(async (game: Game, status: Status | null) => {
+    const before = game.status;
+    if (before === status) return;
+    patchGame(game.id, { status });
+    try {
+      await setStatus(game.id, status);
+      showToast({
+        title: status ? `${game.title} : ${STATUS_LABEL[status]}` : `${game.title} : statut retiré`,
+        action: { label: "Annuler", run: () => changeStatus({ ...game, status }, before) },
+      }, 5000);
+    } catch (e) {
+      patchGame(game.id, { status: before });
+      showToast({ title: "Statut non enregistré", detail: String(e), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
+
+  const changeNote = useCallback(async (game: Game, note: string) => {
+    patchGame(game.id, { note: note.trim() || null });
+    try {
+      patchGame(game.id, { note: await setNote(game.id, note) });
+    } catch (e) {
+      patchGame(game.id, { note: game.note });
+      showToast({ title: "Note non enregistrée", detail: String(e), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
+
+  const setMine = (mine: Collection[]) => setCollections((c) => ({ steam: c?.steam ?? [], mine }));
+
+  /** Ajoute un jeu à une collection ou l'en retire, puis « Annuler » pendant 5 s. */
+  const toggleCollection = useCallback(async (game: Game, collection: Collection, value: boolean) => {
+    try {
+      setMine(await setInCollection(collection.id, game.id, value));
+      showToast({
+        title: value ? `${game.title} ajouté à « ${collection.name} »` : `${game.title} retiré de « ${collection.name} »`,
+        action: { label: "Annuler", run: () => toggleCollection(game, collection, !value) },
+      }, 5000);
+    } catch (e) {
+      showToast({ title: "Collection non modifiée", detail: String(e), error: true }, 5000);
+    }
+  }, [showToast]);
+
+  /** Nouvelle collection : depuis une fiche (le jeu y entre), ou depuis la barre (on l'ouvre). */
+  const newCollection = useCallback(async (name: string, game: Game | null) => {
+    try {
+      const { id, mine } = await createCollection(name, game?.id ?? null);
+      setMine(mine);
+      const created = mine.find((c) => c.id === id);
+      if (game) {
+        showToast({
+          title: `${game.title} ajouté à « ${created?.name ?? name} »`,
+          action: created && { label: "Annuler", run: () => toggleCollection(game, created, false) },
+        }, 5000);
+      } else {
+        showToast({ title: `Collection « ${created?.name ?? name} » créée`, detail: "Ajoute des jeux depuis leur fiche, bouton Collections" });
+        goTo(`col:${id}`);
+      }
+    } catch (e) {
+      showToast({ title: "Collection non créée", detail: String(e), error: true }, 5000);
+    }
+  }, [goTo, showToast, toggleCollection]);
+
+  const [renamingCollection, setRenamingCollection] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => {
+    setRenamingCollection(false);
+    setConfirmDelete(false);
+  }, [sectionId]);
+
+  const renameCol = useCallback(async (id: string, name: string) => {
+    try {
+      setMine(await renameCollection(id, name));
+    } catch (e) {
+      showToast({ title: "Collection non renommée", detail: String(e), error: true }, 5000);
+    }
+  }, [showToast]);
+
+  const deleteCol = useCallback(async (id: string, name: string) => {
+    try {
+      setMine(await deleteCollection(id));
+      goTo(SECTIONS[0].id);
+      showToast({ title: `Collection « ${name} » supprimée`, detail: "Ses jeux restent dans la bibliothèque" });
+    } catch (e) {
+      showToast({ title: "Collection non supprimée", detail: String(e), error: true }, 5000);
+    }
+  }, [goTo, showToast]);
+
   const openFolder = useCallback(async (game: Game) => {
     try {
       await openInstallDir(game.id);
@@ -341,7 +475,8 @@ export default function App() {
       applyUpdate(u);
       // Le nouveau jeu doit être visible : ni filtre qui l'exclut, ni recherche.
       setFilter((f) => (f === "all" || f === "other" ? f : "all"));
-      goTo(SECTION_IDS[0]);
+      setStatusFilter((f) => (f === "none" ? f : "any"));
+      goTo(SECTIONS[0].id);
       setQuery("");
       setOpen(true);
       showToast({ title: `${u.title} ajouté`, detail: "Rangé dans « Autres »" });
@@ -391,8 +526,9 @@ export default function App() {
     requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-game="${id}"] .card__hit`)?.focus({ preventScroll: true }));
 
   // Raccourcis globaux. L'état courant passe par une ref pour n'abonner l'écouteur qu'une fois.
-  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar });
-  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId, goTo, toggleSidebar };
+  const sectionIds = sections.map((s) => s.id);
+  const live = useRef({ results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar });
+  live.current = { results, selected, open, query, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar };
 
   // Navigation par zones, au clavier comme à la manette : la barre latérale à gauche, le contenu à
   // droite. Gauche depuis la première colonne (ou depuis une section à elle) entre dans la barre ;
@@ -409,10 +545,11 @@ export default function App() {
   /** Section voisine (barre, LB/RB), en boucle ; le focus suit si la barre l'avait. */
   const stepSection = (delta: number) => {
     const s = live.current;
-    const i = Math.max(0, SECTION_IDS.indexOf(s.sectionId));
-    const next = (i + delta + SECTION_IDS.length) % SECTION_IDS.length;
+    const ids = s.sectionIds;
+    const i = Math.max(0, ids.indexOf(s.sectionId));
+    const next = (i + delta + ids.length) % ids.length;
     const follow = inSidebar();
-    s.goTo(SECTION_IDS[next]);
+    s.goTo(ids[next]);
     if (follow) sideItems()[next]?.focus();
   };
 
@@ -484,7 +621,7 @@ export default function App() {
         s.refresh(true);
       } else if (ctrl && key >= "1" && key <= "9") {
         e.preventDefault(); // Ctrl+1, Ctrl+2… : section de la barre latérale
-        const id = SECTION_IDS[Number(key) - 1];
+        const id = s.sectionIds[Number(key) - 1];
         if (id) s.goTo(id);
       } else if (ctrl && key.toLowerCase() === "b") {
         e.preventDefault();
@@ -593,7 +730,9 @@ export default function App() {
         break;
       case "prevFilter":
       case "nextFilter":
-        if (!s.custom) changeFilter(cycle(filters, activeFilter, action === "nextFilter" ? 1 : -1));
+        // Dans une section à elle (Progression…), LT/RT agissent sur l'élément qui a le focus.
+        if (s.custom) document.activeElement?.dispatchEvent(new CustomEvent(SHIFT_EVENT, { detail: action === "nextFilter" ? 1 : -1, bubbles: true }));
+        else changeFilter(cycle(filters, activeFilter, action === "nextFilter" ? 1 : -1));
         break;
       case "nextSort":
         if (!s.custom) changeSort(cycle(SORTS, sort, 1));
@@ -601,7 +740,13 @@ export default function App() {
     }
   });
   const showPadHints = padConnected && padHints;
-  const sectionContext: SectionContext = { games, playing, openGame, play };
+  const sectionContext: SectionContext = { games, playing, openGame, play, setStatus: changeStatus };
+  const changeStatusFilter = (f: StatusFilter) => {
+    setStatusFilter(f);
+    setOpen(false);
+    remember("status", f);
+  };
+  const mineCollection = view.collection?.kind === "mine" ? collections?.mine.find((c) => c.id === view.collection?.id) : undefined;
 
   return (
     <div
@@ -609,7 +754,7 @@ export default function App() {
       style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}
     >
       <Sidebar
-        sections={SECTIONS}
+        sections={sections}
         active={view.id}
         onSelect={goTo}
         collapsed={collapsed}
@@ -617,6 +762,7 @@ export default function App() {
         lastGame={recent[0] ?? null}
         onOpenGame={openGame}
         playing={playing}
+        onCreateCollection={(name) => newCollection(name, null)}
       />
 
       <header className="top">
@@ -712,7 +858,45 @@ export default function App() {
         {scan && !emptyLibrary && !custom && (
           <section aria-labelledby="lib-title">
             <div className="bar">
-              <h2 id="lib-title">{query ? "Résultats" : view.resume ? "Bibliothèque" : view.label}<span>{results.length}</span></h2>
+              {renamingCollection && mineCollection && !query ? (
+                <InlineInput
+                  className="bar__rename"
+                  initial={mineCollection.name}
+                  maxLength={MAX_COLLECTION_NAME}
+                  label={`Nouveau nom de « ${mineCollection.name} »`}
+                  onSubmit={(name) => renameCol(mineCollection.id, name)}
+                  onDone={() => setRenamingCollection(false)}
+                />
+              ) : (
+                <h2 id="lib-title" title={view.collection?.kind === "steam" ? "Collection lue dans Steam, modifiable seulement dans Steam" : undefined}>
+                  {query ? "Résultats" : view.resume ? "Bibliothèque" : view.label}<span>{results.length}</span>
+                </h2>
+              )}
+              {mineCollection && !query && (
+                confirmDelete ? (
+                  <span className="bar__confirm" role="group" aria-label="Confirmer la suppression">
+                    Supprimer « {mineCollection.name} » ? Ses jeux restent dans la bibliothèque.
+                    <button type="button" className="btn-ghost btn-ghost--danger" onClick={() => deleteCol(mineCollection.id, mineCollection.name)}>Supprimer</button>
+                    <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Garder</button>
+                  </span>
+                ) : (
+                  <span className="bar__tools">
+                    <button
+                      type="button"
+                      className="btn-icon btn-icon--small"
+                      aria-label="Renommer la collection"
+                      title="Renommer la collection"
+                      onMouseDown={(e) => renamingCollection && e.preventDefault()}
+                      onClick={() => setRenamingCollection((r) => !r)}
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button type="button" className="btn-icon btn-icon--small" aria-label="Supprimer la collection" title="Supprimer la collection" onClick={() => setConfirmDelete(true)}>
+                      <TrashIcon />
+                    </button>
+                  </span>
+                )
+              )}
               <div className="seg" role="group" aria-label="Filtrer">
                 {filters.map((f) => (
                   <button key={f} type="button" aria-pressed={activeFilter === f} onClick={() => changeFilter(f)}>
@@ -720,13 +904,34 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <select
+                className="bar__select"
+                value={statusFilter}
+                aria-label="Filtrer par statut"
+                onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
+                onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
+              >
+                {STATUS_FILTERS.map((f) => (
+                  <option key={f} value={f}>{STATUS_FILTER_LABEL[f]}</option>
+                ))}
+              </select>
               <div className="seg" role="group" aria-label="Trier">
                 {SORTS.map((s) => (
                   <button key={s} type="button" aria-pressed={sort === s} onClick={() => changeSort(s)}>{SORT_LABEL[s]}</button>
                 ))}
               </div>
             </div>
-            {results.length === 0 && <NoResults filter={activeFilter} section={view.resume ? null : view.label} query={query} onClear={() => setQuery("")} />}
+            {results.length === 0 && (
+              <NoResults
+                filter={activeFilter}
+                status={statusFilter}
+                section={view.resume ? null : view.label}
+                empty={view.empty}
+                query={query}
+                onClear={() => setQuery("")}
+                onClearStatus={() => changeStatusFilter("any")}
+              />
+            )}
             <LibraryGrid
               games={results}
               selectedId={selected?.id ?? null}
@@ -749,6 +954,11 @@ export default function App() {
                   onRename={rename}
                   onRemove={remove}
                   onClose={() => setOpen(false)}
+                  collections={collections?.mine ?? []}
+                  onStatus={changeStatus}
+                  onNote={changeNote}
+                  onToggleCollection={toggleCollection}
+                  onCreateCollection={(name, game) => newCollection(name, game)}
                 />
               )}
             />
@@ -773,7 +983,7 @@ export default function App() {
           <span><kbd>Entrée</kbd> jouer</span>
           <span><kbd>Espace</kbd> fiche</span>
           <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
-          <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, SECTIONS.length)}</kbd> section</span>
+          <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, sections.length)}</kbd> section</span>
           <span><kbd>Ctrl</kbd><kbd>N</kbd> ajouter</span>
           <span><kbd>F5</kbd> rescanner</span>
           <span><kbd>Échap</kbd> fermer</span>
@@ -821,7 +1031,18 @@ function libraryToast({ added, removed }: LibraryEvent): Toast | null {
   return removed.length ? { title: gone, detail: list(removed) } : null;
 }
 
-function NoResults({ filter, section, query, onClear }: { filter: Filter; section: string | null; query: string; onClear: () => void }) {
+interface NoResultsProps {
+  filter: Filter;
+  status: StatusFilter;
+  section: string | null;
+  /** Texte de la section vide (sans recherche ni filtre). */
+  empty?: string;
+  query: string;
+  onClear: () => void;
+  onClearStatus: () => void;
+}
+
+function NoResults({ filter, status, section, empty, query, onClear, onClearStatus }: NoResultsProps) {
   if (query) {
     return (
       <EmptyState
@@ -829,12 +1050,22 @@ function NoResults({ filter, section, query, onClear }: { filter: Filter; sectio
         title={`Aucun jeu ne correspond à « ${query} »`}
         action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
       >
-        La recherche porte sur le titre{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
+        La recherche porte sur le titre{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}{status !== "any" ? `, statut « ${STATUS_FILTER_LABEL[status]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
+      </EmptyState>
+    );
+  }
+  if (status !== "any") {
+    return (
+      <EmptyState
+        title={`Aucun jeu « ${STATUS_FILTER_LABEL[status]} »${section ? ` dans « ${section} »` : ""}`}
+        action={<button type="button" className="btn-ghost" onClick={onClearStatus}>Tous les statuts</button>}
+      >
+        Le statut se choisit dans la fiche d'un jeu : À faire, En cours, Terminé ou Abandonné
       </EmptyState>
     );
   }
   if (section && filter === "all") {
-    return <EmptyState title={`Aucun jeu dans « ${section} »`}>{section === "Favoris" ? "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné" : "Les jeux qui attendent une mise à jour ou une fin d'installation sont dans « Tous les jeux »"}</EmptyState>;
+    return <EmptyState title={`Aucun jeu dans « ${section} »`}>{empty}</EmptyState>;
   }
   if (filter === "favorites") {
     return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné</EmptyState>;

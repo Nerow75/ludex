@@ -1,11 +1,13 @@
 //! Préférences de l'utilisateur, gardées dans un fichier JSON du dossier de données de l'app :
 //! favoris, jeux masqués ou ré-affichés, date du dernier lancement depuis Ludex, temps de jeu
-//! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur, et
-//! réglages de l'application (zone de notification, lancement avec Windows).
+//! mesuré par Ludex, jeux ajoutés à la main, exécutables et titres choisis par l'utilisateur,
+//! progression (statut, note), collections perso, et réglages de l'application (zone de
+//! notification, lancement avec Windows).
 
+use crate::collections::{self, Collection, Status};
 use crate::library::manual::{self, Custom, ManualGame};
 use crate::library::{Game, PlaytimeSource};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,6 +33,21 @@ pub struct UserData {
     pub titles: BTreeMap<String, String>,
     /// Réglages de l'application (zone de notification, lancement avec Windows).
     pub settings: Settings,
+    /// Progression choisie par l'utilisateur, par id de jeu.
+    #[serde(deserialize_with = "known_statuses")]
+    pub status: BTreeMap<String, Status>,
+    /// Note perso, par id de jeu (nettoyée, `collections::MAX_NOTE` caractères au plus).
+    pub notes: BTreeMap<String, String>,
+    /// Collections de l'utilisateur, dans l'ordre de création.
+    pub collections: Vec<Collection>,
+}
+
+/// Statuts relus en ignorant une valeur inconnue (fichier d'une version future) : sinon le
+/// fichier entier serait illisible, donc remplacé par des préférences vides au prochain
+/// enregistrement.
+fn known_statuses<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<String, Status>, D::Error> {
+    let raw = BTreeMap::<String, serde_json::Value>::deserialize(d)?;
+    Ok(raw.into_iter().filter_map(|(id, v)| Some((id, serde_json::from_value(v).ok()?))).collect())
 }
 
 /// Réglages de l'application, modifiés depuis le menu de la zone de notification.
@@ -144,6 +161,70 @@ impl UserData {
         }
     }
 
+    /// Statut de progression d'un jeu. `None` : aucun.
+    pub fn set_status(&mut self, id: &str, status: Option<Status>) {
+        match status {
+            Some(s) => drop(self.status.insert(id.to_string(), s)),
+            None => drop(self.status.remove(id)),
+        }
+    }
+
+    /// Note perso d'un jeu, déjà nettoyée. `None` : note effacée.
+    pub fn set_note(&mut self, id: &str, note: Option<String>) {
+        match note {
+            Some(n) => drop(self.notes.insert(id.to_string(), n)),
+            None => drop(self.notes.remove(id)),
+        }
+    }
+
+    fn collection_mut(&mut self, id: &str) -> Result<&mut Collection, String> {
+        self.collections.iter_mut().find(|c| c.id == id).ok_or_else(|| "Cette collection n'existe plus.".to_string())
+    }
+
+    /// Nom de collection nettoyé, différent de ceux des autres collections (casse ignorée).
+    fn collection_name(&self, raw: &str, except: Option<&str>) -> Result<String, String> {
+        let name = collections::clean_name(raw).ok_or("Donne un nom à la collection.")?;
+        let lower = name.to_lowercase();
+        match self.collections.iter().find(|c| Some(c.id.as_str()) != except && c.name.to_lowercase() == lower) {
+            Some(c) => Err(format!("La collection « {} » existe déjà.", c.name)),
+            None => Ok(name),
+        }
+    }
+
+    /// Crée une collection vide et renvoie son id, généré ici (`seed` : heure en millisecondes).
+    pub fn create_collection(&mut self, raw_name: &str, seed: u64) -> Result<String, String> {
+        if self.collections.len() >= collections::MAX_COLLECTIONS {
+            return Err(format!("{} collections au plus.", collections::MAX_COLLECTIONS));
+        }
+        let name = self.collection_name(raw_name, None)?;
+        let id = collections::new_id(&self.collections, seed);
+        self.collections.push(Collection { id: id.clone(), name, games: Vec::new() });
+        Ok(id)
+    }
+
+    pub fn rename_collection(&mut self, id: &str, raw_name: &str) -> Result<(), String> {
+        let name = self.collection_name(raw_name, Some(id))?;
+        self.collection_mut(id)?.name = name;
+        Ok(())
+    }
+
+    pub fn delete_collection(&mut self, id: &str) -> Result<Collection, String> {
+        let i = self.collections.iter().position(|c| c.id == id).ok_or("Cette collection n'existe plus.")?;
+        Ok(self.collections.remove(i))
+    }
+
+    /// Ajoute un jeu à une collection (à la fin, sans doublon) ou l'en retire.
+    pub fn set_in_collection(&mut self, collection: &str, game: &str, value: bool) -> Result<(), String> {
+        let c = self.collection_mut(collection)?;
+        let present = c.games.iter().any(|g| g == game);
+        if value && !present {
+            c.games.push(game.to_string());
+        } else if !value {
+            c.games.retain(|g| g != game);
+        }
+        Ok(())
+    }
+
     /// Jeux manuels et corrections de l'utilisateur, appliqués à une bibliothèque scannée.
     pub fn customize(&self, games: &mut Vec<Game>) {
         manual::customize(games, &Custom { manual: &self.manual, exes: &self.exes, titles: &self.titles });
@@ -152,6 +233,8 @@ impl UserData {
     /// Reporte les préférences sur un jeu détecté.
     pub fn apply(&self, game: &mut Game) {
         game.favorite = self.favorites.contains(&game.id);
+        game.status = self.status.get(&game.id).copied();
+        game.note = self.notes.get(&game.id).cloned();
         game.hidden = if game.is_tool { !self.shown.contains(&game.id) } else { self.hidden.contains(&game.id) };
         if let Some(&ts) = self.launched.get(&game.id) {
             game.last_played = Some(game.last_played.map_or(ts, |l| l.max(ts)));
@@ -311,6 +394,83 @@ mod tests {
         assert_eq!(old.settings, Settings::default());
         let partial: UserData = serde_json::from_str(r#"{"settings":{"launchAtStartup":true}}"#).unwrap();
         assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup);
+    }
+
+    #[test]
+    fn status_and_note_are_applied_and_saved() {
+        let path = std::env::temp_dir().join(format!("ludex-test-progress-{}.json", std::process::id()));
+        let mut data = UserData::default();
+        data.set_status("steam:730", Some(Status::Playing));
+        data.set_status("steam:440", Some(Status::Done));
+        data.set_note("steam:730", collections::clean_note("  Rang  Or \n visé "));
+        data.save(&path).unwrap();
+
+        let mut loaded = UserData::load(&path);
+        let mut g = game("730", false);
+        loaded.apply(&mut g);
+        assert_eq!(g.status, Some(Status::Playing));
+        assert_eq!(g.note.as_deref(), Some("Rang Or visé"));
+        assert!(fs::read_to_string(&path).unwrap().contains(r#""steam:440": "done""#));
+
+        loaded.set_status("steam:730", None);
+        loaded.set_note("steam:730", None);
+        loaded.apply(&mut g);
+        assert_eq!((g.status, g.note), (None, None));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn collections_are_created_renamed_filled_and_deleted() {
+        let mut data = UserData::default();
+        let rpg = data.create_collection("  RPG  ", 1000).unwrap();
+        assert_eq!(data.collections[0].name, "RPG");
+        // Même nom (casse ignorée) ou nom vide : refusé.
+        assert!(data.create_collection("rpg", 1000).unwrap_err().contains("existe déjà"));
+        assert!(data.create_collection(" \u{200B} ", 1000).is_err());
+        let coop = data.create_collection("Coop", 1000).unwrap();
+        assert_ne!(rpg, coop); // même graine : id suivant
+
+        data.set_in_collection(&rpg, "steam:730", true).unwrap();
+        data.set_in_collection(&rpg, "steam:440", true).unwrap();
+        data.set_in_collection(&rpg, "steam:730", true).unwrap();
+        assert_eq!(data.collections[0].games, ["steam:730", "steam:440"]);
+        data.set_in_collection(&rpg, "steam:730", false).unwrap();
+        assert_eq!(data.collections[0].games, ["steam:440"]);
+        assert!(data.set_in_collection("c-inconnue", "steam:730", true).is_err());
+
+        assert!(data.rename_collection(&coop, "RPG").is_err());
+        data.rename_collection(&rpg, "rpg").unwrap(); // sa propre casse : permis
+        assert_eq!(data.collections[0].name, "rpg");
+
+        let path = std::env::temp_dir().join(format!("ludex-test-collections-{}.json", std::process::id()));
+        data.save(&path).unwrap();
+        let mut loaded = UserData::load(&path);
+        assert_eq!(loaded.collections, data.collections);
+        assert_eq!(loaded.delete_collection(&rpg).unwrap().games, ["steam:440"]);
+        assert!(loaded.delete_collection(&rpg).is_err());
+        assert_eq!(loaded.collections.len(), 1);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn collections_are_limited() {
+        let mut data = UserData::default();
+        for i in 0..collections::MAX_COLLECTIONS {
+            data.create_collection(&format!("C{i}"), 0).unwrap();
+        }
+        assert!(data.create_collection("Une de trop", 0).is_err());
+    }
+
+    #[test]
+    fn files_without_progress_still_load() {
+        let data: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
+        assert!(data.status.is_empty() && data.notes.is_empty() && data.collections.is_empty());
+        // Statut inconnu (version future) : ignoré, le reste du fichier est gardé.
+        let future: UserData =
+            serde_json::from_str(r#"{"favorites":["steam:730"],"status":{"steam:730":"wishlist","steam:440":"done"}}"#).unwrap();
+        assert!(future.favorites.contains("steam:730"));
+        assert_eq!(future.status.len(), 1);
+        assert_eq!(future.status.get("steam:440"), Some(&Status::Done));
     }
 
     #[test]

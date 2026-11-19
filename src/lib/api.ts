@@ -71,6 +71,28 @@ export interface Game {
   launchLabel: string;
   /** Genres, studio, éditeur, sortie et description ; `null` tant qu'inconnus. */
   details: GameDetails | null;
+  /** Progression choisie par l'utilisateur, `null` : aucun statut. */
+  status: Status | null;
+  /** Note perso, `null` : aucune. */
+  note: string | null;
+}
+
+/** Progression d'un jeu : valeur fermée, vérifiée côté Rust. */
+export type Status = "todo" | "playing" | "done" | "dropped";
+/** Ordre des colonnes de « Progression » et des boutons de la fiche. */
+export const STATUSES: readonly Status[] = ["todo", "playing", "done", "dropped"];
+export const STATUS_LABEL: Record<Status, string> = { todo: "À faire", playing: "En cours", done: "Terminé", dropped: "Abandonné" };
+
+/** Collection : nom et ids des jeux, dans l'ordre d'ajout. */
+export interface Collection {
+  id: string;
+  name: string;
+  games: string[];
+}
+/** Collections de l'utilisateur, et celles du client Steam (lecture seule). */
+export interface CollectionsInfo {
+  mine: Collection[];
+  steam: Collection[];
 }
 
 export interface SourceReport {
@@ -131,6 +153,20 @@ export const changeExecutable = (id: string) => invoke<LibraryUpdate | null>("ch
 export const renameGame = (id: string, title: string) => invoke<LibraryUpdate>("rename_game", { id, title });
 /** Jeux ajoutés à la main seulement (les autres se masquent). */
 export const removeGame = (id: string) => invoke<ScanResult>("remove_game", { id });
+/** Note perso : 500 caractères au plus, nom de collection : 40 (nettoyés côté Rust). */
+export const MAX_NOTE = 500;
+export const MAX_COLLECTION_NAME = 40;
+export const setStatus = (id: string, status: Status | null) => invoke<void>("set_status", { id, status });
+/** Renvoie la note enregistrée (nettoyée), `null` : effacée. */
+export const setNote = (id: string, note: string) => invoke<string | null>("set_note", { id, note });
+export const getCollections = () => invoke<CollectionsInfo>("collections");
+/** `game` : jeu à mettre tout de suite dans la nouvelle collection. */
+export const createCollection = (name: string, game: string | null) =>
+  invoke<{ id: string; mine: Collection[] }>("create_collection", { name, game });
+export const renameCollection = (id: string, name: string) => invoke<Collection[]>("rename_collection", { id, name });
+export const deleteCollection = (id: string) => invoke<Collection[]>("delete_collection", { id });
+export const setInCollection = (collection: string, id: string, value: boolean) =>
+  invoke<Collection[]>("set_in_collection", { collection, id, value });
 /** Sessions en cours, pour retrouver l'état « En jeu » au chargement. */
 export const gameSessions = () => invoke<SessionEvent[]>("game_sessions");
 /** Session terminée, mesurée par Ludex (parties lancées depuis Ludex, une minute au moins). */

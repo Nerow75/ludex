@@ -75,6 +75,21 @@ export const DriveIcon = () => (
 export const ClockIcon = () => (
   <svg {...base}><circle cx="12" cy="12" r="8" /><path d="M12 7.5V12l3 2" /></svg>
 );
+/** Trois colonnes : la section « Progression ». */
+export const BoardIcon = () => (
+  <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.2 4.5v15M14.8 4.5v15" /></svg>
+);
+/** Pile de cartes : une collection perso. */
+export const StackIcon = () => (
+  <svg {...base}><path d="m12 4 8.5 4.5L12 13 3.5 8.5z" /><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5" /></svg>
+);
+/** Étiquette : une collection lue dans Steam. */
+export const TagIcon = () => (
+  <svg {...base}><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.6 6.6a1.5 1.5 0 0 1-2.1 0z" /><circle cx="8" cy="8" r="1.3" /></svg>
+);
+export const NoteIcon = () => (
+  <svg {...base}><path d="M5 4.5h14v10.5L14.5 19.5H5z" /><path d="M14.5 19.5V15H19M8.5 9h7M8.5 12.5h4" /></svg>
+);
 export const SidebarIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
 );
