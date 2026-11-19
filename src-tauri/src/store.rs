@@ -74,6 +74,10 @@ pub struct Settings {
     /// Raccourci clavier global qui ouvre la recherche rapide (`quick.rs`), au format du plugin
     /// (« Alt+Space », « Ctrl+Shift+L »). Vide : désactivé. Modifiable plus tard par un écran Paramètres.
     pub quick_shortcut: String,
+    /// Vrai plein écran permis dans le mode canapé (F11 une fois dedans). Faux par défaut : le mode
+    /// occupe la fenêtre agrandie, car certains écrans VRR (Samsung Odyssey G9) clignotent dès qu'une
+    /// appli passe en plein écran. Modifiable plus tard par un écran Paramètres.
+    pub couch_fullscreen: bool,
     /// Écran de premier lancement déjà vu. `None` : fichier d'avant ce réglage, tranché au
     /// démarrage par `welcome.rs` (un habitué ne le voit pas).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,6 +127,7 @@ impl Default for Settings {
             saves_dir: None,
             auto_saves: true,
             quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
+            couch_fullscreen: false,
             welcome_shown: None,
             theme: Theme::Dark,
             disabled_sources: Vec::new(),
@@ -523,6 +528,7 @@ mod tests {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
         assert!(s.auto_saves && s.saves_dir.is_none() && s.welcome_shown.is_none());
+        assert!(!s.couch_fullscreen);
         assert_eq!(s.quick_shortcut, "Alt+Space");
         assert!(!UserData::default().has_history());
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
@@ -679,6 +685,7 @@ mod tests {
         data.settings.auto_saves = false;
         data.settings.quick_shortcut = "Ctrl+Shift+L".to_string();
         data.settings.welcome_shown = Some(true);
+        data.settings.couch_fullscreen = true;
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));

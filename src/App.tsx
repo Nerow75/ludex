@@ -6,6 +6,9 @@ import {
   createCollection,
   deleteCollection,
   chooseCover,
+  enterCouchWindow,
+  leaveCouchWindow,
+  toggleCouchFullscreen,
   gameSessions,
   getCollections,
   installUpdate,
@@ -54,6 +57,7 @@ import {
 import { ambientFromImage, titleColor } from "./lib/color";
 import { formatPlaytime, formatSize, relativeTime } from "./lib/format";
 import { useGamepad, type PadAction } from "./lib/gamepad";
+import { COUCH_KEY, COUCH_VALUES, couchPadAction, type CouchAction } from "./lib/couch";
 import {
   hasFacets,
   libraryMoods,
@@ -90,6 +94,7 @@ import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon,
 import { SettingsView } from "./components/SettingsView";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
+import CouchMode from "./components/CouchMode";
 import { WindowControls } from "./components/WindowControls";
 
 interface Toast {
@@ -167,6 +172,15 @@ export default function App() {
   const toastTimer = useRef<number>(undefined);
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
+  /** Mode canapé (plein écran, pour la TV), retenu : Ludex se rouvre ainsi s'il a été quitté ainsi. */
+  const [couch, setCouch] = useState(() => remembered(COUCH_KEY, COUCH_VALUES, "off") === "on");
+  const couchOpen = useRef(false);
+  /** Actions de la manette pendant le mode canapé (posé par CouchMode). */
+  const couchControl = useRef<((a: CouchAction) => void) | null>(null);
+  const setCouchMode = useCallback((on: boolean) => {
+    setCouch(on);
+    remember(COUCH_KEY, on ? "on" : "off");
+  }, []);
 
   // Les applis masquées (Wallpaper Engine…) restent dans le scan mais n'apparaissent que dans « Masqués ».
   const games = scan?.games ?? [];
@@ -881,11 +895,12 @@ export default function App() {
   const [padHints, setPadHints] = useState(false);
   useEffect(() => {
     const toKeyboard = () => setPadHints(false);
-    window.addEventListener("keydown", toKeyboard);
-    window.addEventListener("pointerdown", toKeyboard);
+    // Phase de capture : vu aussi quand un écran par-dessus (bienvenue, mode canapé) arrête les touches.
+    window.addEventListener("keydown", toKeyboard, true);
+    window.addEventListener("pointerdown", toKeyboard, true);
     return () => {
-      window.removeEventListener("keydown", toKeyboard);
-      window.removeEventListener("pointerdown", toKeyboard);
+      window.removeEventListener("keydown", toKeyboard, true);
+      window.removeEventListener("pointerdown", toKeyboard, true);
     };
   }, []);
 
@@ -909,6 +924,9 @@ export default function App() {
       } else if (key === "F5") {
         e.preventDefault(); // sinon la WebView recharge la page
         s.refresh(true);
+      } else if (key === "F11") {
+        e.preventDefault();
+        setCouchMode(true); // la sortie (F11, Échap) est gérée par le mode canapé
       } else if (ctrl && key >= "1" && key <= "9") {
         e.preventDefault(); // Ctrl+1, Ctrl+2… : section de la barre latérale
         const id = s.sectionIds[Number(key) - 1];
@@ -1002,6 +1020,12 @@ export default function App() {
   const padConnected = useGamepad((action) => {
     setPadHints(true);
     const s = live.current;
+    // Mode canapé : il a ses propres actions (A jouer, X fiche, LB/RB rangée, B retour…).
+    if (couchOpen.current) {
+      const a = couchPadAction(action);
+      if (a) couchControl.current?.(a);
+      return;
+    }
     // Écran de premier lancement ou menu contextuel ouvert : la manette les pilote comme le clavier.
     if (welcomeOpen.current) {
       const key = PAD_MENU_KEYS[action];
@@ -1015,6 +1039,9 @@ export default function App() {
       return;
     }
     switch (action) {
+      case "couch":
+        setCouchMode(true);
+        break;
       case "menu":
         menuFromFocus();
         break;
@@ -1068,6 +1095,23 @@ export default function App() {
 
   const showWelcome = !!(scan && welcomeInfo);
   welcomeOpen.current = showWelcome;
+  // Après le premier scan, jamais par-dessus l'écran de premier lancement.
+  const showCouch = couch && !!scan && !showWelcome;
+  couchOpen.current = showCouch;
+  const leaveCouch = () => {
+    setCouchMode(false);
+    requestAnimationFrame(focusContent);
+  };
+  // Fenêtre agrandie le temps du mode canapé (commandes Rust sans argument). Pas de plein écran par
+  // défaut : certains écrans VRR clignotent ; F11 le demande si le réglage `couchFullscreen` le permet.
+  useEffect(() => {
+    (showCouch ? enterCouchWindow() : leaveCouchWindow()).catch((e) => console.error("Fenêtre du mode canapé :", e));
+  }, [showCouch]);
+  const couchFullscreen = () => {
+    toggleCouchFullscreen()
+      .then((on) => on === null && leaveCouch())
+      .catch((e) => console.error("Plein écran :", e));
+  };
   /** Écran de premier lancement fermé : il ne reviendra plus, puis `then` (section à ouvrir). */
   const closeWelcome = (then: () => void) => {
     setWelcomeInfo(null);
@@ -1078,7 +1122,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${collapsed ? "is-side-collapsed" : ""}`}
+      className={`app ${collapsed ? "is-side-collapsed" : ""} ${showCouch ? "is-couch" : ""}`}
       style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}
     >
       <Sidebar
@@ -1093,11 +1137,13 @@ export default function App() {
         onCreateCollection={(name) => newCollection(name, null)}
         settingsActive={view.id === SETTINGS_ID}
         onSettings={() => goTo(SETTINGS_ID)}
+        onCouch={() => setCouchMode(true)}
       />
 
       {/* Barre de titre : le fond de la rangée du haut et de l'indication déplace la fenêtre,
           double clic = agrandir ou restaurer ; boutons de la fenêtre dans le coin (WindowControls). */}
-      <WindowControls />
+      {/* Mode canapé : pas de boutons de fenêtre (le mode a son ×) ; on en sort par Échap, B, Guide ou Vue + Menu. */}
+      {!showCouch && <WindowControls />}
       <header className="top" data-tauri-drag-region>
         <span className="brand" data-tauri-drag-region="deep"><LudexMark />Ludex</span>
         <label className="search">
@@ -1398,6 +1444,19 @@ export default function App() {
               changeFilter("hidden");
             })
           }
+        />
+      )}
+
+      {showCouch && (
+        <CouchMode
+          games={games}
+          playing={playing}
+          pad={showPadHints}
+          onPlay={play}
+          onFavorite={toggleFavorite}
+          onExit={leaveCouch}
+          onFullscreen={couchFullscreen}
+          control={couchControl}
         />
       )}
 

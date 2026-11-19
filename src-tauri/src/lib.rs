@@ -2024,7 +2024,10 @@ pub fn run() {
             settings::set_launch_at_startup,
             settings::set_keep_in_tray,
             settings::set_source_enabled,
-            settings::show_all_hidden
+            settings::show_all_hidden,
+            window_controls::window_enter_couch,
+            window_controls::window_leave_couch,
+            window_controls::window_couch_fullscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

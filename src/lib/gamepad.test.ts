@@ -17,7 +17,7 @@ describe("PadReader", () => {
   });
   it("boutons de la manette Xbox", () => {
     const pad = new PadReader();
-    expect(pad.update(releve([1, 2, 3, 4, 5, 6, 7, 8, 9]), 0)).toEqual([
+    expect(pad.update(releve([1, 2, 3, 4, 5, 6, 7]), 0)).toEqual([
       "back",
       "details",
       "favorite",
@@ -25,9 +25,33 @@ describe("PadReader", () => {
       "nextSection",
       "prevFilter",
       "nextFilter",
-      "nextSort",
-      "menu",
     ]);
+  });
+  it("Vue et Menu agissent au relâchement", () => {
+    const pad = new PadReader();
+    expect(pad.update(releve([8]), 0)).toEqual([]);
+    expect(pad.update(releve(), 16)).toEqual(["nextSort"]);
+    expect(pad.update(releve([9]), 32)).toEqual([]);
+    expect(pad.update(releve(), 48)).toEqual(["menu"]);
+  });
+  it("Vue + Menu ensemble : mode canapé, sans leurs actions", () => {
+    const pad = new PadReader();
+    expect(pad.update(releve([8]), 0)).toEqual([]);
+    expect(pad.update(releve([8, 9]), 16)).toEqual(["couch"]);
+    expect(pad.update(releve([8, 9]), 32)).toEqual([]);
+    expect(pad.update(releve([8]), 48)).toEqual([]);
+    expect(pad.update(releve(), 64)).toEqual([]);
+    // Puis chacun retrouve son action.
+    pad.update(releve([9]), 80);
+    expect(pad.update(releve(), 96)).toEqual(["menu"]);
+  });
+  it("enfoncés dans le même relevé : mode canapé une seule fois", () => {
+    const pad = new PadReader();
+    expect(pad.update(releve([8, 9]), 0)).toEqual(["couch"]);
+    expect(pad.update(releve(), 16)).toEqual([]);
+  });
+  it("bouton Guide : mode canapé", () => {
+    expect(new PadReader().update(releve([16]), 0)).toEqual(["couch"]);
   });
   it("clics des sticks ignorés", () => {
     expect(new PadReader().update(releve([10, 11]), 0)).toEqual([]);

@@ -654,3 +654,10 @@ export const showAllHidden = () => invoke<string[]>("show_all_hidden");
 export const checkUpdate = () => invoke<UpdateInfo | null>("check_update");
 export const onSettingsChanged = (handler: (event: SettingsInfo) => void): Promise<UnlistenFn> =>
   listen<SettingsInfo>("settings-changed", (e) => handler(e.payload));
+
+/** Plein écran réel de la fenêtre principale (mode canapé), commandes sans argument. */
+/** Mode canapé : fenêtre agrandie à l'entrée, rendue à sa taille (et plein écran quitté) à la sortie. */
+export const enterCouchWindow = () => invoke<void>("window_enter_couch");
+export const leaveCouchWindow = () => invoke<void>("window_leave_couch");
+/** F11 dans le mode canapé : nouvel état du plein écran, `null` si le réglage l'interdit. */
+export const toggleCouchFullscreen = () => invoke<boolean | null>("window_couch_fullscreen");

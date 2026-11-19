@@ -137,6 +137,15 @@ kbd {
 .side__item svg { flex: none; }
 .side__item span { overflow: hidden; text-overflow: ellipsis; }
 .side__foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--lx-border); }
+.side__couch {
+  width: 100%; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border: 0;
+  border-radius: var(--lx-radius-m); background: none; color: var(--lx-text-3); text-align: left; white-space: nowrap;
+  transition: color .15s, background-color .15s;
+}
+.side__couch:hover { color: var(--lx-text); background: var(--lx-surface); }
+.side__couch svg { flex: none; }
+.is-side-collapsed .side__couch { justify-content: center; padding: 0; }
+.is-side-collapsed .side__couch span { display: none; }
 .side__stat { display: flex; flex-direction: column; padding: 0 12px; }
 .side__stat b { font-size: 18px; font-weight: 500; }
 .side__last {
@@ -892,6 +901,119 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 .jgame__shots { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); max-width: 840px; }
 .journal__end { display: flex; justify-content: center; padding: 32px 0 16px; }
 .journal__end .btn-ghost:disabled { opacity: .6; }
+/* ---------- Mode canapé : lisible à 3 mètres, plein écran ----------
+   Tailles en clamp() sur la largeur : 1080p comme 4K. Texte sur un fondu de --lx-bg (clair comme
+   sombre). Focus = contour épais de --lx-ambient, sans déplacement ; seuls fondus et défilements bougent. */
+.couch {
+  --couch-gutter: clamp(32px, 4vw, 96px);
+  --couch-cover: clamp(150px, 10.5vw, 300px);
+  position: fixed; inset: 0; z-index: 19; isolation: isolate; overflow: hidden;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--lx-bg); color: var(--lx-text); font-size: clamp(16px, 1.15vw, 30px);
+  animation: fade-in .3s var(--lx-ease);
+}
+.couch__backdrop { position: absolute; inset: 0; z-index: -1; }
+.couch__art { position: absolute; inset: 0; }
+.couch__art img { animation-duration: .6s; }
+.couch__backdrop::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, var(--lx-bg) 0%, color-mix(in srgb, var(--lx-bg) 82%, transparent) 30%, color-mix(in srgb, var(--lx-bg) 20%, transparent) 70%),
+    linear-gradient(0deg, var(--lx-bg) 0%, color-mix(in srgb, var(--lx-bg) 92%, transparent) 42%, transparent 72%);
+}
+.couch__top { display: flex; align-items: center; gap: 24px; padding: clamp(20px, 2.2vw, 48px) var(--couch-gutter) 0; }
+.couch__brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 600; font-size: 1.1em; }
+.couch__now { margin-left: auto; display: flex; align-items: baseline; gap: 24px; color: var(--lx-text-2); }
+.couch__now b { font-weight: 500; color: var(--lx-text); }
+.couch__now time { font-size: 1.4em; font-weight: 500; color: var(--lx-text); font-variant-numeric: tabular-nums; }
+.couch__quit {
+  width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: var(--lx-radius-m);
+  background: transparent; color: var(--lx-text-3); transition: color .15s, background-color .15s;
+}
+.couch__quit:hover { color: var(--lx-text); background: color-mix(in srgb, var(--lx-surface-2) 80%, transparent); }
+
+.couch__info { padding: clamp(16px, 3vh, 48px) var(--couch-gutter) 0; height: clamp(200px, 34vh, 640px); display: flex; align-items: flex-end; }
+.couch__game { display: flex; flex-direction: column; gap: 12px; max-width: min(58vw, 1200px); animation: fade-in .3s var(--lx-ease); }
+.couch__logo { height: clamp(80px, 15vh, 280px); max-width: min(46vw, 900px); }
+.couch__logo .game-logo__text { font-size: clamp(36px, 3.4vw, 88px); font-weight: 600; color: var(--lx-text); text-shadow: none; }
+.couch__logo--big { height: clamp(100px, 20vh, 360px); }
+.couch__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; color: var(--lx-text-2); }
+.couch__meta .live { font-size: 1em; }
+.couch__fav { display: inline-flex; align-items: center; gap: 6px; color: var(--lx-text); }
+.couch__fav svg { color: var(--lx-ambient); }
+.couch__facts { font-size: 1.15em; color: var(--lx-text); }
+
+.couch__shelves {
+  position: relative; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;
+  padding: clamp(16px, 2.6vh, 40px) 0 clamp(24px, 6vh, 120px);
+}
+.couch__row { padding-bottom: clamp(16px, 2.4vh, 40px); }
+.couch__row h2 {
+  display: flex; align-items: baseline; gap: 12px; padding: 0 var(--couch-gutter) 12px;
+  font-size: 1.3em; font-weight: 500;
+}
+.couch__row h2 em { font-style: normal; font-size: .7em; font-family: var(--lx-font-mono); color: var(--lx-text-3); }
+.couch__list {
+  position: relative; list-style: none; margin: 0; display: flex; gap: clamp(12px, 1.1vw, 28px);
+  /* Place pour le contour du focus, en haut et en bas. */
+  padding: 12px var(--couch-gutter); overflow-x: auto; scrollbar-width: none;
+}
+.couch__list li { flex: none; }
+.couch__card {
+  position: relative; display: block; width: var(--couch-cover); padding: 0; border: 0; background: none;
+  border-radius: var(--lx-radius-l); outline: 4px solid transparent; outline-offset: 4px;
+  transition: outline-color .15s var(--lx-ease), filter .15s var(--lx-ease);
+  filter: brightness(.82);
+}
+.couch__card .cover { border-radius: var(--lx-radius-l); font-size: clamp(14px, 1vw, 26px); }
+.couch__card:hover { filter: none; }
+.couch__card.is-focus { filter: none; outline-color: var(--lx-ambient); }
+.couch__card:focus-visible { outline-color: var(--lx-ambient); }
+.couch__card:active { transform: scale(.98); }
+.couch__live {
+  position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: var(--lx-radius-s);
+  background: color-mix(in srgb, var(--lx-bg) 82%, transparent); font-size: .8em;
+}
+.couch__empty { padding: 0 var(--couch-gutter); color: var(--lx-text-2); }
+
+.couch__fiche {
+  grid-row: 2 / 4; align-self: end; display: flex; flex-direction: column; gap: clamp(16px, 2.2vh, 32px);
+  max-width: min(64vw, 1300px); padding: 0 var(--couch-gutter) clamp(24px, 5vh, 96px);
+  animation: fade-in .3s var(--lx-ease);
+}
+.couch__desc { max-width: 60ch; color: var(--lx-text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.couch__acts { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.couch__acts .btn-play, .couch__acts .btn-ghost {
+  height: clamp(52px, 3.4vw, 88px); padding: 0 clamp(24px, 1.8vw, 44px); font-size: 1.1em; gap: 12px;
+  outline: 4px solid transparent; outline-offset: 4px; transition: outline-color .15s var(--lx-ease), background-color .15s;
+}
+.couch__acts .btn-ghost { background: color-mix(in srgb, var(--lx-bg) 60%, transparent); }
+.couch__acts .btn-ghost[aria-pressed="true"] svg { color: var(--lx-ambient); }
+.couch__acts :is(.btn-play, .btn-ghost):focus { outline-color: var(--lx-ambient); }
+.couch__acts svg { width: 1.2em; height: 1.2em; }
+.couch__acts .live { font-size: .9em; }
+.couch__stats { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(clamp(180px, 13vw, 340px), 1fr)); gap: 16px; }
+.couch__stats > div {
+  display: flex; flex-direction: column; gap: 4px; padding: clamp(14px, 1.2vw, 28px);
+  border-radius: var(--lx-radius-l); background: color-mix(in srgb, var(--lx-surface) 82%, transparent);
+}
+.couch__stats dt { font-size: .85em; color: var(--lx-text-3); }
+.couch__stats dd { margin: 0; font-size: 1.25em; font-weight: 500; font-variant-numeric: tabular-nums; }
+.couch__stats .couch__note { font-size: .85em; font-weight: 400; color: var(--lx-text-2); }
+
+.couch__keys {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px clamp(20px, 2vw, 48px);
+  padding: 16px var(--couch-gutter) clamp(16px, 2.4vh, 40px); color: var(--lx-text-2); font-size: .9em;
+}
+.couch__keys span { display: inline-flex; align-items: center; gap: 8px; }
+.couch__keys kbd { font-size: .8em; padding: 2px 8px; }
+.couch__keys kbd.pad { width: 1.6em; height: 1.6em; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 600; }
+
+/* Toasts (lancement, favori) lisibles de loin. */
+.app.is-couch .toast { right: clamp(32px, 4vw, 96px); bottom: 96px; max-width: min(720px, calc(100vw - 96px)); padding: 16px 24px; }
+.app.is-couch .toast b { font-size: clamp(16px, 1.2vw, 30px); }
+.app.is-couch .toast code { font-size: clamp(13px, .9vw, 22px); }
+
 /* ---------- Premier lancement ---------- */
 .welcome {
   position: fixed; inset: 0; z-index: 40; overflow-y: auto; display: grid; place-items: center; padding: 40px 24px;
