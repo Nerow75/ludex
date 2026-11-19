@@ -1,0 +1,55 @@
+# Vérification de Ludex à chaque push et pull request : types et tests du front, build du front,
+# tests Rust et clippy sans avertissement. Sous Windows, comme l'app (registre, chemins, WebView2).
+name: Vérification
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verif-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verif:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - name: Types du front
+        run: npx tsc --noEmit
+
+      - name: Tests du front
+        run: npm test
+
+      # `tauri build` a besoin de `dist` ; le build du front vérifie aussi Vite.
+      - name: Build du front
+        run: npm run build
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests Rust
+        working-directory: src-tauri
+        run: cargo test

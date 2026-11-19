@@ -31,6 +31,7 @@ Launcher hub pour Windows : détecte les jeux installés de tous les launchers (
 - `cd src-tauri && cargo clippy --all-targets` : doit rester sans avertissement
 - Écran de premier lancement sans toucher aux vraies données : `$env:LUDEX_WELCOME = "1"` puis `npm run tauri dev` (debug), ou en release `npx tauri build --no-bundle --features welcome-preview` puis `src-tauri/target/release/ludex.exe` lancé avec la même variable (jamais cette fonction dans une build publiée). Fermer toute autre instance de Ludex avant (instance unique).
 - Installeur local (PowerShell) : `$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\ludex-updater.key"; $env:CI = "true"; npx tauri build` (`CI` = mot de passe vide, sans invite). Produit `src-tauri/target/release/bundle/nsis/Ludex_<version>_x64-setup.exe` et son `.sig`. Sans la clé, la build échoue (`createUpdaterArtifacts`) : `npx tauri build --no-bundle` pour tester la CSP seulement.
+- CI : `.github/workflows/verif.yml` à chaque push (hors tags `v*`) et pull request, sous `windows-latest` : `npm ci`, `tsc`, `npm test`, `npm run build`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (tests `--ignored` jamais lancés).
 - Release : monter la version dans `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et `package.json` (les trois identiques), committer, puis `git tag v<version>` et `git push origin v<version>` : le workflow `.github/workflows/release.yml` construit et publie.
 
 ## Architecture
