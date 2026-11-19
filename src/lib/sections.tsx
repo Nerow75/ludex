@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import type { Game } from "./api";
 import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
-import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, SaveIcon, StarIcon, TrophyIcon } from "../components/Icons";
+import { ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StarIcon, TrophyIcon } from "../components/Icons";
+import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
 import { RecapView } from "../components/RecapView";
@@ -16,6 +17,10 @@ export interface SectionContext {
   /** Ouvre la fiche d'un jeu dans « Tous les jeux ». */
   openGame: (game: Game) => void;
   play: (game: Game) => void;
+  /** Journal restreint à un jeu (« Voir son journal » de la fiche), `null` : tout le journal. */
+  journalGame: Game | null;
+  /** Revient au journal complet. */
+  showWholeJournal: () => void;
 }
 
 /**
@@ -49,6 +54,8 @@ export const SECTIONS: readonly Section[] = [
   { id: "installed", label: "Installés", icon: DriveIcon, scope: (g) => g.installState.kind === "ready", filters: launchersOnly },
   { id: "favorites", label: "Favoris", icon: () => <StarIcon />, scope: (g) => g.favorite, filters: launchersOnly },
   { id: "history", label: "Historique", icon: ClockIcon, render: (ctx) => <HistoryList {...ctx} /> },
+  // Frise jour par jour : sessions, succès Steam et captures.
+  { id: "journal", label: "Journal", icon: JournalIcon, render: (ctx) => <JournalView {...ctx} /> },
   { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
   { id: "showcase", label: "Vitrine", icon: TrophyIcon, render: (ctx) => <ShowcaseView {...ctx} /> },

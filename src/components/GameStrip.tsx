@@ -13,7 +13,7 @@ import {
 import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, JournalIcon, PencilIcon, PlayIcon, StarIcon, TrashIcon } from "./Icons";
 import { SavesPanel } from "./SavesPanel";
 
 interface Props {
@@ -32,6 +32,8 @@ interface Props {
   onRename: (game: Game, title: string) => void;
   /** Jeux ajoutés à la main seulement. */
   onRemove: (game: Game) => void;
+  /** Journal de ce jeu (section « Journal » restreinte). */
+  onJournal?: (game: Game) => void;
   onClose: () => void;
 }
 
@@ -180,7 +182,7 @@ function SavesSection({ gameId, playing }: { gameId: string; playing: boolean })
 }
 
 /** Fiche du jeu, dépliée sous la rangée de sa jaquette. */
-export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onClose }: Props) {
+export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, onOpenFolder, onChangeExe, onRename, onRemove, onJournal, onClose }: Props) {
   const [renaming, setRenaming] = useState(false);
   const details = detailsLine(game);
   const description = game.details?.description;
@@ -263,6 +265,11 @@ export function GameStrip({ game, notch, playing, onPlay, onFavorite, onHide, on
         </div>
         <StripScreenshots key={game.id} game={game} playing={playing} />
         {game.installDir && <p className="path" title={game.installDir}>{game.installDir}</p>}
+        {onJournal && (
+          <button type="button" className="strip__journal" onClick={() => onJournal(game)}>
+            <JournalIcon /> Voir son journal
+          </button>
+        )}
         <AchievementList key={game.id} game={game} />
         <SavesSection key={game.id} gameId={game.id} playing={playing} />
       </div>

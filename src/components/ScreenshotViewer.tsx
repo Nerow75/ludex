@@ -22,12 +22,14 @@ interface TileProps {
   onOpen: () => void;
   /** Captures restantes, affichées sur la dernière vignette (« +12 »). */
   more?: number;
+  /** Atteinte par les flèches et la manette (`data-nav`) dans un écran de section. */
+  nav?: boolean;
 }
 
 /** Vignette d'une capture : la miniature (Steam) ou l'image, jamais la pleine taille d'une vidéo. */
-export function ShotTile({ shot, label, onOpen, more }: TileProps) {
+export function ShotTile({ shot, label, onOpen, more, nav }: TileProps) {
   return (
-    <button type="button" className="shot" onClick={onOpen} aria-label={more ? `${label}, et ${more} autres` : label} title={shotMeta(shot)}>
+    <button type="button" className="shot" data-nav={nav || undefined} onClick={onOpen} aria-label={more ? `${label}, et ${more} autres` : label} title={shotMeta(shot)}>
       {shot.video ? (
         <span className="shot__video"><PlayIcon /></span>
       ) : (

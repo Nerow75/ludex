@@ -108,3 +108,6 @@ export const SaveIcon = () => (
     <path d="M8.5 4.5v4h6v-4M8.5 19.5v-6h7v6" />
   </svg>
 );
+export const JournalIcon = () => (
+  <svg {...base}><rect x="4.5" y="5.5" width="15" height="14" rx="2" /><path d="M4.5 10h15M9 3.5v4M15 3.5v4" /></svg>
+);

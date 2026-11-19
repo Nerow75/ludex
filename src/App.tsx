@@ -64,6 +64,8 @@ export default function App() {
   // Barre latérale : section affichée et barre repliée (icônes seules), gardées entre deux lancements.
   const [sectionId, setSectionId] = useState(() => remembered("section", SECTION_IDS, SECTION_IDS[0]));
   const [collapsed, setCollapsed] = useState(() => remembered("sidebar", ["open", "collapsed"], "open") === "collapsed");
+  /** Journal restreint à un jeu (« Voir son journal » de la fiche). Quitte la restriction en changeant de section. */
+  const [journalGameId, setJournalGameId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [ambient, setAmbient] = useState<string | null>(null);
   /** Jeux lancés depuis Ludex dont un processus tourne. */
@@ -94,6 +96,7 @@ export default function App() {
 
   const goTo = useCallback((id: string) => {
     setSectionId(id);
+    setJournalGameId(null);
     setOpen(false);
     remember("section", id);
     scrollRef.current?.scrollTo({ top: 0 });
@@ -113,6 +116,13 @@ export default function App() {
     setFilter((f) => (game.hidden ? "hidden" : f !== "favorites" && matchesFilter(game, f) ? f : "all"));
     setSelectedId(game.id);
     setOpen(true);
+  }, [goTo]);
+
+  /** Journal d'un seul jeu, depuis sa fiche. */
+  const openJournal = useCallback((game: Game) => {
+    goTo("journal");
+    setQuery("");
+    setJournalGameId(game.id);
   }, [goTo]);
 
   /** `manual` : rescan demandé par l'utilisateur, confirmé par un toast. */
@@ -601,7 +611,8 @@ export default function App() {
     }
   });
   const showPadHints = padConnected && padHints;
-  const sectionContext: SectionContext = { games, playing, openGame, play };
+  const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
+  const sectionContext: SectionContext = { games, playing, openGame, play, journalGame, showWholeJournal: () => setJournalGameId(null) };
 
   return (
     <div
@@ -748,6 +759,7 @@ export default function App() {
                   onChangeExe={changeExe}
                   onRename={rename}
                   onRemove={remove}
+                  onJournal={openJournal}
                   onClose={() => setOpen(false)}
                 />
               )}

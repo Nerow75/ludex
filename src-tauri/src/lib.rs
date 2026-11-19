@@ -1,6 +1,7 @@
 mod art;
 mod history;
 mod images;
+mod journal;
 mod library;
 mod metadata;
 mod recap;
@@ -626,19 +627,59 @@ fn last_sessions(state: State<'_, AppState>) -> Vec<history::PastSession> {
 /// Valeurs fermées seulement : tout est calculé depuis l'historique et l'état.
 #[tauri::command]
 fn recap(state: State<'_, AppState>, period: recap::Period, back: Option<u32>) -> recap::Recap {
-    let unlocks: Vec<(String, Vec<u64>)> = state
-        .games
-        .lock()
-        .map(|games| {
-            games
-                .iter()
-                .filter_map(|g| Some((g.id.clone(), g.achievements.as_ref()?.unlock_times.clone())))
-                .filter(|(_, times)| !times.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+    let unlocks = state.games.lock().map(|games| unlock_times(&games)).unwrap_or_default();
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     recap::compute(&state.tracker.sessions(), &unlocks, now, period, back.unwrap_or(0), &recap::LocalZone)
+}
+
+/// Dates de déblocage des succès de chaque jeu qui en a (récap et journal).
+fn unlock_times(games: &[Game]) -> Vec<(String, Vec<u64>)> {
+    games
+        .iter()
+        .filter_map(|g| Some((g.id.clone(), g.achievements.as_ref()?.unlock_times.clone())))
+        .filter(|(_, times)| !times.is_empty())
+        .collect()
+}
+
+/// Section « Journal » : une page de jours actifs (sessions, succès, captures), du plus récent au
+/// plus ancien. `before` : date `AAAA-MM-JJ` (exclue) renvoyée par la page précédente ; `game` : un
+/// seul jeu de la bibliothèque. Succès : détail lu seulement pour les jeux de la page, pourcentages
+/// mondiaux du cache seulement (aucune requête).
+#[tauri::command]
+async fn journal(app: AppHandle, before: Option<String>, game: Option<String>) -> Result<journal::Page, String> {
+    let before = match before.as_deref() {
+        Some(text) => Some(journal::parse_day(text).ok_or("Date invalide.")?),
+        None => None,
+    };
+    blocking(move || {
+        let state = app.state::<AppState>();
+        if let Some(id) = &game {
+            find_game(&state, id)?;
+        }
+        let (games, roots) = screenshot_context(&state)?;
+        let shots = screenshots::collect(&roots, &games, game.as_deref());
+        let unlocks = unlock_times(&games);
+        let sessions = state.tracker.sessions();
+        let stats = library::SteamStats::locate();
+        let page = {
+            let cache = lock(&state.global)?;
+            let src = journal::Sources { sessions: &sessions, unlocks: &unlocks, shots: &shots };
+            let title = |id: &str| games.iter().find(|g| g.id == id).map(|g| g.title.clone());
+            journal::compute(&src, before, game.as_deref(), &recap::LocalZone, title, |id| {
+                let g = games.iter().find(|g| g.id == id && g.platform == Platform::Steam)?;
+                let mut list = stats.as_ref()?.details(&g.platform_id)?;
+                if let Ok(appid) = g.platform_id.parse::<u32>() {
+                    cache.apply(appid, &mut list);
+                }
+                Some(list)
+            })
+        };
+        // Seules les captures envoyées pourront être servies par le protocole `ludex`.
+        let sent: Vec<screenshots::Shot> = page.days.iter().flat_map(|d| d.games.iter().flat_map(|g| g.shots.iter().cloned())).collect();
+        lock(&state.shots)?.remember(&roots, &sent, false);
+        Ok(page)
+    })
+    .await
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
@@ -1485,6 +1526,7 @@ pub fn run() {
             recent_playtime,
             last_sessions,
             recap,
+            journal,
             game_achievements,
             showcase,
             update::available_update,
