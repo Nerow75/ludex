@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { installDates, MOOD_LABEL, PLATFORM_LABEL, recap, STATUS_LABEL, type Game } from "../lib/api";
 import { formatDuration, formatPlaytime, installBadge, relativeTime } from "../lib/format";
-import { downloads, lastAchievement, moodIdeas, pickTonight, pileGames, type Tonight } from "../lib/home";
+import { downloads, lastAchievement, moodIdeas, pickTonight, pileGames, tonightSettled, type Tonight } from "../lib/home";
 import { recentGames } from "../lib/library";
 import type { SectionContext } from "../lib/sections";
 import { Art, Logo } from "./Art";
@@ -27,7 +27,7 @@ const REASON: Record<Tonight["reason"], string> = {
  * chargés, sauf les dates d'installation et le temps de la semaine (commandes sans argument).
  * Les rangées se parcourent aux flèches : écran en deux dimensions (`data-nav-2d`).
  */
-export function HomeView({ games, playing, openGame, play, showMood }: SectionContext) {
+export function HomeView({ games, partial, playing, openGame, play, showMood }: SectionContext) {
   const installed = useInstallDates(games);
   const pile = useMemo(() => pileGames(games, installed), [games, installed]);
   const tonight = useMemo(() => pickTonight(games, playing, pile), [games, playing, pile]);
@@ -39,7 +39,8 @@ export function HomeView({ games, playing, openGame, play, showMood }: SectionCo
 
   return (
     <div className="home" data-nav-2d>
-      {tonight && <TonightBanner tonight={tonight} live={playing.has(tonight.game.id)} openGame={openGame} play={play} />}
+      {tonight && !tonightSettled(tonight, partial) && <section className="tonight" aria-hidden="true" />}
+      {tonight && tonightSettled(tonight, partial) && <TonightBanner tonight={tonight} live={playing.has(tonight.game.id)} openGame={openGame} play={play} />}
       <Facts games={games} playing={playing} openGame={openGame} />
       <ResumeRow games={resume} playing={playing} onSelect={openGame} onPlay={play} nav />
       {pending.length > 0 && (

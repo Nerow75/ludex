@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { downloads, lastAchievement, moodIdeas, neverPlayed, pickTonight, pileGames } from "./home";
+import { downloads, lastAchievement, moodIdeas, neverPlayed, pickTonight, pileGames, tonightSettled } from "./home";
 import { jeu, jeuAmbiance, JOUR, maintenant } from "../test/jeu";
 
 beforeEach(() => {
@@ -135,5 +135,18 @@ describe("lastAchievement", () => {
     const sans = jeu({ achievements: { unlocked: 0, total: 10, lastUnlocked: null } });
     expect(lastAchievement([a, b, masque, sans, jeu()])).toEqual({ game: b, at: 300 });
     expect(lastAchievement([sans, jeu()])).toBeNull();
+  });
+});
+
+describe("tonightSettled : bannière pendant le premier affichage", () => {
+  it("attend le scan complet, sauf pour une partie en cours", () => {
+    const g = jeu();
+    expect(tonightSettled({ game: g, reason: "last" }, true)).toBe(false);
+    expect(tonightSettled({ game: g, reason: "playing" }, true)).toBe(false);
+    expect(tonightSettled({ game: g, reason: "new" }, true)).toBe(false);
+    expect(tonightSettled(null, true)).toBe(false);
+    expect(tonightSettled({ game: g, reason: "live" }, true)).toBe(true);
+    expect(tonightSettled({ game: g, reason: "last" }, false)).toBe(true);
+    expect(tonightSettled(null, false)).toBe(true);
   });
 });
