@@ -103,6 +103,15 @@ pub struct Game {
     pub launch_label: String,
     #[serde(skip)]
     pub launch: Launch,
+    /// L'exécutable lancé est un lanceur tiers (Ankama, Pokeisland) qui ne transmet pas
+    /// d'options au jeu (`launch_args.rs`).
+    #[serde(skip)]
+    pub via_launcher: bool,
+    /// Options de lancement choisies par l'utilisateur, déjà validées (`launch_args.rs`).
+    /// Absentes si ce launcher n'en accepte pas.
+    pub launch_args: Option<String>,
+    /// Pourquoi ce jeu ne peut pas recevoir d'options, `None` s'il le peut.
+    pub launch_args_refusal: Option<String>,
     /// Images trouvées dans le cache local du launcher, servies par le protocole `ludex`.
     #[serde(skip)]
     pub local_art: LocalArt,
@@ -245,6 +254,9 @@ impl Game {
             hidden: false,
             launch_label: launch.label(),
             launch,
+            via_launcher: false,
+            launch_args: None,
+            launch_args_refusal: None,
             local_art: LocalArt::default(),
             steam_appid: None,
             details: None,

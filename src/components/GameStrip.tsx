@@ -5,6 +5,7 @@ import {
   gameScreenshots,
   journal,
   MAX_COLLECTION_NAME,
+  MAX_LAUNCH_ARGS,
   MAX_NOTE,
   MAX_TITLE,
   MOOD_LABEL,
@@ -21,6 +22,7 @@ import {
   type Status,
 } from "../lib/api";
 import {
+  argsExample,
   formatAchievements,
   formatDate,
   formatDateTime,
@@ -32,6 +34,7 @@ import {
   relativeDay,
   relativeTime,
   releaseYear,
+  shortArgs,
 } from "../lib/format";
 import { remember, remembered } from "../lib/library";
 import { spatialNext, type Direction } from "../lib/spatial";
@@ -39,7 +42,7 @@ import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
 
@@ -75,6 +78,8 @@ interface Props {
   onStatus: (game: Game, status: Status | null) => void;
   /** Note vide : note effacée. */
   onNote: (game: Game, note: string) => void;
+  /** Options de lancement (texte vide : effacées). Rejette avec le message de Rust si refusées. */
+  onLaunchArgs: (game: Game, text: string) => Promise<void>;
   onToggleCollection: (game: Game, collection: Collection, value: boolean) => void;
   /** Nouvelle collection qui reçoit tout de suite ce jeu. */
   onCreateCollection: (name: string, game: Game) => void;
@@ -129,6 +134,83 @@ function TitleEditor({ game, onDone, onRename }: { game: Game; onDone: () => voi
       title="Entrée pour valider, Échap pour annuler. Vide : titre d'origine"
       spellCheck={false}
     />
+  );
+}
+
+/** Options de lancement : champ sur place (Entrée valide, Échap annule), message de Rust si
+ * refusées (le champ se rouvre avec le texte), champ désactivé avec l'explication si le launcher
+ * ne transmet pas d'options. */
+function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["onLaunchArgs"] }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setEditing(false);
+    setDraft(null);
+    setError(null);
+  }, [game.id]);
+  const submit = (text: string) => {
+    setError(null);
+    onLaunchArgs(game, text).catch((e) => {
+      setDraft(text);
+      setError(String(e));
+      setEditing(true);
+    });
+  };
+  const refusal = game.launchArgsRefusal;
+  return (
+    <div className="fiche__block">
+      <p className="fiche__label">Options de lancement</p>
+      {refusal ? (
+        <>
+          <button type="button" className="strip__note strip__args is-empty" disabled aria-describedby={`args-why-${game.id}`}>
+            <SlidersIcon />
+            <span>Indisponibles</span>
+          </button>
+          <p className="strip__args-help" id={`args-why-${game.id}`}>{refusal}</p>
+        </>
+      ) : editing ? (
+        <InlineInput
+          key={draft ?? ""}
+          className="strip__note-input strip__args-input"
+          initial={draft ?? game.launchArgs ?? ""}
+          maxLength={MAX_LAUNCH_ARGS}
+          label={`Options de lancement de ${game.title}`}
+          placeholder={argsExample(game.platform)}
+          onSubmit={submit}
+          onDone={() => {
+            setEditing(false);
+            setDraft(null);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          data-nav
+          className={`strip__note strip__args ${game.launchArgs ? "" : "is-empty"}`}
+          title={game.launchArgs ? `${game.launchArgs}
+Cliquer pour modifier. Vide : options effacées` : "Ajouter des options de lancement"}
+          onClick={() => {
+            setError(null);
+            setEditing(true);
+          }}
+        >
+          <SlidersIcon />
+          <span>{game.launchArgs ?? "Ajouter des options"}</span>
+        </button>
+      )}
+      {error ? (
+        <p className="strip__args-error" role="alert">{error}</p>
+      ) : (
+        !refusal &&
+        editing && (
+          <p className="strip__args-help">
+            Passées au jeu à chaque lancement depuis Ludex, séparées par des espaces, guillemets pour un texte avec espaces.
+            {game.platform === "steam" && " Steam peut demander de confirmer."}
+          </p>
+        )
+      )}
+    </div>
   );
 }
 
@@ -428,6 +510,7 @@ export function GameStrip({
   collections,
   onStatus,
   onNote,
+  onLaunchArgs,
   onToggleCollection,
   onCreateCollection,
   edit,
@@ -587,6 +670,11 @@ export function GameStrip({
                     </div>
                   )}
                   <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
+                  {game.launchArgs && (
+                    <div className="is-wide" title={game.launchArgs}>
+                      <dt>Options</dt><dd className="args">{shortArgs(game.launchArgs, 60)}</dd>
+                    </div>
+                  )}
                   {game.installDir && <div className="is-wide"><dt>Dossier</dt><dd className="path" title={game.installDir}>{game.installDir}</dd></div>}
                 </dl>
                 {!d && <p className="fiche__note">Pas de fiche Steam pour ce jeu : ni description, ni genres, ni tags.</p>}
@@ -689,6 +777,8 @@ export function GameStrip({
               <Lifespan game={game} />
             </div>
           )}
+
+          <LaunchArgs game={game} onLaunchArgs={onLaunchArgs} />
 
           <div className="fiche__block">
             <p className="fiche__label">Actions</p>

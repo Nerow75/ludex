@@ -33,6 +33,7 @@ import {
   setHidden,
   setInCollection,
   setNote,
+  setLaunchArgs,
   setStatus,
   STATUS_LABEL,
   type Collection,
@@ -525,6 +526,13 @@ export default function App() {
       patchGame(game.id, { note: game.note });
       showToast({ title: "Note non enregistrée", detail: String(e), error: true }, 5000);
     }
+  }, [patchGame, showToast]);
+
+  // Rejette avec le message de Rust : la fiche l'affiche sous le champ rouvert.
+  const changeLaunchArgs = useCallback(async (game: Game, text: string) => {
+    const saved = await setLaunchArgs(game.id, text);
+    patchGame(game.id, { launchArgs: saved });
+    showToast({ title: saved ? "Options de lancement enregistrées" : "Options de lancement effacées", detail: saved ?? undefined }, 3000);
   }, [patchGame, showToast]);
 
   const setMine = (mine: Collection[]) => setCollections((c) => ({ steam: c?.steam ?? [], mine }));
@@ -1327,6 +1335,7 @@ export default function App() {
                   collections={collections?.mine ?? []}
                   onStatus={changeStatus}
                   onNote={changeNote}
+                  onLaunchArgs={changeLaunchArgs}
                   onToggleCollection={toggleCollection}
                   onCreateCollection={(name, game) => newCollection(name, game)}
                   edit={ficheEdit?.id === g.id ? ficheEdit.kind : null}

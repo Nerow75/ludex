@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  argsExample,
   cleanTitle,
   formatAchievements,
   formatBytes,
@@ -18,6 +19,7 @@ import {
   relativeDay,
   relativeTime,
   releaseYear,
+  shortArgs,
 } from "./format";
 import { espaces, fiche, jeu, JOUR, maintenant } from "../test/jeu";
 
@@ -222,5 +224,24 @@ describe("queryMatch", () => {
   });
   it("rien : null", () => {
     expect(queryMatch(rocket, "zelda")).toBeNull();
+  });
+});
+
+describe("shortArgs", () => {
+  it("garde un texte court tel quel", () => {
+    expect(shortArgs("  -novid -console ")).toBe("-novid -console");
+  });
+  it("coupe entre deux options", () => {
+    expect(shortArgs("-novid -console +fps_max 240 -high", 24)).toBe("-novid -console…");
+  });
+  it("coupe dans une option trop longue", () => {
+    expect(shortArgs("-config_tres_long_sans_espace", 10)).toBe("-config_tr…");
+  });
+});
+
+describe("argsExample", () => {
+  it("propose des options Steam ou d'exécutable", () => {
+    expect(argsExample("steam")).toContain("+fps_max");
+    expect(argsExample("other")).toBe("-windowed -dx11");
   });
 });
