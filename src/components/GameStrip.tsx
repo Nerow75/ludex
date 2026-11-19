@@ -124,7 +124,7 @@ function lastAchievement(lastUnlocked: number | null): string {
 }
 
 /** Dernière session mesurée par Ludex, relue à l'ouverture de la fiche et à la fin d'une partie. */
-function useLastSession(id: string, playing: boolean): PastSession | null {
+export function useLastSession(id: string, playing: boolean): PastSession | null {
   const [last, setLast] = useState<PastSession | null>(null);
   useEffect(() => {
     let alive = true;

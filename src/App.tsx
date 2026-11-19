@@ -73,8 +73,8 @@ import { collectionSections, SECTIONS, type Section, type SectionContext } from 
 import { GameStrip } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
 import { LibraryGrid } from "./components/LibraryGrid";
-import { ResumeRow } from "./components/ResumeRow";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
+import { spatialNext } from "./lib/spatial";
 import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "./components/Icons";
 import { EmptyState, LibrarySkeleton } from "./components/States";
@@ -602,8 +602,14 @@ export default function App() {
       else if (dir !== "left") stepSection(dir === "down" ? 1 : -1);
     } else if (live.current.custom) {
       const items = [...(scrollRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? [])];
-      const i = items.indexOf(document.activeElement as HTMLElement);
-      if (dir === "left") focusSidebar();
+      const current = document.activeElement as HTMLElement;
+      const i = items.indexOf(current);
+      // Écran en rangées (« Pour toi ») : l'élément voisin à l'écran ; à gauche du premier, la barre.
+      if (i >= 0 && current.closest("[data-nav-2d]")) {
+        const next = spatialNext(items, current, dir);
+        if (next) next.focus();
+        else if (dir === "left") focusSidebar();
+      } else if (dir === "left") focusSidebar();
       else items[i < 0 ? 0 : Math.min(items.length - 1, Math.max(0, i + (dir === "up" ? -1 : 1)))]?.focus();
     } else {
       moveSelection(dir);
@@ -902,8 +908,6 @@ export default function App() {
 
         {scan && !emptyLibrary && custom && view.render?.(sectionContext)}
 
-        {scan && !emptyLibrary && !custom && view.resume && !query && activeFilter === "all" && !hasFacets(facets) && <ResumeRow games={recent} playing={playing} onSelect={select} onPlay={play} />}
-
         {scan && !emptyLibrary && !custom && (
           <section aria-labelledby="lib-title">
             <div className="bar">
@@ -918,7 +922,7 @@ export default function App() {
                 />
               ) : (
                 <h2 id="lib-title" title={view.collection?.kind === "steam" ? "Collection lue dans Steam, modifiable seulement dans Steam" : undefined}>
-                  {query ? "Résultats" : view.resume ? "Bibliothèque" : view.label}<span>{results.length}</span>
+                  {query ? "Résultats" : view.label}<span>{results.length}</span>
                 </h2>
               )}
               {mineCollection && !query && (
@@ -1014,7 +1018,7 @@ export default function App() {
               <NoResults
                 filter={activeFilter}
                 status={statusFilter}
-                section={view.resume ? null : view.label}
+                section={view.render ? null : view.label}
                 empty={view.empty}
                 query={query}
                 facets={facets}

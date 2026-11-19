@@ -206,6 +206,8 @@ export interface RecentPlaytime {
   games: number;
 }
 export const recentPlaytime = () => invoke<RecentPlaytime>("recent_playtime");
+/** Date d'installation de chaque jeu (création de son dossier, secondes Unix) ; jeu absent : inconnue. */
+export const installDates = () => invoke<Record<string, number>>("install_dates");
 /** Période du récap : valeur fermée, seule chose (avec un recul entier) que le front envoie. */
 export type RecapPeriod = "week" | "month" | "year";
 export interface RecapGame {
