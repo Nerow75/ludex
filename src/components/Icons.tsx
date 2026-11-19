@@ -68,3 +68,13 @@ export const GamepadIcon = () => (
     <path d="M6.5 5h11A4.5 4.5 0 0 1 22 9.5l-.6 6.2a2.6 2.6 0 0 1-4.6 1.4L15 15H9l-1.8 2.1a2.6 2.6 0 0 1-4.6-1.4L2 9.5A4.5 4.5 0 0 1 6.5 5z" />
   </svg>
 );
+export const ChevronLeftIcon = () => (
+  <svg {...base}><path d="m15 5-7 7 7 7" /></svg>
+);
+export const ChevronRightIcon = () => (
+  <svg {...base}><path d="m9 5 7 7-7 7" /></svg>
+);
+/** Capture d'écran : une image avec un paysage. */
+export const ImageIcon = () => (
+  <svg {...base}><rect x="3" y="4.5" width="18" height="15" rx="1.5" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="9" r="1.5" /></svg>
+);

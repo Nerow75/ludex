@@ -293,6 +293,7 @@ pub fn watched_dirs() -> WatchedDirs {
 }
 
 pub use epic::item_installed;
+pub use steam::account_dir as steam_account_dir;
 pub use steam::manifest_installed;
 
 pub fn scan() -> ScanResult {

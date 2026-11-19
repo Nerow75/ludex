@@ -88,3 +88,8 @@ export function installNote(state: InstallState, launcher: string): string | nul
 
 /** « 10 décembre 2020 ». */
 export const formatDate = (ts: number) => fullDate.format(new Date(ts * 1000));
+
+const dateTime = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** « 10 décembre 2020 à 14:23 ». */
+export const formatDateTime = (ts: number) => dateTime.format(new Date(ts * 1000));

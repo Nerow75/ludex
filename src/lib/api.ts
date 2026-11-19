@@ -195,3 +195,37 @@ export const onTrayLaunch = (handler: (event: TrayLaunchEvent) => void): Promise
   listen<TrayLaunchEvent>("tray-launch", (e) => handler(e.payload));
 /** Première fermeture de la fenêtre : Ludex se cache dans la zone de notification. */
 export const onTrayHint = (handler: () => void): Promise<UnlistenFn> => listen("tray-hint", () => handler());
+/** Capture d'écran d'un jeu (Steam ou Xbox Game Bar). Aucun chemin : une empreinte et des URL `ludex`. */
+export interface Screenshot {
+  /** Empreinte de la capture : seule référence à renvoyer à Rust. */
+  key: string;
+  /** `null` : rattachement impossible (« Autres captures »). */
+  gameId: string | null;
+  source: "steam" | "gamebar";
+  /** Dossier Steam de la capture (jeu désinstallé compris). */
+  steamAppid: number | null;
+  /** Date de la capture (secondes Unix). */
+  taken: number;
+  /** Taille du fichier, en octets. */
+  size: number;
+  width: number | null;
+  height: number | null;
+  /** Vidéo de la Game Bar (`.mp4`) : pas de miniature. */
+  video: boolean;
+  /** Miniature pour les listes. */
+  thumbUrl: string;
+  /** Image (ou vidéo) pleine taille, pour la visionneuse. */
+  url: string;
+}
+/** Captures d'un jeu, ou « Autres captures » (`gameId` à `null`). */
+export interface ScreenshotGroup {
+  gameId: string | null;
+  title: string;
+  shots: Screenshot[];
+}
+/** Captures d'un jeu, la plus récente d'abord. */
+export const gameScreenshots = (id: string) => invoke<Screenshot[]>("game_screenshots", { id });
+/** Toutes les captures, groupées par jeu : le jeu à la capture la plus récente d'abord, « Autres captures » en dernier. */
+export const allScreenshots = () => invoke<ScreenshotGroup[]>("all_screenshots");
+/** Montre la capture dans l'Explorateur (le chemin est retrouvé côté Rust). */
+export const showScreenshot = (shot: Screenshot) => invoke<void>("show_screenshot", { id: shot.gameId, key: shot.key });
