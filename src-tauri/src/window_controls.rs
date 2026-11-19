@@ -6,6 +6,10 @@
 //! `allow-close`. Le déplacement passe par `data-tauri-drag-region` (permission
 //! `core:window:allow-start-dragging`, capability `main-window`) et le double clic par
 //! `internal_toggle_maximize`, déjà dans `core:default`.
+//!
+//! Plein écran du mode canapé : deux commandes sans argument plutôt que la permission
+//! `core:window:allow-set-fullscreen`. Même raison que les boutons : la fenêtre visée est fixée côté
+//! Rust (jamais la recherche rapide), et le front reste à `core:default` plus le déplacement.
 
 use tauri::{Runtime, WebviewWindow};
 
@@ -39,6 +43,32 @@ pub fn window_toggle_maximize<R: Runtime>(window: WebviewWindow<R>) -> Result<()
 pub fn window_close<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
     main_only(&window)?;
     window.close().map_err(|e| format!("Fenêtre non fermée : {e}"))
+}
+
+/// Passe la fenêtre principale en plein écran réel (mode canapé). Sans effet si elle l'est déjà ;
+/// Windows retient sa place d'avant (agrandie ou non) pour la sortie.
+#[tauri::command]
+pub fn window_enter_fullscreen<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
+    main_only(&window)?;
+    if window.is_fullscreen().unwrap_or(false) {
+        return Ok(());
+    }
+    // Fenêtre réduite : tao la passerait en plein écran sans la rouvrir (et la sortie la rendrait
+    // réduite, place retenue à l'entrée). Rouverte d'abord.
+    if window.is_minimized().unwrap_or(false) {
+        window.unminimize().map_err(|e| format!("Fenêtre non rouverte : {e}"))?;
+    }
+    window.set_fullscreen(true).map_err(|e| format!("Plein écran impossible : {e}"))
+}
+
+/// Quitte le plein écran de la fenêtre principale (sortie du mode canapé).
+#[tauri::command]
+pub fn window_exit_fullscreen<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
+    main_only(&window)?;
+    if !window.is_fullscreen().unwrap_or(true) {
+        return Ok(());
+    }
+    window.set_fullscreen(false).map_err(|e| format!("Sortie du plein écran impossible : {e}"))
 }
 
 #[cfg(test)]

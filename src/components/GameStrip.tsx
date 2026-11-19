@@ -335,7 +335,7 @@ function JournalTab({ game, playing, onJournal }: { game: Game; playing: boolean
 }
 
 /** Temps restant pour l'histoire, d'après la moyenne HowLongToBeat et le temps de jeu connu. */
-function storyLeft(main: number | null, played: number | null): string | null {
+export function storyLeft(main: number | null, played: number | null): string | null {
   if (main === null || played === null) return null;
   if (played >= main) return "Temps moyen de l'histoire atteint";
   return `Encore environ ${formatPlaytime(Math.max(main - played, 1))} pour l'histoire`;

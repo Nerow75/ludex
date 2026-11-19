@@ -15,7 +15,8 @@ export type PadAction =
   | "prevFilter"
   | "nextFilter"
   | "nextSort"
-  | "menu";
+  | "menu"
+  | "couch";
 
 type Direction = "up" | "down" | "left" | "right";
 
@@ -24,7 +25,8 @@ type Direction = "up" | "down" | "left" | "right";
  * Du plus large au plus fin, comme les onglets d'une console : gâchettes hautes = section de la
  * barre latérale, gâchettes basses = filtre de la grille, bouton Vue = tri suivant, bouton Menu
  * (Start, Options) = menu contextuel du jeu choisi, comme la touche Menu du clavier. Les clics des
- * sticks (10, 11) restent libres : trop faciles à enfoncer sans le vouloir.
+ * sticks (10, 11) restent libres : trop faciles à enfoncer sans le vouloir. Bouton Guide (16, Xbox,
+ * PS) ou Vue + Menu ensemble = mode canapé.
  */
 const BUTTONS: [number, PadAction][] = [
   [0, "confirm"], // A
@@ -37,7 +39,13 @@ const BUTTONS: [number, PadAction][] = [
   [7, "nextFilter"], // RT
   [8, "nextSort"], // Vue (Back, Select, Share)
   [9, "menu"], // Menu (Start, Options)
+  [16, "couch"], // Guide (Xbox, PS) : souvent pris par Windows (Game Bar), d'où la combinaison
 ];
+/**
+ * Vue et Menu agissent au relâchement : enfoncés ensemble, ils donnent le mode canapé à la place
+ * de leurs actions (combinaison qui ne dépend pas du bouton Guide, rarement lu par la Gamepad API).
+ */
+const CHORD = [8, 9] as const;
 const DPAD: [number, Direction][] = [
   [12, "up"],
   [13, "down"],
@@ -79,14 +87,26 @@ export class PadReader {
   private pressed = new Set<number>();
   private held: { dir: Direction; next: number } | null = null;
 
+  /** Vue et Menu enfoncés ensemble depuis le dernier relâchement des deux : leurs actions sont annulées. */
+  private chorded = false;
+
   update(s: PadSnapshot, now: number): PadAction[] {
     const actions: PadAction[] = [];
     for (const [i, action] of BUTTONS) {
       const down = s.pressed[i] === true;
-      if (down && !this.pressed.has(i)) actions.push(action);
+      const was = this.pressed.has(i);
+      if ((CHORD as readonly number[]).includes(i)) {
+        // Relâché sans avoir fait la combinaison : son action habituelle.
+        if (!down && was && !this.chorded) actions.push(action);
+      } else if (down && !was) actions.push(action);
       if (down) this.pressed.add(i);
       else this.pressed.delete(i);
     }
+    if (!this.chorded && CHORD.every((i) => this.pressed.has(i))) {
+      this.chorded = true;
+      actions.push("couch");
+    }
+    if (CHORD.every((i) => !this.pressed.has(i))) this.chorded = false;
     const dir = direction(s);
     if (!dir) {
       this.held = null;

@@ -1986,7 +1986,9 @@ pub fn run() {
             welcome::welcome_done,
             window_controls::window_minimize,
             window_controls::window_toggle_maximize,
-            window_controls::window_close
+            window_controls::window_close,
+            window_controls::window_enter_fullscreen,
+            window_controls::window_exit_fullscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

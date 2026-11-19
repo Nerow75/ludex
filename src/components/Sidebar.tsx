@@ -3,7 +3,7 @@ import { MAX_COLLECTION_NAME, recentPlaytime, type Game, type RecentPlaytime } f
 import { formatPlaytime, relativeTime } from "../lib/format";
 import { MINE_GROUP, type Section } from "../lib/sections";
 import { Cover } from "./Cover";
-import { PlusIcon, SidebarIcon } from "./Icons";
+import { PlusIcon, SidebarIcon, TvIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 
 interface Props {
@@ -20,13 +20,15 @@ interface Props {
   playing: ReadonlySet<string>;
   /** Nouvelle collection, nommée sur place sous « Mes collections ». */
   onCreateCollection: (name: string) => void;
+  /** Passe en mode canapé (plein écran, pour la TV). */
+  onCouch: () => void;
 }
 
 /** « 12,5 h », « 40 min », « Aucune partie ». */
 const recentText = (r: RecentPlaytime | null) => (!r ? "…" : r.secs < 60 ? "Aucune partie" : formatPlaytime(r.secs / 60));
 
 /** Barre de navigation à gauche : sections, collections, puis temps de jeu récent et dernier jeu lancé. */
-export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, onCreateCollection }: Props) {
+export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, onCreateCollection, onCouch }: Props) {
   const [recent, setRecent] = useState<RecentPlaytime | null>(null);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -119,6 +121,10 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
         </div>
       ))}
       <div className="side__foot">
+        <button type="button" className="side__couch" onClick={onCouch} aria-label="Mode canapé" title="Mode canapé, pour la TV (F11)">
+          <TvIcon />
+          <span>Mode canapé</span>
+        </button>
         <p className="side__stat" title={recentTitle}>
           <small>{recentLabel}</small>
           <b>{recentText(recent)}</b>

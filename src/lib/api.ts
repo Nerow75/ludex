@@ -602,3 +602,6 @@ export const minimizeWindow = () => invoke<void>("window_minimize");
 export const toggleMaximizeWindow = () => invoke<void>("window_toggle_maximize");
 /** Même chemin que Alt+F4 : cachée dans la zone de notification si le réglage le demande. */
 export const closeWindow = () => invoke<void>("window_close");
+/** Plein écran réel de la fenêtre principale (mode canapé), commandes sans argument. */
+export const enterFullscreen = () => invoke<void>("window_enter_fullscreen");
+export const exitFullscreen = () => invoke<void>("window_exit_fullscreen");
