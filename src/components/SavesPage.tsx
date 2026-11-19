@@ -60,7 +60,7 @@ export function SavesPage() {
       {overview && (
         <div className="saves-page__settings">
           <p className="saves__note">
-            Copies dans <span className="path" title={overview.dir}>{overview.dir}</span>, 10 gardées par jeu.
+            Copies dans <span className="path" title={overview.dir}>{overview.dir}</span>, 5 gardées par jeu.
           </p>
           <label className="saves-page__auto">
             <input type="checkbox" checked={overview.auto} onChange={(e) => toggleAuto(e.target.checked)} />
