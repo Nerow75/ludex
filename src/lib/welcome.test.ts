@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sourceList, summarize } from "./welcome";
+import { sourceList, STEPS, stepAfter, summarize } from "./welcome";
 import type { Platform, SourceReport } from "./api";
 import { jeu } from "../test/jeu";
 
@@ -72,5 +72,15 @@ describe("summarize", () => {
     const s = summarize({ games: [jeu({ hidden: true }), jeu()], sources: [source("steam", true, 2)] });
     expect(s.total).toBe(1);
     expect(s.tools).toBe(0);
+  });
+});
+
+describe("stepAfter", () => {
+  it("avance et recule dans les quatre étapes, null aux bords", () => {
+    expect(STEPS).toHaveLength(4);
+    expect(stepAfter(0, 1)).toBe(1);
+    expect(stepAfter(2, -1)).toBe(1);
+    expect(stepAfter(0, -1)).toBeNull();
+    expect(stepAfter(STEPS.length - 1, 1)).toBeNull();
   });
 });

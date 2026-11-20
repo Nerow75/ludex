@@ -762,6 +762,8 @@ export const journal = (before: string | null, game: string | null) => invoke<Jo
 export interface WelcomeInfo {
   /** Dossiers « Jeux », « Games » lus à la racine des disques. */
   folders: string[];
+  /** Aperçu forcé (`LUDEX_WELCOME=1`) : réglages et déplacement des données simulés. */
+  preview: boolean;
 }
 /** `null` : écran déjà vu (ou Ludex utilisé avant cet écran). */
 export const welcome = () => invoke<WelcomeInfo | null>("welcome");
@@ -979,3 +981,61 @@ export const gameNews = (id: string, seen: boolean) => invoke<News[]>("game_news
 export const openNews = (id: string, gid: string, link: number | null) => invoke<void>("open_news", { id, gid, link });
 export const onGameNews = (handler: (alerts: NewsAlert[]) => void): Promise<UnlistenFn> =>
   listen<NewsAlert[]>("game-news", (e) => handler(e.payload));
+
+/** Disque proposé pour les données lourdes de Ludex (`relocate.rs`). */
+export interface DiskChoice {
+  /** Point de montage (« D:\ »), renvoyé tel quel pour choisir ce disque. */
+  mount: string;
+  /** « D: ». */
+  letter: string;
+  /** Nom du volume, vide s'il n'en a pas. */
+  name: string;
+  total: number;
+  free: number;
+  removable: boolean;
+  /** Disque de Windows. */
+  system: boolean;
+  /** Disque des données lourdes aujourd'hui. */
+  current: boolean;
+  /** Dossier qui serait utilisé : « D:\Ludex ». */
+  target: string;
+}
+/** Où sont les données de Ludex et combien elles pèsent (chemins en texte, affichage seulement). */
+export interface DataLocation {
+  /** Dossier choisi, vide = emplacement d'origine. */
+  root: string;
+  /** Dossier choisi introuvable (disque débranché ?). */
+  missing: boolean;
+  /** Cache des images et index de la base des sauvegardes. */
+  cacheDir: string;
+  cacheBytes: number;
+  copiesDir: string;
+  copiesBytes: number;
+  /** Dossier des copies choisi à part : il ne bouge pas avec le reste. */
+  copiesSeparate: boolean;
+  /** Ce qui reste dans %APPDATA% (préférences, historique, petits caches). */
+  keptDir: string;
+  keptBytes: number;
+  defaultCache: string;
+  defaultCopies: string;
+  disks: DiskChoice[];
+  /** Dossier choisi avec le sélecteur, en attente de confirmation. */
+  picked: string | null;
+  /** Aperçu de l'écran d'accueil : rien n'est déplacé. */
+  preview: boolean;
+}
+/** Destination d'un déplacement : jamais un chemin libre. */
+export type DataTarget = { kind: "default" } | { kind: "drive"; mount: string } | { kind: "picked" };
+export interface MoveDone {
+  scan: ScanResult;
+  location: DataLocation;
+  /** Octets déplacés. */
+  moved: number;
+  /** Anciens dossiers pas entièrement supprimés. */
+  warnings: string[];
+}
+export const dataLocation = () => invoke<DataLocation>("data_location");
+/** Sélecteur de dossier natif côté Rust ; renvoie le dossier qui serait utilisé (`<choisi>\Ludex`), `null` si annulé. */
+export const chooseDataDir = () => invoke<string | null>("choose_data_dir");
+/** Copie, vérifie, puis supprime l'ancien ; refusé pendant une partie. Bibliothèque relue. */
+export const moveData = (target: DataTarget) => invoke<MoveDone>("move_data", { target });

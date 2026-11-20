@@ -480,6 +480,7 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
             let mut out = incoming;
             let here = &current.settings;
             out.settings.saves_dir = here.saves_dir.clone();
+            out.settings.data_dir = here.data_dir.clone();
             out.settings.launch_at_startup = here.launch_at_startup;
             out.settings.welcome_shown = here.welcome_shown.or(Some(true));
             out.settings.tray_hint_shown = here.tray_hint_shown;
@@ -856,13 +857,17 @@ mod tests {
         let mut here = UserData::default();
         here.settings.saves_dir = Some(PathBuf::from(r"E:\Ailleurs"));
         here.settings.launch_at_startup = true;
-        let result = combine(&here, back.data, Mode::Replace, 0);
+        here.settings.data_dir = Some(PathBuf::from(r"F:\Ludex"));
+        let mut incoming = back.data;
+        incoming.settings.data_dir = Some(PathBuf::from(r"D:\Ludex"));
+        let result = combine(&here, incoming, Mode::Replace, 0);
         for img in covers_to_write(&back.covers, &result) {
             covers::save(&other, &img.game, img.kind, &img.bytes, img.ext).unwrap();
         }
         let picked = result.covers["riot:valorant"].get(Kind::Cover).unwrap();
         assert!(covers::file(&other, "riot:valorant", Kind::Cover, picked).unwrap().is_file());
         assert_eq!(result.settings.saves_dir, Some(PathBuf::from(r"E:\Ailleurs")));
+        assert_eq!(result.settings.data_dir, Some(PathBuf::from(r"F:\Ludex")));
         assert!(result.settings.launch_at_startup);
         assert_eq!(result.settings.theme, crate::store::Theme::Oled);
         // Notifications : préférence de l'utilisateur, pas de ce PC (elles suivent l'archive).
