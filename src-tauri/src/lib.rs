@@ -3,6 +3,7 @@ mod collections;
 mod covers;
 mod deeplink;
 mod diagnostic;
+mod footprint;
 mod history;
 mod hltb;
 mod images;
@@ -83,6 +84,9 @@ struct AppState {
     sizes: Mutex<storage::SizeCache>,
     /// Une mesure des dossiers tourne déjà.
     sizes_busy: AtomicBool,
+    /// Emplacements des jeux ouverts dans la vue avancée du Stockage (`footprint.rs`), gardés après
+    /// leur départ de la bibliothèque pour en montrer les restes. Mémoire seulement.
+    footprints: Mutex<std::collections::HashMap<String, footprint::Targets>>,
     /// Tenu pendant un scan : jamais deux scans à la fois.
     scan_lock: Mutex<()>,
     /// Fin du dernier scan complet (pas le premier affichage d'un scan progressif).
@@ -963,6 +967,103 @@ fn uninstall_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String)
     let uri = storage::uninstall_uri(&game)
         .ok_or_else(|| format!("Ludex ne sait pas ouvrir la désinstallation de {} : ouvre son dossier.", game.title))?;
     app.opener().open_url(&uri, None::<&str>).map_err(|e| format!("Le launcher n'a pas répondu : {e}"))
+}
+
+/// Emplacements d'un jeu de la bibliothèque pour la vue avancée : sauvegardes de la base (si elle
+/// est prête), entrées de désinstallation et clés du registre relues maintenant.
+fn footprint_targets(state: &AppState, game: &Game) -> footprint::Targets {
+    let saves = match saves_scope(state, game) {
+        Ok(scope) => footprint::Saves { paths: scope.locate(Some(&saves_root(state))), registry: scope.registry, note: None },
+        Err(e) => footprint::Saves { note: Some(e), ..footprint::Saves::default() },
+    };
+    let entries = footprint::uninstall_entries(&footprint::System);
+    footprint::targets(game, &footprint::System, &entries, saves, library::steam_account_dir().as_deref())
+}
+
+/// Emplacements gardés d'un jeu, relevés par `game_footprint` (jamais reçus du front).
+fn kept_targets(state: &AppState, id: &str) -> Result<footprint::Targets, String> {
+    lock(&state.footprints)?
+        .get(id)
+        .cloned()
+        .ok_or_else(|| "Emplacements inconnus : rouvre la vue avancée de ce jeu.".to_string())
+}
+
+/// Vue avancée du Stockage : ce que le jeu laisse sur le PC (lecture seule). Jeu encore dans la
+/// bibliothèque : emplacements relevés de nouveau et gardés. Jeu parti (désinstallé) : emplacements
+/// gardés relus, ce qui existe encore est un reste. `rescan` : rescanne d'abord (après un
+/// désinstalleur), la bibliothèque du front suit par `library-changed`.
+#[tauri::command]
+async fn game_footprint(app: tauri::AppHandle, id: String, rescan: bool) -> Result<footprint::Footprint, String> {
+    blocking(move || {
+        if rescan {
+            auto_rescan(&app, false);
+        }
+        let state = app.state::<AppState>();
+        let game = lock(&state.games)?.iter().find(|g| g.id == id).cloned();
+        let targets = match &game {
+            Some(g) => {
+                let t = footprint_targets(&state, g);
+                lock(&state.footprints)?.insert(id.clone(), t.clone());
+                t
+            }
+            None => kept_targets(&state, &id).map_err(|_| "Ce jeu n'est plus dans la bibliothèque. Relance un scan.".to_string())?,
+        };
+        Ok(footprint::check(&targets, &footprint::System, game.as_ref(), footprint::size_of, |p: &Path| p.is_file()))
+    })
+    .await
+}
+
+/// Ouvre un dossier de la vue avancée (un fichier seul est montré sélectionné). `item` désigne un
+/// élément de la liste relevée par Ludex (`install`, `save-0`…), jamais un chemin.
+#[tauri::command]
+async fn open_footprint_item(app: tauri::AppHandle, id: String, item: String) -> Result<(), String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let targets = kept_targets(&state, &id)?;
+        let folder = targets.folders.iter().find(|f| f.item == item).ok_or("Emplacement inconnu : rouvre la vue avancée.")?;
+        let opened = if folder.path.is_dir() {
+            app.opener().open_path(folder.path.to_string_lossy(), None::<&str>)
+        } else if folder.path.is_file() {
+            app.opener().reveal_item_in_dir(&folder.path)
+        } else {
+            return Err(format!("{} n'existe plus.", folder.path.display()));
+        };
+        opened.map_err(|e| format!("Impossible d'ouvrir le dossier : {e}"))
+    })
+    .await
+}
+
+/// Lance le désinstalleur officiel d'une entrée de la vue avancée : `UninstallString` relue dans
+/// le registre maintenant, découpée côté Rust, lancée sans interpréteur de commandes. Refusé si le
+/// jeu tourne. Ludex ne supprime rien lui-même : le désinstalleur demande sa propre confirmation.
+#[tauri::command]
+async fn run_uninstaller(app: tauri::AppHandle, id: String, item: String) -> Result<(), String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let targets = kept_targets(&state, &id)?;
+        let game = find_game(&state, &id)?;
+        if state.tracker.active().iter().any(|(g, _)| *g == id) || session::game_running(&game) {
+            return Err(format!("{} est ouvert : ferme le jeu avant de le désinstaller.", game.title));
+        }
+        let index: usize = item.strip_prefix("uninstall-").and_then(|n| n.parse().ok()).ok_or("Entrée inconnue : rouvre la vue avancée.")?;
+        let (hive, path) = targets.uninstall.get(index).ok_or("Entrée inconnue : rouvre la vue avancée.")?;
+        let entry = footprint::read_entry(&footprint::System, *hive, path).ok_or("Cette entrée a disparu du registre : le jeu semble déjà désinstallé.")?;
+        let text = entry.uninstall_string.ok_or("Cette entrée n'a pas de commande de désinstallation.")?;
+        let cmd = footprint::parse_command(&text, &footprint::system_dir(), |p| p.is_file())?;
+        if cmd.exe.file_name().is_some_and(|n| n.eq_ignore_ascii_case("steam.exe")) {
+            return Err("Désinstallation gérée par Steam : utilise « Désinstaller avec Steam ».".into());
+        }
+        footprint::launch(&cmd)
+    })
+    .await
+}
+
+/// Paramètres > Applications de Windows (paquets du Microsoft Store, qui n'ont pas de désinstalleur).
+#[tauri::command]
+fn open_apps_settings(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url("ms-settings:appsfeatures", None::<&str>)
+        .map_err(|e| format!("Impossible d'ouvrir les Paramètres : {e}"))
 }
 
 /// Événement `game-session` : phase d'une session et, quand Ludex vient d'ajouter du temps,
@@ -2541,6 +2642,7 @@ pub fn run() {
                 workshop_busy: AtomicBool::new(false),
                 sizes: Mutex::new(storage::SizeCache::load(&dir)),
                 sizes_busy: AtomicBool::new(false),
+                footprints: Mutex::default(),
                 data_dir: dir,
                 art_busy: AtomicBool::new(false),
                 meta_busy: AtomicBool::new(false),
@@ -2656,6 +2758,10 @@ pub fn run() {
             showcase,
             storage,
             uninstall_game,
+            game_footprint,
+            open_footprint_item,
+            run_uninstaller,
+            open_apps_settings,
             update::available_update,
             update::install_update,
             add_game,

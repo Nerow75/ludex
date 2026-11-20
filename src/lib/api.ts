@@ -452,6 +452,72 @@ export interface StorageReport {
 export const storageReport = () => invoke<StorageReport>("storage");
 /** Ouvre la désinstallation chez le launcher (Steam, qui demande confirmation). Ludex ne supprime rien. */
 export const uninstallGame = (id: string) => invoke<void>("uninstall_game", { id });
+/** Dossier relevé par la vue avancée du Stockage. */
+export interface FootprintFolder {
+  /** Clé de l'élément, renvoyée pour l'ouvrir (jamais un chemin). */
+  item: string;
+  label: string;
+  kind: "install" | "cache" | "mods" | "saves";
+  path: string;
+  exists: boolean;
+  /** Fichier seul (une sauvegarde). */
+  file: boolean;
+  /** Octets, `null` : inconnu. */
+  bytes: number | null;
+  /** Clé du dossier de la liste qui le contient (`install` : part avec le jeu), `null` : à part. */
+  inside: string | null;
+}
+/** Entrée de « Applications installées » de Windows. */
+export interface FootprintUninstall {
+  item: string;
+  /** `HKLM\…\Uninstall\<nom>`. */
+  key: string;
+  exists: boolean;
+  name: string | null;
+  publisher: string | null;
+  version: string | null;
+  /** Taille déclarée à Windows, octets. */
+  declaredSize: number | null;
+  /** `AAAA-MM-JJ`. */
+  installDate: string | null;
+  location: string | null;
+  command: string | null;
+  /** `run` : désinstalleur lancé par Ludex ; `steam` : passe par Steam ; `none` : voir `refusal`. */
+  action: "run" | "steam" | "none";
+  refusal: string | null;
+}
+export interface FootprintKey {
+  label: string;
+  key: string;
+  exists: boolean;
+}
+/** Ce qu'un jeu laisse sur le PC (lecture seule). */
+export interface Footprint {
+  id: string;
+  title: string;
+  platform: Platform;
+  /** Encore dans la bibliothèque ; sinon tout ce qui existe encore est un reste. */
+  installed: boolean;
+  folders: FootprintFolder[];
+  uninstall: FootprintUninstall[];
+  keys: FootprintKey[];
+  /** La base des sauvegardes signale aussi des données dans le registre. */
+  savesRegistry: boolean;
+  /** Pourquoi les sauvegardes sont inconnues (base pas prête, jeu absent de la base). */
+  savesNote: string | null;
+  /** « Désinstaller avec Steam » possible. */
+  steam: boolean;
+  /** Paquet du Microsoft Store : se désinstalle depuis les Paramètres de Windows. */
+  storeApp: boolean;
+  /** Éléments encore présents alors que le jeu a quitté la bibliothèque. */
+  leftovers: number;
+}
+/** `rescan` : relit la bibliothèque d'abord (après un désinstalleur). */
+export const gameFootprint = (id: string, rescan = false) => invoke<Footprint>("game_footprint", { id, rescan });
+export const openFootprintItem = (id: string, item: string) => invoke<void>("open_footprint_item", { id, item });
+/** Lance le désinstalleur officiel (commande relue dans le registre côté Rust). */
+export const runUninstaller = (id: string, item: string) => invoke<void>("run_uninstaller", { id, item });
+export const openAppsSettings = () => invoke<void>("open_apps_settings");
 /** Taille d'un jeu mesurée par Ludex (dossier d'installation), après le scan. */
 export interface SizeEvent {
   id: string;
