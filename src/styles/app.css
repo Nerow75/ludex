@@ -206,7 +206,21 @@ kbd {
 .is-side-collapsed .side__top { justify-content: center; }
 .is-side-collapsed .side__item { justify-content: center; padding: 0; }
 
-/* ---------- Historique ---------- */
+/* ---------- Historique ----------
+   Par période, en grille de vignettes qui suit la largeur de la fenêtre (une colonne sous ~700 px). */
+.hist-groups { display: flex; flex-direction: column; gap: 24px; }
+.hist-group__h { font-size: 14px; font-weight: 500; color: var(--lx-text-2); margin-bottom: 8px; }
+.hist-group__h span { margin-left: 8px; font: 12px var(--lx-font-mono); color: var(--lx-text-3); }
+.hist-group .hist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; max-width: none; }
+.hist-group .hist__row {
+  grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 2px;
+  height: 100%; padding: 8px 56px 8px 8px; border: 1px solid var(--lx-border); background: var(--lx-surface);
+  transition: border-color .15s var(--lx-ease);
+}
+.hist-group .hist__row:hover, .hist-group .hist__row:focus-visible { background: var(--lx-surface); border-color: var(--lx-text-3); }
+.hist-group .hist__cover { grid-row: 1 / 4; width: 48px; }
+.hist-group .hist__title, .hist-group .hist__meta, .hist-group .hist__when { grid-column: 2; min-width: 0; }
+.hist__meta { display: inline-flex; align-items: center; gap: 6px; }
 .hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-width: 960px; }
 .hist__item { position: relative; }
 .hist__row {
@@ -290,6 +304,26 @@ kbd {
 .chip em { font-style: normal; font-family: var(--lx-font-mono); font-size: 12px; color: var(--lx-text-3); }
 .tags { gap: 8px; max-width: 960px; }
 .tags .chip { height: 32px; padding: 0 12px; font-size: 14px; border-radius: var(--lx-radius-m); }
+/* Explorer : cartes d'ambiance et de genre (trois jaquettes en éventail, nom, nombre de jeux). */
+.explore__h { font-size: 14px; font-weight: 500; color: var(--lx-text-2); margin: 8px 0 12px; }
+.explore__h ~ .explore__h { margin-top: 32px; }
+.explore__grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.explore__card {
+  width: 100%; height: 100%; display: flex; align-items: center; gap: 16px; padding: 12px 16px 12px 12px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface); color: inherit; text-align: left;
+  transition: border-color .15s var(--lx-ease);
+}
+.explore__card:hover, .explore__card:focus-visible { border-color: var(--lx-text-3); }
+.explore__card:active { transform: scale(.98); }
+.explore__card.is-mood b { color: var(--lx-accent-text); }
+.explore__covers { flex: none; display: flex; width: 88px; }
+.explore__cover { width: 44px; border-radius: 6px; font-size: 7px; box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--lx-shadow) 60%, transparent); }
+.explore__cover + .explore__cover { margin-left: -22px; }
+.explore__cover .cover__title { display: none; }
+.explore__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.explore__text b { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.explore__text small { font-size: 12px; color: var(--lx-text-3); }
+.explore__card em { flex: none; font: normal 13px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
 .tags__head { font-size: 14px; font-weight: 500; color: var(--lx-text-3); margin: 24px 0 12px; }
 .bar + .tags__head { margin-top: 0; }
 .tags__note { margin-top: 24px; font-size: 13px; color: var(--lx-text-3); max-width: 72ch; }
@@ -436,9 +470,23 @@ kbd {
 }
 .card:hover .cover { outline-color: var(--lx-border); }
 .card.is-sel .cover { outline-color: var(--lx-ambient); }
-.card__fav, .card__plat { position: absolute; z-index: 1; background: var(--lx-art-badge); color: var(--lx-on-art); }
-.card__fav { left: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
-.card__plat { right: 8px; top: 8px; font: 11px/1 var(--lx-font-mono); padding: 4px 6px; border-radius: 4px; }
+/* Launcher : petit logo en haut à droite. Favori : étoile en haut à gauche, toujours là sur un favori,
+   au survol (ou jaquette choisie) sinon ; un clic l'ajoute ou la retire (Annuler dans le toast). */
+.card__plat {
+  position: absolute; z-index: 1; right: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--lx-art-badge); color: var(--lx-on-art-2);
+}
+.card__star {
+  position: absolute; z-index: 2; left: 8px; top: 8px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: var(--lx-art-badge); color: var(--lx-on-art);
+  opacity: 0; transition: opacity .15s, background-color .15s;
+}
+.card:hover .card__star, .card.is-sel .card__star, .card__star.is-on { opacity: 1; }
+.card__star:hover { background: color-mix(in srgb, var(--lx-art-badge) 70%, var(--lx-on-art)); }
+.card__star:active { transform: scale(.94); }
+/* Logo de launcher à côté d'un texte (filtres, fiche, liste, réglages). */
+.launcher-icon { flex: none; }
+.with-icon, .lib-list .lc--plat, .eyebrow { display: inline-flex; align-items: center; gap: 6px; }
 /* Avancement des succès : petit, en bas à gauche (Jouer apparaît en bas à droite), ambre à 100 %. */
 .card__ach {
   position: absolute; z-index: 1; left: 8px; bottom: 8px; padding: 4px 6px; border-radius: 4px;
@@ -687,7 +735,14 @@ kbd {
 }
 .ach__when { color: var(--lx-text-2); }
 
-.vitrine { display: flex; flex-direction: column; max-width: 960px; }
+.vitrine { display: flex; flex-direction: column; max-width: 1680px; container-type: inline-size; }
+.vitrine__stats { max-width: 960px; }
+.vitrine__cols { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 40px; }
+.vitrine__col { display: flex; flex-direction: column; min-width: 0; }
+@container (min-width: 1100px) {
+  .vitrine__cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .vitrine__stats { max-width: none; }
+}
 .vitrine__h { font-size: 16px; font-weight: 500; margin: 32px 0 12px; }
 .vitrine__h span { font: 12px var(--lx-font-mono); color: var(--lx-text-3); margin-left: 8px; }
 .vitrine__note { font-size: 14px; color: var(--lx-text-3); }
@@ -727,6 +782,7 @@ kbd {
 .saves__list .path { flex: 1 1 200px; min-width: 0; }
 .saves__list .btn-ghost, .saves__acts .btn-ghost { height: 32px; padding: 0 12px; font-size: 13px; }
 .saves__list .btn-ghost { margin-left: auto; }
+.saves__list .saves__open + .btn-ghost, .saves__list .saves__open + .saves__confirm { margin-left: 0; }
 .btn-ghost:disabled { opacity: .5; }
 .btn-ghost:disabled:hover { background: transparent; }
 .saves__meta { font: 12px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
@@ -1044,8 +1100,16 @@ kbd {
 /* ---------- Journal : sobre, à reprendre avec les thèmes ---------- */
 .journal__all { height: 32px; padding: 0 12px; font-size: 13px; color: var(--lx-text-2); }
 .journal__note { font-size: 14px; color: var(--lx-text-3); }
-.journal__days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 32px; }
-.jday { display: flex; flex-direction: column; gap: 12px; padding-left: 16px; border-left: 1px solid var(--lx-border); }
+/* Un jour = une carte ; les cartes se rangent en colonnes quand la fenêtre est large (le plus récent
+   en haut à gauche), une seule sous ~1 200 px. */
+.journal__days {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr));
+}
+.jday {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px;
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface);
+}
 .jday__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .jday__head h3 { font-size: 16px; font-weight: 500; }
 .jday__date { font-size: 13px; color: var(--lx-text-3); }
@@ -1057,7 +1121,7 @@ kbd {
   width: 100%; padding: 4px 8px 4px 4px; border: 0; border-radius: var(--lx-radius-s); background: transparent; color: inherit; text-align: left;
 }
 button.jgame__head { transition: background-color .15s; }
-button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--lx-surface); }
+button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--lx-surface-2); }
 .jgame__cover { grid-row: 1 / 3; width: 32px; }
 .jgame__cover--none { aspect-ratio: 2 / 3; border-radius: 6px; background: var(--lx-surface-2); }
 .jgame__title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1068,7 +1132,7 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 .jgame__achs { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .jgame__achs .ach-icon { width: 28px; height: 28px; }
 .jgame__achs-more { display: grid; place-items: center; height: 28px; padding: 0 8px; font: 12px var(--lx-font-mono); color: var(--lx-text-3); }
-.jgame__shots { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); max-width: 840px; }
+.jgame__shots { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
 .journal__end { display: flex; justify-content: center; padding: 32px 0 16px; }
 .journal__end .btn-ghost:disabled { opacity: .6; }
 /* ---------- Mode canapé : lisible à 3 mètres, plein écran ----------

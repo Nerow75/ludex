@@ -5,6 +5,7 @@ import { virtualDisabled } from "../lib/fake";
 import { achievementPercent, SORT_LABEL, storyMinutes, type Sort } from "../lib/library";
 import { VIRTUAL_MIN } from "../lib/virtual";
 import { Cover } from "./Cover";
+import { LauncherIcon } from "./LauncherIcon";
 import { PlayIcon, StarIcon } from "./Icons";
 import { useVirtualRows } from "./useVirtualRows";
 
@@ -131,7 +132,7 @@ const ListRow = memo(function ListRow({ game, selected, playing, onSelect, onPla
           {game.favorite && <span className="lrow__fav" aria-label="Favori"><StarIcon filled /></span>}
           {playing ? <span className="live">En jeu</span> : badge && <span className="live is-pending">{badge}</span>}
         </span>
-        <span className="lc--plat">{PLATFORM_LABEL[game.platform]}</span>
+        <span className="lc--plat"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</span>
         <span className="lc--genres" title={game.details?.genres.join(", ")}>
           {game.details?.genres.length ? game.details.genres.join(", ") : <Missing />}
         </span>

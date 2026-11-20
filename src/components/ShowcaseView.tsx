@@ -53,7 +53,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
   const rate = s.total > 0 ? Math.round((s.unlocked / s.total) * 100) : 0;
 
   return (
-    <section className="vitrine" aria-labelledby="vitrine-title">
+    <section className="vitrine" aria-labelledby="vitrine-title" data-nav-2d>
       <div className="bar">
         <h2 id="vitrine-title">Vitrine</h2>
       </div>
@@ -64,77 +64,83 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
         <div><dt>Jeux avec succès</dt><dd>{s.games}</dd></div>
       </dl>
 
-      <h3 className="vitrine__h">Les plus rares</h3>
-      {s.rarest.length === 0 ? (
-        <p className="vitrine__note">
-          {s.unlocked === 0 ? "Aucun succès débloqué pour l'instant" : "Pourcentages mondiaux indisponibles (Steam injoignable). Ils reviendront à la prochaine ouverture"}
-        </p>
-      ) : (
-        <>
-          <ol className="podium">
-            {podium.map((u, i) => (
-              <li key={`${u.gameId}/${u.apiName}`}>
-                <button type="button" className="podium__item" data-nav onClick={() => open(u.gameId)} title={unlockTitle(u)}>
-                  <span className="podium__rank">{i + 1}</span>
-                  <AchievementIcon src={u.icon} className="ach-icon--l" />
-                  <span className="podium__name">{u.name}</span>
-                  <span className="podium__game">{u.gameTitle}</span>
-                  {u.percent !== null && <span className="podium__pct">{formatPercent(u.percent)}</span>}
-                </button>
-              </li>
-            ))}
-          </ol>
-          {rest.length > 0 && (
-            <ol className="vitrine__list" start={4}>
-              {rest.map((u, i) => (
-                <li key={`${u.gameId}/${u.apiName}`}>
-                  <UnlockRow u={u} rank={i + 4} onOpen={open} side={u.percent !== null ? formatPercent(u.percent) : ""} />
-                </li>
-              ))}
-            </ol>
+      {/* Deux colonnes quand la place le permet : les plus rares, puis le reste. */}
+      <div className="vitrine__cols">
+        <div className="vitrine__col">
+          <h3 className="vitrine__h">Les plus rares</h3>
+          {s.rarest.length === 0 ? (
+            <p className="vitrine__note">
+              {s.unlocked === 0 ? "Aucun succès débloqué pour l'instant" : "Pourcentages mondiaux indisponibles (Steam injoignable). Ils reviendront à la prochaine ouverture"}
+            </p>
+          ) : (
+            <>
+              <ol className="podium">
+                {podium.map((u, i) => (
+                  <li key={`${u.gameId}/${u.apiName}`}>
+                    <button type="button" className="podium__item" data-nav onClick={() => open(u.gameId)} title={unlockTitle(u)}>
+                      <span className="podium__rank">{i + 1}</span>
+                      <AchievementIcon src={u.icon} className="ach-icon--l" />
+                      <span className="podium__name">{u.name}</span>
+                      <span className="podium__game">{u.gameTitle}</span>
+                      {u.percent !== null && <span className="podium__pct">{formatPercent(u.percent)}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              {rest.length > 0 && (
+                <ol className="vitrine__list" start={4}>
+                  {rest.map((u, i) => (
+                    <li key={`${u.gameId}/${u.apiName}`}>
+                      <UnlockRow u={u} rank={i + 4} onOpen={open} side={u.percent !== null ? formatPercent(u.percent) : ""} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
           )}
-        </>
-      )}
+        </div>
+        <div className="vitrine__col">
+          {s.perfect.length > 0 && (
+            <>
+              <h3 className="vitrine__h">Jeux à 100 %<span>{s.perfect.length}</span></h3>
+              <ol className="vitrine__list">
+                {s.perfect.map((p) => {
+                  const game = byId.get(p.gameId);
+                  return (
+                    <li key={p.gameId}>
+                      <button
+                        type="button"
+                        className="vitrine__row"
+                        data-nav
+                        onClick={() => open(p.gameId)}
+                        title={p.completedAt ? `Terminé le ${formatDate(p.completedAt)}` : undefined}
+                      >
+                        {game ? <Cover game={game} className="vitrine__cover" /> : <AchievementIcon src={null} />}
+                        <span className="vitrine__name">{p.gameTitle}</span>
+                        <span className="vitrine__meta">{p.total} succès</span>
+                        <span className="vitrine__side">{p.completedAt ? relativeTime(p.completedAt) : ""}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </>
+          )}
 
-      {s.perfect.length > 0 && (
-        <>
-          <h3 className="vitrine__h">Jeux à 100 %<span>{s.perfect.length}</span></h3>
-          <ol className="vitrine__list">
-            {s.perfect.map((p) => {
-              const game = byId.get(p.gameId);
-              return (
-                <li key={p.gameId}>
-                  <button
-                    type="button"
-                    className="vitrine__row"
-                    data-nav
-                    onClick={() => open(p.gameId)}
-                    title={p.completedAt ? `Terminé le ${formatDate(p.completedAt)}` : undefined}
-                  >
-                    {game ? <Cover game={game} className="vitrine__cover" /> : <AchievementIcon src={null} />}
-                    <span className="vitrine__name">{p.gameTitle}</span>
-                    <span className="vitrine__meta">{p.total} succès</span>
-                    <span className="vitrine__side">{p.completedAt ? relativeTime(p.completedAt) : ""}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </>
-      )}
-
-      {s.recent.length > 0 && (
-        <>
-          <h3 className="vitrine__h">Derniers déblocages</h3>
-          <ol className="vitrine__list">
-            {s.recent.map((u) => (
-              <li key={`${u.gameId}/${u.apiName}`}>
-                <UnlockRow u={u} onOpen={open} side={u.unlockedAt ? relativeTime(u.unlockedAt) : ""} />
-              </li>
-            ))}
-          </ol>
-        </>
-      )}
+          {s.recent.length > 0 && (
+            <>
+              <h3 className="vitrine__h">Derniers déblocages</h3>
+              <ol className="vitrine__list">
+                {s.recent.map((u) => (
+                  <li key={`${u.gameId}/${u.apiName}`}>
+                    <UnlockRow u={u} onOpen={open} side={u.unlockedAt ? relativeTime(u.unlockedAt) : ""} />
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

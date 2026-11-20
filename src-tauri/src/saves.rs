@@ -825,6 +825,11 @@ pub fn list(root: &Path, game_id: &str) -> Vec<CopySummary> {
     copies_of(root, game_id).iter().map(Copy::summary).collect()
 }
 
+/// Dossier d'une copie de ce jeu (« Ouvrir » dans l'Explorateur), `None` : copie inconnue.
+pub fn copy_dir(root: &Path, game_id: &str, copy_id: &str) -> Option<PathBuf> {
+    copies_of(root, game_id).into_iter().find(|c| c.id == copy_id).map(|c| c.dir)
+}
+
 /// Copies de tous les jeux, la plus récente d'abord.
 pub fn list_all(root: &Path) -> HashMap<String, Vec<CopySummary>> {
     scan_copies(root).into_iter().map(|(id, list)| (id, list.iter().map(Copy::summary).collect())).collect()

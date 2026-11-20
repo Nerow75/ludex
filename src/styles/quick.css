@@ -38,6 +38,7 @@ body { background: var(--lx-surface); }
 
 .quick__text { display: flex; flex-direction: column; min-width: 0; }
 .quick__title { font-size: 15px; font-weight: 500; line-height: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.quick__meta .launcher-icon { vertical-align: -2px; margin-right: 4px; }
 .quick__meta { font-size: 12px; line-height: 16px; color: var(--lx-text-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .quick__meta .is-pending { color: var(--lx-warning); }
 

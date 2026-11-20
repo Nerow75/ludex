@@ -1,6 +1,7 @@
 // Écran Paramètres (Ctrl+, ou bas de la barre latérale). Réglages gardés et appliqués côté Rust
 // (`settings.rs`) : la page n'envoie que des valeurs fermées, des booléens et le texte d'un raccourci.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { LauncherIcon } from "./LauncherIcon";
 import {
   applyImport,
   cancelImport,
@@ -76,11 +77,11 @@ function sourceState(s: SourceReport): string {
 }
 
 /** Interrupteur : un bouton `switch`, navigable comme le reste (`data-nav`). */
-function Switch({ label, detail, checked, disabled, onChange }: { label: string; detail?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+function Switch({ label, icon, detail, checked, disabled, onChange }: { label: string; icon?: ReactNode; detail?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="set__row">
       <span className="set__text">
-        <span>{label}</span>
+        <span className={icon ? "with-icon" : undefined}>{icon}{label}</span>
         {detail && <small>{detail}</small>}
       </span>
       <button type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" data-nav disabled={disabled} onClick={() => onChange(!checked)}>
@@ -423,6 +424,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               <Switch
                 key={s.platform}
                 label={s.platform === "other" ? "Dossiers de jeux (Autres)" : PLATFORM_LABEL[s.platform]}
+                icon={<LauncherIcon platform={s.platform} size={16} />}
                 detail={busySource === s.platform ? "Lecture de la bibliothèque…" : sourceState(s)}
                 checked={!s.disabled}
                 disabled={busySource !== null}

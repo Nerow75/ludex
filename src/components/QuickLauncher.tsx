@@ -3,6 +3,7 @@ import { launchGame, PLATFORM_LABEL, type Game } from "../lib/api";
 import { cleanTitle, installBadge, relativeTime } from "../lib/format";
 import { hideQuick, onLibraryChanged, onQuickShow, quickGames, quickResults } from "../lib/quick";
 import { Cover } from "./Cover";
+import { LauncherIcon } from "./LauncherIcon";
 import { LudexMark } from "./Icons";
 
 const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Erreur inconnue");
@@ -165,7 +166,7 @@ export function QuickLauncher() {
               <span className="quick__text">
                 <span className="quick__title">{cleanTitle(g.title)}</span>
                 <span className="quick__meta">
-                  {PLATFORM_LABEL[g.platform]} · {badge ? <span className="is-pending">{badge}</span> : relativeTime(g.lastPlayed)}
+                  <LauncherIcon platform={g.platform} size={12} />{PLATFORM_LABEL[g.platform]} · {badge ? <span className="is-pending">{badge}</span> : relativeTime(g.lastPlayed)}
                 </span>
               </span>
               <kbd className="quick__enter">{launching === g.id ? "Lancement…" : "Entrée"}</kbd>

@@ -130,7 +130,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
   const viewed = viewing && load.days[viewing.day]?.games[viewing.game];
 
   return (
-    <section className="journal" aria-labelledby="journal-title">
+    <section className="journal" aria-labelledby="journal-title" data-nav-2d>
       {heading}
       <ol className="journal__days">
         {load.days.map((day, di) => (

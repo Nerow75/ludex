@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { backupSaves, gameSaves, onSavesBackup, restoreSaves, type BackupReason, type GameSaves, type SavesCopy } from "../lib/api";
+import { backupSaves, gameSaves, onSavesBackup, openSaveCopy, openSaveLocation, restoreSaves, type BackupReason, type GameSaves, type SavesCopy } from "../lib/api";
 import { formatBytes, formatDateTime } from "../lib/format";
 
 const REASON: Record<BackupReason, string> = {
@@ -77,6 +77,8 @@ export function SavesPanel({ gameId, playing = false }: Props) {
     }
   };
 
+  const reveal = (open: Promise<void>) => open.catch((e) => setMessage({ text: String(e), error: true }));
+
   if (!saves) return <p className="saves__note">{message?.text ?? "Recherche des sauvegardes…"}</p>;
   const known = saves.name !== null;
   return (
@@ -96,6 +98,9 @@ export function SavesPanel({ gameId, playing = false }: Props) {
                 <li key={l.path}>
                   <span className="path" title={l.path}>{l.path}</span>
                   <span className="saves__meta">{files(l.files)}, {formatBytes(l.size)}</span>
+                  <button type="button" className="btn-ghost" data-nav title={`Ouvrir ${l.path}`} onClick={() => reveal(openSaveLocation(gameId, l.path))}>
+                    Ouvrir
+                  </button>
                 </li>
               ))}
             </ul>
@@ -112,6 +117,9 @@ export function SavesPanel({ gameId, playing = false }: Props) {
               <li key={c.id}>
                 <span>{formatDateTime(c.created)}</span>
                 <span className="saves__meta">{REASON[c.reason]}, {files(c.files)}, {formatBytes(c.size)}</span>
+                <button type="button" className="btn-ghost saves__open" data-nav title="Montrer la copie dans l'Explorateur" onClick={() => reveal(openSaveCopy(gameId, c.id))}>
+                  Ouvrir
+                </button>
                 {confirming === c.id ? (
                   <span className="saves__confirm">
                     <span>Remplacer les sauvegardes actuelles ? Elles seront copiées avant.</span>

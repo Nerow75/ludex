@@ -601,6 +601,10 @@ export const gameSaves = (id: string) => invoke<GameSaves>("game_saves", { id })
 export const backupSaves = (id: string) => invoke<BackupOutcome>("backup_saves", { id });
 /** Refusée si le jeu tourne. L'état actuel est copié avant d'être remplacé. */
 export const restoreSaves = (id: string, backupId: string) => invoke<RestoreOutcome>("restore_saves", { id, backupId });
+/** Ouvre un emplacement trouvé par Ludex (Rust revérifie qu'il fait partie des emplacements du jeu). */
+export const openSaveLocation = (id: string, path: string) => invoke<void>("open_save_location", { id, path });
+/** Montre une copie dans l'Explorateur. */
+export const openSaveCopy = (id: string, backupId: string) => invoke<void>("open_save_copy", { id, backupId });
 /** Sélecteur de dossier natif (côté Rust). Renvoie le dossier choisi à afficher, `null` : annulé. */
 export const chooseSavesDir = () => invoke<string | null>("choose_saves_dir");
 export const setAutoSaves = (value: boolean) => invoke<void>("set_auto_saves", { value });

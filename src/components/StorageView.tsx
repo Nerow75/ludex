@@ -3,6 +3,7 @@ import { openInstallDir, PLATFORM_LABEL, storageReport, uninstallGame, type Disk
 import { formatDate, formatSize, relativeTime } from "../lib/format";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
+import { LauncherIcon } from "./LauncherIcon";
 import { EmptyState } from "./States";
 
 /** Part d'un total, en % borné (largeur d'un segment de barre). */
@@ -32,7 +33,7 @@ function DiskRow({ disk }: { disk: DiskUsage }) {
         <span className="disk__key disk__key--games">Jeux {formatSize(disk.gamesBytes)}</span>
         {disk.platforms.map((p) => (
           <span key={p.platform} title={`${p.games} jeu${p.games > 1 ? "x" : ""}`}>
-            {PLATFORM_LABEL[p.platform]} {formatSize(p.bytes)}
+            <LauncherIcon platform={p.platform} size={12} />{PLATFORM_LABEL[p.platform]} {formatSize(p.bytes)}
           </span>
         ))}
         <span className="disk__key disk__key--other">Autres fichiers {formatSize(used - games)}</span>
@@ -146,7 +147,7 @@ export function StorageView({ games, openGame }: SectionContext) {
                 >
                   <Cover game={g} className="hist__cover" />
                   <span className="hist__title">{c.title}</span>
-                  <span className="hist__meta">{PLATFORM_LABEL[c.platform]}{c.drive ? ` · ${c.drive}` : ""}</span>
+                  <span className="hist__meta"><LauncherIcon platform={c.platform} size={12} />{PLATFORM_LABEL[c.platform]}{c.drive ? ` · ${c.drive}` : ""}</span>
                   <span className="hist__when">{c.lastPlayed || c.launcherDates ? relativeTime(c.lastPlayed) : "Jamais depuis Ludex"}</span>
                   <span className="store__size">{formatSize(c.bytes)}</span>
                 </button>

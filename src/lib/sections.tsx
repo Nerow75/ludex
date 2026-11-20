@@ -26,6 +26,8 @@ export interface SectionContext {
   /** Montre les jeux d'un tag Steam, ou d'une ambiance, dans « Tous les jeux ». */
   showTag: (tag: string) => void;
   showMood: (mood: Mood) => void;
+  /** « Tous les jeux » restreint à un genre (page Explorer). */
+  showGenre: (genre: string) => void;
   /** Change le statut de progression (`null` : aucun), avec « Annuler » dans le toast. */
   setStatus: (game: Game, status: Status | null) => void;
   /** Journal restreint à un jeu (« Voir son journal » de la fiche), `null` : tout le journal. */
@@ -83,7 +85,7 @@ export const SECTIONS: readonly Section[] = [
     filters: launchersOnly,
     empty: "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné",
   },
-  { id: "tags", label: "Tags", icon: TagIcon, render: (ctx) => <TagsView {...ctx} /> },
+  { id: "tags", label: "Explorer", icon: TagIcon, render: (ctx) => <TagsView {...ctx} /> },
   { id: "progress", label: "Progression", icon: BoardIcon, group: ACTIVITY_GROUP, render: (ctx) => <ProgressBoard {...ctx} /> },
   { id: "history", label: "Historique", icon: ClockIcon, group: ACTIVITY_GROUP, render: (ctx) => <HistoryList {...ctx} /> },
   // Frise jour par jour : sessions, succès Steam et captures.

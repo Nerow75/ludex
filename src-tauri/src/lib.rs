@@ -722,6 +722,48 @@ async fn game_saves(app: tauri::AppHandle, id: String) -> Result<GameSaves, Stri
     .await
 }
 
+/// Ouvre un emplacement de sauvegardes du jeu dans l'Explorateur. Le texte reçu doit être l'un des
+/// emplacements que Ludex retrouve lui-même pour ce jeu (jamais un chemin libre venu du front).
+#[tauri::command]
+async fn open_save_location(app: tauri::AppHandle, id: String, path: String) -> Result<(), String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let root = saves_root(&state);
+        let scope = saves_scope(&state, &game)?;
+        let found = scope
+            .locate(Some(&root))
+            .into_iter()
+            .find(|p| p.to_string_lossy() == path)
+            .ok_or("Cet emplacement n'existe plus : rouvre l'onglet Sauvegardes.")?;
+        // Un dossier s'ouvre ; un fichier seul est montré sélectionné (jamais ouvert par son appli).
+        let opened = if found.is_dir() {
+            app.opener().open_path(found.to_string_lossy(), None::<&str>)
+        } else {
+            app.opener().reveal_item_in_dir(&found)
+        };
+        opened.map_err(|e| format!("Impossible d'ouvrir le dossier : {e}"))
+    })
+    .await
+}
+
+/// Montre une copie des sauvegardes dans l'Explorateur (son dossier sélectionné).
+#[tauri::command]
+async fn open_save_copy(app: tauri::AppHandle, id: String, backup_id: String) -> Result<(), String> {
+    if !saves::valid_copy_id(&backup_id) {
+        return Err("Copie inconnue.".into());
+    }
+    blocking(move || {
+        let state = app.state::<AppState>();
+        find_game(&state, &id)?;
+        let dir = saves::copy_dir(&saves_root(&state), &id, &backup_id).ok_or("Copie introuvable : elle a peut-être été supprimée.")?;
+        app.opener()
+            .reveal_item_in_dir(&dir)
+            .map_err(|e| format!("Impossible d'ouvrir le dossier de la copie : {e}"))
+    })
+    .await
+}
+
 /// « Sauvegarder maintenant ».
 #[tauri::command]
 async fn backup_saves(app: tauri::AppHandle, id: String) -> Result<saves::Outcome, String> {
@@ -2627,6 +2669,8 @@ pub fn run() {
             show_screenshot,
             game_saves,
             backup_saves,
+            open_save_location,
+            open_save_copy,
             restore_saves,
             choose_saves_dir,
             set_auto_saves,

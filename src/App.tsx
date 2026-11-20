@@ -47,6 +47,7 @@ import {
   type CollectionsInfo,
   type ArtKind,
   type Game,
+  type Platform,
   type LibraryUpdate,
   type Mood,
   type ScanResult,
@@ -96,6 +97,7 @@ import { awaitingGames, libraryToast, nextScan, welcomeReady } from "./lib/scan"
 import { ContextMenu } from "./components/ContextMenu";
 import { ficheNext, GameStrip, type FicheEdit } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
+import { LauncherIcon } from "./components/LauncherIcon";
 import { LibraryGrid } from "./components/LibraryGrid";
 import { LibraryList } from "./components/LibraryList";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
@@ -308,6 +310,7 @@ export default function App() {
   }, [goTo, changeFacets]);
   const showTag = useCallback((tag: string) => showFacets({ ...NO_FACETS, tag }), [showFacets]);
   const showMood = useCallback((mood: Mood) => showFacets({ ...NO_FACETS, mood }), [showFacets]);
+  const showGenre = useCallback((genre: string) => showFacets({ ...NO_FACETS, genre }), [showFacets]);
   /** Collections relues (celles de Steam ont pu changer) ; sans elles, la barre n'a que les sections fixes. */
   const loadCollections = useCallback(() => {
     getCollections()
@@ -1186,7 +1189,7 @@ export default function App() {
   });
   const showPadHints = padConnected && padHints;
   const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
-  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
+  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, showGenre, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
   const changeStatusFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setOpen(false);
@@ -1411,6 +1414,7 @@ export default function App() {
               <div className="seg" role="group" aria-label="Filtrer">
                 {filters.map((f) => (
                   <button key={f} type="button" aria-pressed={activeFilter === f} onClick={() => changeFilter(f)}>
+                    {f in PLATFORM_LABEL && <LauncherIcon platform={f as Platform} />}
                     {FILTER_LABEL[f]} <em>{count(f)}</em>
                   </button>
                 ))}
@@ -1537,6 +1541,7 @@ export default function App() {
                 playing={playing}
                 onSelect={select}
                 onPlay={play}
+                onFavorite={toggleFavorite}
                 renderStrip={renderStrip}
               />
             )}

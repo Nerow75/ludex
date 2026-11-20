@@ -36,6 +36,7 @@ interface Props {
   playing: ReadonlySet<string>;
   onSelect: (game: Game) => void;
   onPlay: (game: Game) => void;
+  onFavorite: (game: Game) => void;
   /** Fiche à insérer sous la rangée du jeu sélectionné ; reçoit la position de la flèche. */
   renderStrip: (game: Game, notch: number) => ReactNode;
 }
@@ -45,7 +46,7 @@ interface Props {
  * les rangées proches de l'écran et celle du jeu choisi sont rendues (`useVirtualRows`), les autres
  * remplacées par des cales `.vgap` : les colonnes calculées ici doivent donc rester celles du CSS.
  */
-export function LibraryGrid({ games, selectedId, open, meta, playing, onSelect, onPlay, renderStrip }: Props) {
+export function LibraryGrid({ games, selectedId, open, meta, playing, onSelect, onPlay, onFavorite, renderStrip }: Props) {
   const { ref, width, cols } = useColumns();
   const index = games.findIndex((g) => g.id === selectedId);
   const selRow = index < 0 ? -1 : Math.floor(index / cols);
@@ -64,7 +65,7 @@ export function LibraryGrid({ games, selectedId, open, meta, playing, onSelect, 
   });
 
   const card = (g: Game) => (
-    <GameCard key={g.id} game={g} selected={g.id === selectedId} meta={meta(g)} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
+    <GameCard key={g.id} game={g} selected={g.id === selectedId} meta={meta(g)} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} onFavorite={onFavorite} />
   );
 
   let content: ReactNode;

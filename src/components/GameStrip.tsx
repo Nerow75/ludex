@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LauncherIcon } from "./LauncherIcon";
 import {
   gameHistory,
   gameMods,
@@ -619,7 +620,7 @@ export function GameStrip({
         <Art game={game} className="strip__art" />
         <div className="strip__head">
           <div className="strip__eyebrow">
-            <span className="eyebrow">{PLATFORM_LABEL[game.platform]}{game.isTool ? " · Application" : ""}</span>
+            <span className="eyebrow"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}{game.isTool ? " · Application" : ""}</span>
             {playing && <span className="live">En jeu</span>}
           </div>
           {renaming ? (
@@ -713,7 +714,7 @@ export function GameStrip({
                       <dt>Manette</dt><dd>{d.controller === "full" ? "Complète" : "Partielle"}</dd>
                     </div>
                   )}
-                  <div><dt>Launcher</dt><dd>{PLATFORM_LABEL[game.platform]}</dd></div>
+                  <div><dt>Launcher</dt><dd className="with-icon"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</dd></div>
                   {game.launchArgs && (
                     <div className="is-wide" title={game.launchArgs}>
                       <dt>Options</dt><dd className="args">{shortArgs(game.launchArgs, 60)}</dd>
