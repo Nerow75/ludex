@@ -14,6 +14,7 @@ import {
   setAutoSaves,
   setKeepInTray,
   setLaunchAtStartup,
+  setNotification,
   setQuickShortcut,
   setSourceEnabled,
   setTheme,
@@ -33,6 +34,7 @@ import {
   type WelcomeInfo,
 } from "../lib/api";
 import { applyTheme } from "../lib/theme";
+import { NOTIFICATION_ROWS } from "../lib/notifications";
 import { DiagnosticPanel } from "./DiagnosticPanel";
 import { previewOrigin, summaryText } from "../lib/transfer";
 
@@ -394,6 +396,23 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               checked={info.autoSaves}
               onChange={(v) => toggle({ autoSaves: v }, () => setAutoSaves(v))}
             />
+          </section>
+
+          <section className="set__group" aria-labelledby="set-notes">
+            <h3 id="set-notes">Notifications</h3>
+            <p className="set__note">Notifications de Windows, seulement quand Ludex n'est pas au premier plan. Un clic ouvre la fiche du jeu ou le Stockage.</p>
+            {info.notificationsBlocked && (
+              <p className="set__msg" role="status">Windows ne montre pas les notifications de Ludex (coupées pour Ludex ou pour toutes les applis). Pour les recevoir : Paramètres de Windows, Système, Notifications.</p>
+            )}
+            {NOTIFICATION_ROWS.map((row) => (
+              <Switch
+                key={row.kind}
+                label={row.label}
+                detail={row.detail}
+                checked={info.notifications[row.kind]}
+                onChange={(v) => toggle({ notifications: { ...info.notifications, [row.kind]: v } }, () => setNotification(row.kind, v))}
+              />
+            ))}
           </section>
 
           <section className="set__group" aria-labelledby="set-sources">

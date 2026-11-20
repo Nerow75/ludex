@@ -36,12 +36,17 @@ pub struct SettingsInfo {
     /// Jeux masqués par l'utilisateur (les outils masqués d'office n'y sont pas).
     hidden_games: usize,
     version: String,
+    /// Notifications Windows activées, par type.
+    notifications: crate::notify::Prefs,
+    /// Windows a coupé les notifications de Ludex (ou toutes) : Ludex ne change pas ce réglage.
+    notifications_blocked: bool,
 }
 
 fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
     let state = app.state::<AppState>();
     let saves_dir = saves_root(&state).display().to_string();
     let launch_at_startup = crate::autostart_enabled(app);
+    let notifications_blocked = app.try_state::<crate::notify::Notifier>().is_some_and(|n| n.blocked());
     let data = lock(&state.data)?;
     let s: &Settings = &data.settings;
     Ok(SettingsInfo {
@@ -55,6 +60,8 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
         disabled_sources: s.disabled_sources.clone(),
         hidden_games: data.hidden.len(),
         version: app.package_info().version.to_string(),
+        notifications: s.notifications,
+        notifications_blocked,
     })
 }
 
@@ -148,6 +155,13 @@ pub fn set_keep_in_tray(app: AppHandle, value: bool) -> Result<SettingsInfo, Str
     publish(&app)
 }
 
+/// Active ou désactive un type de notification Windows.
+#[tauri::command]
+pub fn set_notification(app: AppHandle, kind: crate::notify::Kind, value: bool) -> Result<SettingsInfo, String> {
+    update_settings(&app, |s| s.notifications.set(kind, value));
+    publish(&app)
+}
+
 /// Active ou désactive un launcher, puis rescanne : la bibliothèque relue est renvoyée.
 #[tauri::command]
 pub async fn set_source_enabled(app: AppHandle, platform: Platform, value: bool) -> Result<ScanResult, String> {
@@ -216,9 +230,11 @@ mod tests {
             disabled_sources: vec![Platform::Epic],
             hidden_games: 2,
             version: "0.2.0".into(),
+            notifications: crate::notify::Prefs { news: false, ..Default::default() },
+            notifications_blocked: true,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#] {
+        for part in [r#""theme":"system""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
             assert!(text.contains(part), "{text}");
         }
     }

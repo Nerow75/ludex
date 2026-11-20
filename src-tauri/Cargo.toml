@@ -45,14 +45,21 @@ zip = { version = "9", default-features = false }
 # Affichage forcé de l'écran de premier lancement par `LUDEX_WELCOME=1` dans une build de release
 # (vérification à l'écran). Jamais dans une build publiée ; en debug, la variable suffit.
 welcome-preview = []
+# Essai des notifications Windows dans une build de release : `LUDEX_NOTIFY_PREVIEW=1` envoie,
+# 15 s après le premier scan, la notification de fin de téléchargement du premier jeu Steam puis
+# celle d'un disque presque plein (règles habituelles : fenêtre sans le focus). Jamais publiée.
+notify-preview = []
 
 [target.'cfg(windows)'.dependencies]
 pelite = "0.10"
 winreg = "0.55"
 # Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
 # Cartes graphiques, niveau DirectX et mémoire installée (`requirements.rs`) : DXGI, Direct3D 11,
-# SystemInformation.
+# SystemInformation. Notifications Windows (`notify.rs`) : toasts WinRT et leur clic.
 windows = { version = "0.62", features = [
+    "Data_Xml_Dom",
+    "Foundation",
+    "UI_Notifications",
     "Win32_Foundation",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",

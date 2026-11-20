@@ -703,8 +703,20 @@ export interface SettingsInfo {
   /** Jeux masqués par l'utilisateur (outils masqués d'office non compris). */
   hiddenGames: number;
   version: string;
+  /** Notifications Windows activées, par type. */
+  notifications: NotificationPrefs;
+  /** Windows a coupé les notifications de Ludex (ou toutes) : Ludex ne change pas ce réglage. */
+  notificationsBlocked: boolean;
 }
+/** Types de notifications Windows (`notify.rs`). */
+export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError";
+export type NotificationPrefs = Record<NotificationKind, boolean>;
 export const settings = () => invoke<SettingsInfo>("settings");
+export const setNotification = (kind: NotificationKind, value: boolean) => invoke<SettingsInfo>("set_notification", { kind, value });
+/** Clic sur une notification Windows : la fenêtre est déjà affichée, le front ouvre la cible. */
+export type NotificationTarget = { target: "game"; id: string; tab: string | null } | { target: "storage" } | { target: "window" };
+export const onNotificationOpen = (handler: (target: NotificationTarget) => void): Promise<UnlistenFn> =>
+  listen<NotificationTarget>("notification-open", (e) => handler(e.payload));
 export const setTheme = (theme: Theme) => invoke<SettingsInfo>("set_theme", { theme });
 /** Texte au format du plugin (`Ctrl+Shift+KeyL`), validé et enregistré côté Rust ; vide : désactivé. */
 export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quick_shortcut", { text });
