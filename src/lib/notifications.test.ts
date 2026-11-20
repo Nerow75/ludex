@@ -8,7 +8,7 @@ describe("NOTIFICATION_ROWS", () => {
     expect(kinds.sort()).toEqual(["download", "lowDisk", "news", "savesError", "update"]);
     for (const r of NOTIFICATION_ROWS) {
       expect(r.label.length).toBeGreaterThan(0);
-      expect(r.detail).not.toContain("2014");
+      expect(r.detail).not.toContain("—");
     }
   });
 });
