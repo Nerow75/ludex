@@ -102,8 +102,7 @@ interface Props {
 export type FicheEdit = "rename" | "collection";
 
 /** Onglets de la fiche, dans l'ordre de la barre. */
-const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "news"] as const;
-const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "mods"] as const;
+const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "news", "mods"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   overview: "Aperçu",
