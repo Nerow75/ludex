@@ -1,0 +1,14 @@
+{
+ "105600": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Terraria",
+   "steam_appid": 105600,
+   "pc_requirements": {
+    "minimum": "<ul class=\"bb_ul\"><li><strong>Système d'exploitation : Windows XP, Vista, 7</strong> <br></li><li><strong>Processeur : 1.6 Ghz</strong> <br></li><li><strong>Mémoire vive : 512 Mo de RAM</strong><br></li><li><strong>Disque dur : 200 Mo d'espace disque disponible</strong> <br></li><li><strong>Carte graphique : Carte comportant 128 Mo de mémoire vidéo, avec support Shader Model 1.1</strong> <br></li><li><strong>Version DirectX® : 9.0c ou ultérieure</strong> </li></ul>",
+    "recommended": "<h2 class=\"bb_tag\" ><strong>RECOMMENDED</strong></h2><ul class=\"bb_ul\"><li><strong>OS: Windows 7, 8/8.1, 10</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Processor: Dual Core 3.0 Ghz</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Memory: 4GB</strong><br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Hard Disk Space: 200MB </strong> \t<br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>Video Card: 256mb Video Memory, capable of Shader Model 2.0+</strong> <br>\t\t\t\t\t\t\t\t\t\t</li><li><strong>DirectX®: 9.0c or Greater</strong> \t<br>\t\t\t\t\t\t\t\t\t</li></ul>"
+   }
+  }
+ }
+}

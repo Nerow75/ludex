@@ -1,0 +1,14 @@
+{
+ "1091500": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Cyberpunk 2077",
+   "steam_appid": 1091500,
+   "pc_requirements": {
+    "minimum": "<strong>Minimale :</strong><br><ul class=\"bb_ul\"><li>Système d'exploitation et processeur 64 bits nécessaires<br></li><li><strong>Système d'exploitation :</strong> 64-bit Windows 10<br></li><li><strong>Processeur :</strong> Core i7-6700 or Ryzen 5 1600<br></li><li><strong>Mémoire vive :</strong> 12 GB de mémoire<br></li><li><strong>Graphiques :</strong> GeForce GTX 1060 6GB or Radeon RX 580 8GB or Arc A380<br></li><li><strong>DirectX :</strong> Version 12<br></li><li><strong>Espace disque :</strong> 70 GB d'espace disque disponible<br></li><li><strong>Notes supplémentaires :</strong> SSD required. Attention: In this game you will encounter a variety of visual effects that may provide seizures or loss of consciousness in a minority of people. If you or someone you know experiences any of the above symptoms while playing, stop and seek medical attention immediately.</li></ul>",
+    "recommended": "<strong>Recommandée :</strong><br><ul class=\"bb_ul\"><li>Système d'exploitation et processeur 64 bits nécessaires<br></li><li><strong>Système d'exploitation :</strong> 64-bit Windows 10<br></li><li><strong>Processeur :</strong> Core i7-12700 or Ryzen 7 7800X3D<br></li><li><strong>Mémoire vive :</strong> 16 GB de mémoire<br></li><li><strong>Graphiques :</strong> GeForce RTX 2060 SUPER or Radeon RX 5700 XT or Arc A770<br></li><li><strong>DirectX :</strong> Version 12<br></li><li><strong>Espace disque :</strong> 70 GB d'espace disque disponible<br></li><li><strong>Notes supplémentaires :</strong> SSD required.</li></ul>"
+   }
+  }
+ }
+}

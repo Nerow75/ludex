@@ -1,0 +1,14 @@
+{
+ "431960": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Wallpaper Engine",
+   "steam_appid": 431960,
+   "pc_requirements": {
+    "minimum": "<strong>Minimale :</strong><br><ul class=\"bb_ul\"><li><strong>Système d'exploitation :</strong> Windows 10, Windows 11<br></li><li><strong>Processeur :</strong> 1.66 GHz Intel i5 or equivalent<br></li><li><strong>Mémoire vive :</strong> 1024 MB de mémoire<br></li><li><strong>Graphiques :</strong> HD Graphics 4000 or above<br></li><li><strong>DirectX :</strong> Version 11<br></li><li><strong>Espace disque :</strong> 512 MB d'espace disque disponible<br></li><li><strong>Notes supplémentaires :</strong> Les versions Windows N requièrent le 'Media Feature Pack' de Microsoft.</li></ul>",
+    "recommended": "<strong>Recommandée :</strong><br><ul class=\"bb_ul\"><li><strong>Système d'exploitation :</strong> Windows 10, Windows 11<br></li><li><strong>Processeur :</strong> 2.0 GHz Intel i7 or equivalent<br></li><li><strong>Mémoire vive :</strong> 2048 MB de mémoire<br></li><li><strong>Graphiques :</strong> NVIDIA GeForce GTX 660, AMD HD7870, 2 GB VRAM or above<br></li><li><strong>DirectX :</strong> Version 11<br></li><li><strong>Espace disque :</strong> 1024 MB d'espace disque disponible<br></li><li><strong>Notes supplémentaires :</strong> L'application mobile nécessite Android 10 ou une version plus récente</li></ul>"
+   }
+  }
+ }
+}

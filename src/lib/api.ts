@@ -301,6 +301,43 @@ export interface Achievement {
 }
 /** Succès d'un jeu : non débloqués les plus faciles d'abord, puis débloqués, le plus récent d'abord. */
 export const gameAchievements = (id: string) => invoke<Achievement[]>("game_achievements", { id });
+
+/** Ligne d'une configuration requise (texte de la boutique Steam, sans HTML). */
+export type RequirementKind = "system" | "cpu" | "memory" | "gpu" | "directx" | "storage" | "notes";
+/** Ce PC face à une ligne : suffit, en dessous, ou comparaison impossible. */
+export type RequirementVerdict = "ok" | "below" | "unknown";
+export interface RequirementLine {
+  kind: RequirementKind;
+  text: string;
+  verdict: RequirementVerdict;
+}
+export interface PcGpu {
+  name: string;
+  /** Mémoire dédiée, en octets. */
+  vram: number;
+}
+/** Matériel de ce PC, pour la colonne « Ce PC ». */
+export interface PcSpecs {
+  windows: string;
+  cpu: string | null;
+  cores: number | null;
+  threads: number | null;
+  /** Mémoire installée, en octets. */
+  memory: number | null;
+  /** Cartes dédiées d'abord, la plus grosse mémoire d'abord. */
+  gpus: PcGpu[];
+  /** Version de DirectX la plus haute prise en charge par une carte. */
+  directx: number | null;
+  /** Disque du jeu : place libre et place prise par le jeu (octets). */
+  disk: { letter: string; free: number; game: number | null } | null;
+}
+export interface Requirements {
+  minimum: RequirementLine[];
+  recommended: RequirementLine[];
+  pc: PcSpecs;
+}
+/** Configuration requise d'un jeu (appid Steam), comparée à ce PC ; `null` si rien de connu. */
+export const gameRequirements = (id: string) => invoke<Requirements | null>("game_requirements", { id });
 /** Succès débloqué montré par la vitrine. */
 export interface ShowcaseUnlock {
   gameId: string;
@@ -713,7 +750,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements";
 export interface DiagService {
   id: DiagServiceId;
   label: string;

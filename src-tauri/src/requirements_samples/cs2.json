@@ -1,0 +1,13 @@
+{
+ "730": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Counter-Strike 2",
+   "steam_appid": 730,
+   "pc_requirements": {
+    "minimum": "<strong>Minimale :</strong><br><ul class=\"bb_ul\"><li><strong>Système d'exploitation :</strong> Windows® 10<br></li><li><strong>Processeur :</strong> processeur Intel® Core™ i5-750 à 4 threads (ou mieux)<br></li><li><strong>Mémoire vive :</strong> 8 GB de mémoire<br></li><li><strong>Graphiques :</strong> la carte graphique doit avoir au moins 1 Go de mémoire et être compatible avec DirectX 11 et Shader Model 5.0<br></li><li><strong>DirectX :</strong> Version 11<br></li><li><strong>Espace disque :</strong> 85 GB d'espace disque disponible</li></ul>"
+   }
+  }
+ }
+}
