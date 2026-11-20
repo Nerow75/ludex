@@ -145,6 +145,9 @@ export interface SourceReport {
 export interface ScanResult {
   games: Game[];
   sources: SourceReport[];
+  /** Premier affichage du démarrage : EA, Battle.net et « Autres » encore en lecture (absents de
+   * `games` et `sources`), complément annoncé par `library-changed`. */
+  partial: boolean;
 }
 
 /** Session d'un jeu lancé depuis Ludex. Le temps de jeu n'accompagne que les mises à jour du cumul. */
@@ -441,6 +444,8 @@ export interface LibraryEvent {
   added: string[];
   removed: string[];
   scan: ScanResult;
+  /** Fin du premier scan (sources lentes) : pas de toast « Nouveau jeu ». */
+  complement: boolean;
 }
 export const onLibraryChanged = (handler: (event: LibraryEvent) => void): Promise<UnlistenFn> =>
   listen<LibraryEvent>("library-changed", (e) => handler(e.payload));

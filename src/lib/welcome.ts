@@ -37,7 +37,7 @@ export function sourceList(names: string[]): string {
   return `${names[0]}, ${names[1]} et ${names.length - 2} autres`;
 }
 
-export function summarize({ games, sources }: ScanResult): WelcomeSummary {
+export function summarize({ games, sources }: Pick<ScanResult, "games" | "sources">): WelcomeSummary {
   const visible = games.filter((g: Game) => !g.hidden);
   const counts = new Map<Platform, number>();
   visible.forEach((g) => counts.set(g.platform, (counts.get(g.platform) ?? 0) + 1));

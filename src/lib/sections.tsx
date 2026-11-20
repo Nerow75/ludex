@@ -16,6 +16,8 @@ import { StorageView } from "../components/StorageView";
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
   games: Game[];
+  /** Premier affichage du démarrage : EA, Battle.net et « Autres » encore en lecture. */
+  partial: boolean;
   /** Jeux dont une session est en cours. */
   playing: ReadonlySet<string>;
   /** Ouvre la fiche d'un jeu dans « Tous les jeux ». */

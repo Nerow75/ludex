@@ -42,6 +42,15 @@ export function pickTonight(games: Game[], playing: ReadonlySet<string>, pile: G
 }
 
 /**
+ * Bannière « Ce soir » montrable pendant le premier affichage du démarrage (`partial` : EA,
+ * Battle.net et « Autres » encore en lecture) ? Seule une partie en cours ne peut pas être
+ * détrônée par ces jeux ; sinon la bannière attend le scan complet (place gardée, sans saut).
+ */
+export function tonightSettled(tonight: Tonight | null, partial: boolean): boolean {
+  return !partial || tonight?.reason === "live";
+}
+
+/**
  * « Ta pile » : jeux jamais lancés et jeux « À faire » (ni terminés, ni abandonnés, ni en cours),
  * les plus récemment installés d'abord quand la date est connue, puis par titre.
  */

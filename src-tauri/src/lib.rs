@@ -81,8 +81,10 @@ struct AppState {
     sizes_busy: AtomicBool,
     /// Tenu pendant un scan : jamais deux scans à la fois.
     scan_lock: Mutex<()>,
-    /// Fin du dernier scan.
+    /// Fin du dernier scan complet (pas le premier affichage d'un scan progressif).
     last_scan: Mutex<Option<Instant>>,
+    /// Le prochain `scan_library` est le premier du démarrage : scan progressif.
+    first_scan: AtomicBool,
     /// Surveillance des dossiers des launchers, lancée après le premier scan.
     watch: OnceLock<watch::Watch>,
     /// Dernier menu posé sur l'icône de la zone de notification : reconstruit seulement s'il change.
@@ -897,6 +899,40 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     // Launchers désactivés dans les Paramètres : lus, mais leurs jeux écartés.
     let disabled = lock(&state.data)?.settings.disabled_sources.clone();
     let mut result = library::scan_except(&disabled);
+    let changes = store(state, &mut result)?;
+    *lock(&state.last_scan)? = Some(Instant::now());
+    drop(scanning);
+    after_scan(app, state);
+    Ok((result, changes))
+}
+
+/// Premier scan du démarrage, en deux temps : les sources rapides sont envoyées par `shown` dès
+/// qu'elles sont lues (la fenêtre affiche déjà ces jeux), puis les sources lentes (EA, Battle.net,
+/// « Autres », qui parcourent les disques) complètent la bibliothèque, annoncée par
+/// `library-changed` (`complement`, sans toast). Le verrou reste tenu jusqu'au bout : aucun autre
+/// scan entre les deux. Tout ce qui suit un scan (recherches en ligne, tailles, sauvegardes,
+/// surveillance, menu, Jump List, date du dernier scan) attend la bibliothèque complète.
+fn progressive_scan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>, shown: impl FnOnce(ScanResult)) -> Result<(), String> {
+    let disabled = lock(&state.data)?.settings.disabled_sources.clone();
+    let (mut first, pending) = library::scan_fast(&disabled);
+    // Dans l'état aussi : un jeu déjà affiché peut être lancé ou ouvert pendant la suite.
+    store(state, &mut first)?;
+    shown(first);
+    let mut result = library::finish(pending);
+    let changes = store(state, &mut result)?;
+    *lock(&state.last_scan)? = Some(Instant::now());
+    drop(scanning);
+    // Avant les recherches en ligne : leurs événements (`game-art`…) visent des jeux que le front
+    // doit déjà avoir.
+    let _ = app.emit(LIBRARY_EVENT, LibraryEvent { added: changes.added, removed: changes.removed, scan: result, complement: true });
+    after_scan(app, state);
+    Ok(())
+}
+
+/// Applique à un scan brut les jeux ajoutés à la main, les préférences, jaquettes, fiches, durées,
+/// images en cache, tailles et images perso, puis remplace la bibliothèque de l'état. Renvoie les
+/// jeux apparus et disparus.
+fn store(state: &AppState, result: &mut ScanResult) -> Result<watch::Changes, String> {
     let mut originals = covers::Originals::new();
     {
         let data = lock(&state.data)?;
@@ -921,15 +957,15 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
             covers::apply(g, data.covers.get(&g.id), images.root(), &mut originals);
         });
     }
-    let changes = {
-        let mut games = lock(&state.games)?;
-        let changes = watch::changes(&games, &result.games);
-        *games = result.games.clone();
-        *lock(&state.originals)? = originals;
-        changes
-    };
-    *lock(&state.last_scan)? = Some(Instant::now());
-    drop(scanning);
+    let mut games = lock(&state.games)?;
+    let changes = watch::changes(&games, &result.games);
+    *games = result.games.clone();
+    *lock(&state.originals)? = originals;
+    Ok(changes)
+}
+
+/// Après un scan complet (verrou rendu) : surveillance, recherches en ligne, mesures, menu.
+fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     // Une bibliothèque Steam ou un dossier « Jeux » a pu apparaître.
     if let Some(w) = state.watch.get() {
         w.rewatch();
@@ -941,17 +977,33 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
     resolve_saves(app.clone());
     resolve_sizes(app.clone());
     refresh_tray(app, false);
-    Ok((result, changes))
 }
 
 #[tauri::command]
 async fn scan_library(app: tauri::AppHandle) -> Result<ScanResult, String> {
     let handle = app.clone();
-    let (result, _) = tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let state = handle.state::<AppState>();
-        // Un rescan automatique en cours : on attend sa fin plutôt que de scanner en même temps.
-        let scanning = state.scan_lock.lock().unwrap_or_else(|e| e.into_inner());
-        rescan(&handle, &state, scanning)
+        if !state.first_scan.swap(false, Ordering::SeqCst) {
+            // Un rescan automatique en cours : on attend sa fin plutôt que de scanner en même temps.
+            let scanning = wait_scan(&state);
+            return rescan(&handle, &state, scanning).map(|(result, _)| result);
+        }
+        // Premier scan : la suite (sources lentes) continue dans son propre fil, qui garde le verrou.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = handle.clone();
+        std::thread::spawn(move || {
+            let state = worker.state::<AppState>();
+            let scanning = wait_scan(&state);
+            let first = tx.clone();
+            if let Err(e) = progressive_scan(&worker, &state, scanning, move |scan| {
+                let _ = first.send(Ok(scan));
+            }) {
+                eprintln!("Premier scan impossible : {e}");
+                let _ = tx.send(Err(e)); // sans effet si les premiers jeux sont déjà partis
+            }
+        });
+        rx.recv().map_err(|_| "Le scan s'est arrêté.".to_string())?
     })
     .await
     .map_err(|e| format!("Le scan a échoué : {e}"))??;
@@ -966,6 +1018,8 @@ struct LibraryEvent {
     added: Vec<String>,
     removed: Vec<String>,
     scan: ScanResult,
+    /// Fin du premier scan (sources lentes) : jeux ajoutés sans toast « Nouveau jeu ».
+    complement: bool,
 }
 
 const LIBRARY_EVENT: &str = "library-changed";
@@ -1016,7 +1070,7 @@ fn auto_rescan(app: &tauri::AppHandle, only_if_stale: bool) -> bool {
     }
     match rescan(app, &state, scanning) {
         Ok((scan, changes)) => {
-            let _ = app.emit(LIBRARY_EVENT, LibraryEvent { added: changes.added, removed: changes.removed, scan });
+            let _ = app.emit(LIBRARY_EVENT, LibraryEvent { added: changes.added, removed: changes.removed, scan, complement: false });
         }
         Err(e) => eprintln!("Rescan automatique impossible : {e}"),
     }
@@ -2034,6 +2088,7 @@ pub fn run() {
                 originals: Mutex::default(),
                 scan_lock: Mutex::new(()),
                 last_scan: Mutex::new(None),
+                first_scan: AtomicBool::new(true),
                 watch: OnceLock::new(),
                 tray_menu: Mutex::default(),
                 jump_list: jumplist::JumpList::spawn(std::env::current_exe().ok()),

@@ -45,7 +45,6 @@ import {
   type CollectionsInfo,
   type ArtKind,
   type Game,
-  type LibraryEvent,
   type LibraryUpdate,
   type Mood,
   type ScanResult,
@@ -89,6 +88,7 @@ import {
 } from "./lib/library";
 import { collectionSections, SECTIONS, type Section, type SectionContext } from "./lib/sections";
 import { gameMenu, type MenuAction, type Point } from "./lib/contextMenu";
+import { awaitingGames, libraryToast, nextScan, welcomeReady } from "./lib/scan";
 import { ContextMenu } from "./components/ContextMenu";
 import { ficheNext, GameStrip, type FicheEdit } from "./components/GameStrip";
 import { Sidebar } from "./components/Sidebar";
@@ -322,7 +322,7 @@ export default function App() {
     loadCollections();
     try {
       const result = await scanLibrary();
-      setScan(result);
+      setScan((current) => nextScan(current, result));
       if (manual) {
         const n = result.games.filter((g) => !g.hidden).length;
         showToast({ title: "Bibliothèque à jour", detail: `${n} jeu${n > 1 ? "x" : ""} détecté${n > 1 ? "s" : ""}` });
@@ -401,6 +401,9 @@ export default function App() {
   // spinner, toast seulement si des jeux sont apparus ou ont disparu.
   useEffect(() => {
     const unlisten = onLibraryChanged((e) => {
+      // Complément du premier scan : la jaquette choisie par défaut reste la même (le premier jeu
+      // de la liste ou le dernier lancé peut changer avec les jeux « Autres »).
+      if (e.complement) setSelectedId((id) => id ?? current.current.id ?? null);
       setScan(e.scan);
       setScanError(null);
       loadCollections();
@@ -1123,7 +1126,7 @@ export default function App() {
   });
   const showPadHints = padConnected && padHints;
   const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
-  const sectionContext: SectionContext = { games, playing, openGame, play, showTag, showMood, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
+  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
   const changeStatusFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setOpen(false);
@@ -1163,10 +1166,11 @@ export default function App() {
     />
   );
 
-  const showWelcome = !!(scan && welcomeInfo);
+  const showWelcome = welcomeReady(scan, !!welcomeInfo);
   welcomeOpen.current = showWelcome;
   // Après le premier scan, jamais par-dessus l'écran de premier lancement.
-  const showCouch = couch && !!scan && !showWelcome;
+  // Ni pendant que l'écran est dû mais attend la fin du scan.
+  const showCouch = couch && !!scan && !welcomeInfo;
   couchOpen.current = showCouch;
   const leaveCouch = () => {
     setCouchMode(false);
@@ -1278,9 +1282,9 @@ export default function App() {
           <p key={s.platform} className="notice notice--error">{PLATFORM_LABEL[s.platform]} : {s.error}</p>
         ))}
 
-        {!scan && !scanError && !inSettings && <LibrarySkeleton />}
+        {awaitingGames(scan) && !scanError && !inSettings && <LibrarySkeleton />}
 
-        {scan && emptyLibrary && !inSettings && (
+        {scan && emptyLibrary && !scan.partial && !inSettings && (
           <EmptyState
             title="Aucun jeu trouvé sur ce PC"
             action={
@@ -1574,18 +1578,6 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-/** « Nouveau jeu : Hades », « 3 nouveaux jeux », « Jeu retiré : Portal »… `null` si rien n'a changé. */
-function libraryToast({ added, removed }: LibraryEvent): Toast | null {
-  const list = (titles: string[]) => (titles.length > 1 ? titles.join(", ") : undefined);
-  const gone = removed.length === 1 ? `Jeu retiré : ${removed[0]}` : `${removed.length} jeux retirés`;
-  if (added.length) {
-    const title = added.length === 1 ? `Nouveau jeu : ${added[0]}` : `${added.length} nouveaux jeux`;
-    const detail = [list(added), removed.length ? gone : undefined].filter(Boolean).join(" · ");
-    return { title, detail: detail || undefined };
-  }
-  return removed.length ? { title: gone, detail: list(removed) } : null;
 }
 
 interface NoResultsProps {

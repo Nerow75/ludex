@@ -359,6 +359,9 @@ pub fn last_scan() -> Option<(u64, Vec<SourceReport>)> {
 pub struct ScanResult {
     pub games: Vec<Game>,
     pub sources: Vec<SourceReport>,
+    /// Premier affichage du démarrage : sources lentes (EA, Battle.net, « Autres ») encore en
+    /// lecture, absentes de `games` et de `sources`. Le complément arrive par `library-changed`.
+    pub partial: bool,
 }
 
 /// `Ok(None)` : launcher absent. `Ok(Some(..))` : launcher présent, liste (éventuellement vide).
@@ -416,47 +419,119 @@ pub fn scan() -> ScanResult {
     scan_except(&[])
 }
 
+/// Sources dans l'ordre de priorité : un jeu vu par deux launchers (même dossier) reste au premier.
+/// « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
+const SOURCES: [(Platform, SourceFn); 10] = [
+    (Platform::Steam, steam::scan),
+    (Platform::Epic, epic::scan),
+    (Platform::Gog, gog::scan),
+    (Platform::Ubisoft, ubisoft::scan),
+    (Platform::Ea, ea::scan),
+    (Platform::Battlenet, battlenet::scan),
+    (Platform::Rockstar, rockstar::scan),
+    (Platform::Xbox, xbox::scan),
+    (Platform::Riot, riot::scan),
+    (Platform::Other, local::scan),
+];
+
+/// Sources lentes, lues après le premier affichage au démarrage (`scan_fast` puis `finish`) :
+/// EA, Battle.net et « Autres » parcourent les dossiers de jeux de tous les disques
+/// (`local::candidates`, partagé : la première des trois paie le parcours).
+const SLOW: [Platform; 3] = [Platform::Ea, Platform::Battlenet, Platform::Other];
+
 /// Scan sans les jeux des launchers désactivés dans les Paramètres. Un launcher désactivé est lu
 /// quand même : ses dossiers restent réservés, donc « Autres » ne reprend pas ses jeux.
 pub fn scan_except(disabled: &[Platform]) -> ScanResult {
     // Un jeu peut avoir été installé depuis le dernier scan : les disques sont relus.
     local::forget_candidates();
-    // Ordre = priorité : un jeu vu par deux launchers (même dossier) reste au premier.
-    // « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
-    let sources: [(Platform, SourceFn); 10] = [
-        (Platform::Steam, steam::scan),
-        (Platform::Epic, epic::scan),
-        (Platform::Gog, gog::scan),
-        (Platform::Ubisoft, ubisoft::scan),
-        (Platform::Ea, ea::scan),
-        (Platform::Battlenet, battlenet::scan),
-        (Platform::Rockstar, rockstar::scan),
-        (Platform::Xbox, xbox::scan),
-        (Platform::Riot, riot::scan),
-        (Platform::Other, local::scan),
-    ];
-    let (mut games, reports) = gather(&sources, disabled);
+    let (games, reports) = gather(&SOURCES, disabled);
+    complete(games, reports)
+}
+
+/// Scan progressif, première moitié : les sources rapides seulement, résultat marqué `partial`.
+/// Les lectures sont gardées dans `Pending` pour que `finish` donne exactement le résultat d'un
+/// scan complet (même ordre de priorité, mêmes écarts).
+pub fn scan_fast(disabled: &[Platform]) -> (ScanResult, Pending) {
+    local::forget_candidates();
+    let reads = read_fast(&SOURCES, &SLOW);
+    let (mut games, sources) = combine(reads.clone(), disabled);
+    games.iter_mut().for_each(add_icon);
+    games.sort_by_key(|g| g.title.to_lowercase());
+    (ScanResult { games, sources, partial: true }, Pending { reads, disabled: disabled.to_vec() })
+}
+
+/// Lectures des sources rapides, en attendant les sources lentes.
+pub struct Pending {
+    reads: Vec<Read>,
+    disabled: Vec<Platform>,
+}
+
+/// Scan progressif, seconde moitié : lit les sources lentes, puis refait l'agrégation de toutes
+/// les sources dans l'ordre de priorité. Identique à `scan_except` avec les mêmes lectures.
+pub fn finish(pending: Pending) -> ScanResult {
+    let reads = read_rest(&SOURCES, &SLOW, pending.reads);
+    let (games, reports) = combine(reads, &pending.disabled);
+    complete(games, reports)
+}
+
+/// Fin d'un scan complet : rapports gardés pour le diagnostic, icônes, tri par titre.
+fn complete(mut games: Vec<Game>, reports: Vec<SourceReport>) -> ScanResult {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     *LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner()) = Some((now, reports.clone()));
     games.iter_mut().for_each(add_icon);
     games.sort_by_key(|g| g.title.to_lowercase());
-    ScanResult { games, sources: reports }
+    ScanResult { games, sources: reports, partial: false }
+}
+
+/// Lecture brute d'une source, avant l'écart des dossiers déjà vus.
+#[derive(Clone)]
+struct Read {
+    platform: Platform,
+    result: Result<Option<Vec<Game>>, String>,
+    millis: u64,
+    skipped: Vec<Skipped>,
+}
+
+/// Lit une source en notant sa durée et les jeux qu'elle écarte elle-même.
+fn read(platform: Platform, source: SourceFn) -> Read {
+    SKIPPED.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    let start = std::time::Instant::now();
+    let result = source();
+    let millis = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let skipped = SKIPPED.with(|s| s.borrow_mut().take()).unwrap_or_default();
+    Read { platform, result, millis, skipped }
+}
+
+/// Sources hors de `slow`, dans l'ordre de priorité.
+fn read_fast(sources: &[(Platform, SourceFn)], slow: &[Platform]) -> Vec<Read> {
+    sources.iter().filter(|(p, _)| !slow.contains(p)).map(|&(p, s)| read(p, s)).collect()
+}
+
+/// Toutes les sources dans l'ordre de priorité : celles de `slow` lues maintenant, les autres
+/// reprises de `fast` (lues par `read_fast`, dans le même ordre).
+fn read_rest(sources: &[(Platform, SourceFn)], slow: &[Platform], fast: Vec<Read>) -> Vec<Read> {
+    let mut fast = fast.into_iter();
+    sources
+        .iter()
+        .map(|&(p, s)| if slow.contains(&p) { read(p, s) } else { fast.next().filter(|r| r.platform == p).unwrap_or_else(|| read(p, s)) })
+        .collect()
 }
 
 /// Lit les sources dans l'ordre de priorité et écarte les jeux dont le dossier est déjà vu.
 /// Note aussi la durée de chaque source et les jeux écartés (page de diagnostic).
 fn gather(sources: &[(Platform, SourceFn)], disabled: &[Platform]) -> (Vec<Game>, Vec<SourceReport>) {
+    combine(sources.iter().map(|&(p, s)| read(p, s)).collect(), disabled)
+}
+
+/// Agrège des lectures déjà faites, dans leur ordre : un jeu dont le dossier (ou un dossier parent
+/// ou enfant) est déjà pris par une lecture précédente est écarté.
+fn combine(reads: Vec<Read>, disabled: &[Platform]) -> (Vec<Game>, Vec<SourceReport>) {
     let mut games = Vec::new();
     let mut reports = Vec::new();
     // Dossier déjà vu, avec le launcher et le titre du jeu qui l'occupe.
     let mut dirs: Vec<(String, Platform, String)> = Vec::new();
-    for &(platform, source) in sources {
+    for Read { platform, result: read, millis, mut skipped } in reads {
         let off = disabled.contains(&platform);
-        SKIPPED.with(|s| *s.borrow_mut() = Some(Vec::new()));
-        let start = std::time::Instant::now();
-        let read = source();
-        let millis = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let mut skipped = SKIPPED.with(|s| s.borrow_mut().take()).unwrap_or_default();
         let report = |installed: bool, count: usize, error: Option<String>, skipped: Vec<Skipped>| SourceReport {
             platform,
             installed,
@@ -558,6 +633,75 @@ mod tests {
         assert!(!reports[2].disabled && reports[2].count == 1);
     }
 
+    fn fake_ea() -> Result<Option<Vec<Game>>, String> {
+        Ok(Some(vec![at(Platform::Ea, "gta", r"E:\Jeux\GTA V")]))
+    }
+    fn fake_rockstar() -> Result<Option<Vec<Game>>, String> {
+        // Sous-dossier du jeu EA : écarté par le scan complet, mais montré au premier affichage.
+        Ok(Some(vec![at(Platform::Rockstar, "gtav", r"E:\Jeux\GTA V\Grand Theft Auto V"), at(Platform::Rockstar, "rdr2", r"E:\Jeux\RDR2")]))
+    }
+    fn fake_battlenet() -> Result<Option<Vec<Game>>, String> {
+        Err("illisible".to_string())
+    }
+    const PROGRESSIVE: [(Platform, SourceFn); 6] = [
+        (Platform::Steam, fake_steam),
+        (Platform::Ea, fake_ea),
+        (Platform::Battlenet, fake_battlenet),
+        (Platform::Rockstar, fake_rockstar),
+        (Platform::Epic, fake_epic),
+        (Platform::Other, fake_other),
+    ];
+    const SLOW: [Platform; 3] = [Platform::Ea, Platform::Battlenet, Platform::Other];
+
+    #[test]
+    fn progressive_scan_ends_like_a_full_scan() {
+        let ids = |games: &[Game]| games.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
+        let summary = |reports: &[super::SourceReport]| {
+            reports.iter().map(|r| (r.platform, r.installed, r.count, r.error.clone(), r.disabled, r.skipped.clone())).collect::<Vec<_>>()
+        };
+        for disabled in [vec![], vec![Platform::Ea], vec![Platform::Rockstar, Platform::Other]] {
+            let (full_games, full_reports) = super::gather(&PROGRESSIVE, &disabled);
+
+            let fast = super::read_fast(&PROGRESSIVE, &SLOW);
+            assert_eq!(fast.iter().map(|r| r.platform).collect::<Vec<_>>(), [Platform::Steam, Platform::Rockstar, Platform::Epic]);
+            let (first, first_reports) = super::combine(fast.clone(), &disabled);
+            assert!(first_reports.iter().all(|r| !SLOW.contains(&r.platform)));
+            if !disabled.contains(&Platform::Rockstar) {
+                // Sans EA, le sous-dossier de GTA V n'est pas encore pris.
+                assert!(ids(&first).contains(&"rockstar:gtav".to_string()));
+            }
+
+            let (games, reports) = super::combine(super::read_rest(&PROGRESSIVE, &SLOW, fast), &disabled);
+            assert_eq!(ids(&games), ids(&full_games), "désactivés : {disabled:?}");
+            assert_eq!(summary(&reports), summary(&full_reports), "désactivés : {disabled:?}");
+        }
+        let (games, _) = super::gather(&PROGRESSIVE, &[]);
+        assert_eq!(ids(&games), ["steam:620", "ea:gta", "rockstar:rdr2", "other:dofus"]);
+    }
+
+    /// Scan progressif réel : `cargo test progressive_this_pc -- --ignored --nocapture`
+    /// (temps jusqu'au premier affichage et jusqu'au scan complet, puis scan complet seul).
+    #[test]
+    #[ignore]
+    fn progressive_this_pc() {
+        let ids = |games: &[Game]| games.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
+        let start = std::time::Instant::now();
+        let (first, pending) = super::scan_fast(&[]);
+        let shown = start.elapsed();
+        let done = super::finish(pending);
+        let total = start.elapsed();
+        println!("Premier affichage : {} ms, {} jeux", shown.as_millis(), first.games.len());
+        println!("Scan complet : {} ms, {} jeux", total.as_millis(), done.games.len());
+        for s in &done.sources {
+            println!("  {:?} : {} ms, {} jeux", s.platform, s.millis, s.count);
+        }
+        let start = std::time::Instant::now();
+        let full = super::scan();
+        println!("Scan complet d'un bloc : {} ms", start.elapsed().as_millis());
+        assert!(!done.partial && first.partial);
+        assert_eq!(ids(&done.games), ids(&full.games));
+    }
+
     #[test]
     fn install_date_of_a_folder() {
         let dir = std::env::temp_dir().join(format!("ludex-install-date-{}", std::process::id()));
@@ -600,10 +744,13 @@ mod tests {
     #[test]
     #[ignore]
     fn scan_this_pc() {
+        let start = std::time::Instant::now();
         let result = super::scan();
+        let total = start.elapsed();
         for s in &result.sources {
-            println!("{:?}: installé={} jeux={} erreur={:?}", s.platform, s.installed, s.count, s.error);
+            println!("{:?}: installé={} jeux={} erreur={:?} durée={} ms", s.platform, s.installed, s.count, s.error, s.millis);
         }
+        println!("Scan complet : {} ms", total.as_millis());
         let hours = |g: &super::Game| match (g.playtime_minutes, g.playtime_source) {
             (Some(m), Some(source)) => format!("{:.1} h ({source:?})", m as f64 / 60.0),
             _ => "non mesuré".to_string(),
