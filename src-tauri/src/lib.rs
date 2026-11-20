@@ -2821,6 +2821,7 @@ pub fn run() {
             settings::settings,
             settings::set_theme,
             settings::set_notification,
+            settings::set_launch_screen,
             settings::set_quick_shortcut,
             settings::pause_quick_shortcut,
             settings::set_launch_at_startup,

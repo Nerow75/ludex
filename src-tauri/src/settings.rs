@@ -32,6 +32,8 @@ pub struct SettingsInfo {
     /// Dossier des copies de sauvegardes, en texte (affichage seulement).
     saves_dir: String,
     auto_saves: bool,
+    /// Écran de lancement au clic sur Jouer.
+    launch_screen: bool,
     disabled_sources: Vec<Platform>,
     /// Jeux masqués par l'utilisateur (les outils masqués d'office n'y sont pas).
     hidden_games: usize,
@@ -57,6 +59,7 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
         keep_in_tray: s.keep_in_tray,
         saves_dir,
         auto_saves: s.auto_saves,
+        launch_screen: s.launch_screen,
         disabled_sources: s.disabled_sources.clone(),
         hidden_games: data.hidden.len(),
         version: app.package_info().version.to_string(),
@@ -155,6 +158,13 @@ pub fn set_keep_in_tray(app: AppHandle, value: bool) -> Result<SettingsInfo, Str
     publish(&app)
 }
 
+/// Active ou coupe l'écran de lancement montré au clic sur Jouer.
+#[tauri::command]
+pub fn set_launch_screen(app: AppHandle, value: bool) -> Result<SettingsInfo, String> {
+    update_settings(&app, |s| s.launch_screen = value);
+    publish(&app)
+}
+
 /// Active ou désactive un type de notification Windows.
 #[tauri::command]
 pub fn set_notification(app: AppHandle, kind: crate::notify::Kind, value: bool) -> Result<SettingsInfo, String> {
@@ -227,6 +237,7 @@ mod tests {
             keep_in_tray: true,
             saves_dir: String::new(),
             auto_saves: true,
+            launch_screen: false,
             disabled_sources: vec![Platform::Epic],
             hidden_games: 2,
             version: "0.2.0".into(),
@@ -234,7 +245,7 @@ mod tests {
             notifications_blocked: true,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
+        for part in [r#""theme":"system""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
             assert!(text.contains(part), "{text}");
         }
     }
