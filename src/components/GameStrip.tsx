@@ -46,6 +46,7 @@ import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { SavesPanel } from "./SavesPanel";
+import { RequirementsPanel } from "./RequirementsPanel";
 
 interface Props {
   game: Game;
@@ -685,6 +686,7 @@ export function GameStrip({
                   {game.installDir && <div className="is-wide"><dt>Dossier</dt><dd className="path" title={game.installDir}>{game.installDir}</dd></div>}
                 </dl>
                 {!d && <p className="fiche__note">Pas de fiche Steam pour ce jeu : ni description, ni genres, ni tags.</p>}
+                <RequirementsPanel key={`reqs-${game.id}`} gameId={game.id} />
               </>
             )}
             {active === "achievements" && <AchievementList key={`achs-${game.id}`} game={game} expanded />}

@@ -50,11 +50,17 @@ welcome-preview = []
 pelite = "0.10"
 winreg = "0.55"
 # Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
+# Cartes graphiques, niveau DirectX et mémoire installée (`requirements.rs`) : DXGI, Direct3D 11,
+# SystemInformation.
 windows = { version = "0.62", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi",
     "Win32_Storage_EnhancedStorage",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_SystemInformation",
     "Win32_System_Variant",
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",

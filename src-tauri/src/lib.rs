@@ -12,6 +12,7 @@ mod launch_args;
 mod library;
 mod metadata;
 mod recap;
+mod requirements;
 mod screenshots;
 mod saves;
 mod moods;
@@ -101,6 +102,12 @@ struct AppState {
     saves_busy: AtomicBool,
     /// Tenu pendant une copie ou une restauration : jamais deux à la fois.
     saves_lock: Mutex<()>,
+    /// Configurations requises des jeux (`requirements.rs`), lues à la demande.
+    requirements: Mutex<requirements::ReqCache>,
+    /// Tenu pendant une requête de configuration : une seule à la fois.
+    requirements_lock: Mutex<()>,
+    /// Une requête de configuration tourne.
+    requirements_busy: AtomicBool,
     /// Archive d'import lue et vérifiée, en attente de confirmation (`transfer.rs`).
     pending_import: Mutex<Option<transfer::Export>>,
 }
@@ -1153,6 +1160,45 @@ async fn game_achievements(app: AppHandle, id: String) -> Result<Vec<library::Ac
     .await
 }
 
+/// Configuration requise d'un jeu qui a un appid Steam (onglet Aperçu de la fiche), comparée au
+/// matériel de ce PC. Demandée à la boutique au plus une fois par 30 jours, une requête à la fois ;
+/// hors ligne, la configuration déjà connue sert. `None` : rien de connu.
+#[tauri::command]
+async fn game_requirements(app: AppHandle, id: String) -> Result<Option<requirements::Requirements>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let Some(appid) = game.steam_appid else { return Ok(None) };
+        if lock(&state.requirements)?.stale(appid) {
+            // Une requête à la fois : la demande suivante attend, puis relit le cache.
+            let _gate = state.requirements_lock.lock().unwrap_or_else(|e| e.into_inner());
+            if lock(&state.requirements)?.stale(appid) {
+                state.requirements_busy.store(true, Ordering::SeqCst);
+                let answer = requirements::request(appid);
+                state.requirements_busy.store(false, Ordering::SeqCst);
+                match answer {
+                    Ok(html) => {
+                        diagnostic::ok(diagnostic::Service::Requirements);
+                        let mut cache = lock(&state.requirements)?;
+                        cache.record(appid, html);
+                        if let Err(e) = cache.save() {
+                            eprintln!("Cache des configurations non enregistré : {e}");
+                        }
+                    }
+                    Err(e) => {
+                        diagnostic::failed(diagnostic::Service::Requirements, &e);
+                        eprintln!("Configuration requise non lue : {e}");
+                    }
+                }
+            }
+        }
+        let hw = requirements::hardware();
+        let disk = requirements::disk_of(&game);
+        Ok(lock(&state.requirements)?.requirements(appid, hw, disk))
+    })
+    .await
+}
+
 /// Section « Vitrine » : total des succès, jeux à 100 %, dix plus rares, derniers déblocages.
 /// Jeux Steam non masqués ; détail et pourcentages lus seulement pour ceux qui ont débloqué
 /// au moins un succès.
@@ -2078,6 +2124,9 @@ pub fn run() {
                 hltb: Mutex::new(hltb::HltbCache::load(&dir)),
                 images: Mutex::new(images::ImageCache::load(dir.join("images"))),
                 global: Mutex::new(showcase::GlobalCache::load(&dir)),
+                requirements: Mutex::new(requirements::ReqCache::load(&dir)),
+                requirements_lock: Mutex::new(()),
+                requirements_busy: AtomicBool::new(false),
                 sizes: Mutex::new(storage::SizeCache::load(&dir)),
                 sizes_busy: AtomicBool::new(false),
                 data_dir: dir,
@@ -2172,6 +2221,7 @@ pub fn run() {
             recap,
             journal,
             game_achievements,
+            game_requirements,
             showcase,
             storage,
             uninstall_game,

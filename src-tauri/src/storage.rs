@@ -225,7 +225,7 @@ pub fn volumes() -> Vec<Volume> {
 }
 
 /// Disque d'un dossier : le point de montage le plus long qui le contient.
-fn volume_of<'a>(dir: &str, volumes: &'a [Volume]) -> Option<&'a Volume> {
+pub(crate) fn volume_of<'a>(dir: &str, volumes: &'a [Volume]) -> Option<&'a Volume> {
     let k = key(dir);
     volumes.iter().filter(|v| is_under(&k, &key(&v.mount))).max_by_key(|v| key(&v.mount).len())
 }

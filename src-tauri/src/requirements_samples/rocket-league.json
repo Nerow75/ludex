@@ -1,0 +1,14 @@
+{
+ "252950": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Rocket League®",
+   "steam_appid": 252950,
+   "pc_requirements": {
+    "minimum": "<strong>Minimale :</strong><br><ul class=\"bb_ul\"><li>Système d'exploitation et processeur 64 bits nécessaires<br></li><li><strong>Système d'exploitation  *:</strong> Windows 7 (64 bit) or Newer (64 bit) Windows OS<br></li><li><strong>Processeur :</strong> 2.5 GHz Dual core<br></li><li><strong>Mémoire vive :</strong> 4 GB de mémoire<br></li><li><strong>Graphiques :</strong> NVIDIA GeForce 760, AMD Radeon R7 270X, or better<br></li><li><strong>DirectX :</strong> Version 11<br></li><li><strong>Réseau :</strong> connexion internet haut débit<br></li><li><strong>Espace disque :</strong> 20 GB d'espace disque disponible</li></ul>",
+    "recommended": "<strong>Recommandée :</strong><br><ul class=\"bb_ul\"><li>Système d'exploitation et processeur 64 bits nécessaires<br></li><li><strong>Système d'exploitation  *:</strong> Windows 7 (64 bit) or Newer (64 bit) Windows OS<br></li><li><strong>Processeur :</strong> 3.0+ GHz Quad core<br></li><li><strong>Mémoire vive :</strong> 8 GB de mémoire<br></li><li><strong>Graphiques :</strong> NVIDIA GeForce GTX 1060, AMD Radeon RX 470, or better<br></li><li><strong>DirectX :</strong> Version 11<br></li><li><strong>Réseau :</strong> connexion internet haut débit<br></li><li><strong>Espace disque :</strong> 20 GB d'espace disque disponible<br></li><li><strong>Notes supplémentaires :</strong> Gamepad or Controller Recommended</li></ul>"
+   }
+  }
+ }
+}
