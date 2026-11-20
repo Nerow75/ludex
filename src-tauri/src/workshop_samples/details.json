@@ -1,0 +1,150 @@
+{
+ "response": {
+  "result": 1,
+  "resultcount": 4,
+  "publishedfiledetails": [
+   {
+    "publishedfileid": "3788254489",
+    "result": 1,
+    "creator": "0",
+    "creator_app_id": 2749950,
+    "consumer_app_id": 2749950,
+    "filename": "",
+    "file_size": "133581123",
+    "file_url": "",
+    "hcontent_file": "8473359665319107838",
+    "preview_url": "https://images.steamusercontent.com/ugc/12827785633256391516/AA8B0BD9CD5D427A48101F28C24ADBC91BAF130D/",
+    "hcontent_preview": "12827785633256391516",
+    "title": "Custom Images",
+    "description": "Players, Teams, Sponsors, Tournaments and Staff custom real images. Subscribe to this and wait up until it appears in \"Y",
+    "time_created": 1787429050,
+    "time_updated": 1787429050,
+    "visibility": 0,
+    "banned": 0,
+    "ban_reason": "",
+    "subscriptions": 25098,
+    "favorited": 97,
+    "lifetime_subscriptions": 33524,
+    "lifetime_favorited": 116,
+    "views": 17833,
+    "tags": [
+     {
+      "tag": "Images"
+     },
+     {
+      "tag": "Players Photos"
+     },
+     {
+      "tag": "Staff Photos"
+     },
+     {
+      "tag": "Teams Logos"
+     },
+     {
+      "tag": "Sponsors Logos"
+     },
+     {
+      "tag": "Tournaments Logos"
+     }
+    ]
+   },
+   {
+    "publishedfileid": "2824688072",
+    "result": 1,
+    "creator": "0",
+    "creator_app_id": 1281930,
+    "consumer_app_id": 1281930,
+    "filename": "",
+    "file_size": "404391973",
+    "file_url": "",
+    "hcontent_file": "9114122658835533671",
+    "preview_url": "https://images.steamusercontent.com/ugc/18354810480491550448/8159A1EAB947FEB7CB222CE4AC6075AD5020B25E/",
+    "hcontent_preview": "18354810480491550448",
+    "title": "Calamity Mod",
+    "description": "[h1]Calamity Mod[/h1]\n[url=https://discord.gg/calamity]Discord[/url] [url=https://calamitymod.wiki.gg]Official Wiki[/url",
+    "time_created": 1655963256,
+    "time_updated": 1786328541,
+    "visibility": 0,
+    "banned": 0,
+    "ban_reason": "",
+    "subscriptions": 9962944,
+    "favorited": 245152,
+    "lifetime_subscriptions": 10551056,
+    "lifetime_favorited": 261237,
+    "views": 4853204,
+    "tags": [
+     {
+      "tag": "new content"
+     },
+     {
+      "tag": "Utilities"
+     },
+     {
+      "tag": "Gameplay Tweaks"
+     },
+     {
+      "tag": "Audio Tweaks"
+     },
+     {
+      "tag": "Visual Tweaks"
+     },
+     {
+      "tag": "Custom World Gen"
+     },
+     {
+      "tag": "English"
+     },
+     {
+      "tag": "Both"
+     },
+     {
+      "tag": "1.4.3"
+     },
+     {
+      "tag": "1.4.4"
+     }
+    ]
+   },
+   {
+    "publishedfileid": "2915318664",
+    "result": 1,
+    "creator": "0",
+    "creator_app_id": 1281930,
+    "consumer_app_id": 1281930,
+    "filename": "",
+    "file_size": "46150",
+    "file_url": "",
+    "hcontent_file": "7525701101621300373",
+    "preview_url": "https://images.steamusercontent.com/ugc/2039600735598372411/4AF82931EAFF508C298CB58684B5A2FE55A6ECC6/",
+    "hcontent_preview": "2039600735598372411",
+    "title": "Death Counter",
+    "description": "Automatically keeps tracks of the number of deaths of a character. Stores files as .txt files that then can be used in O",
+    "time_created": 1673246002,
+    "time_updated": 1729843904,
+    "visibility": 0,
+    "banned": 0,
+    "ban_reason": "",
+    "subscriptions": 25700,
+    "favorited": 237,
+    "lifetime_subscriptions": 37394,
+    "lifetime_favorited": 271,
+    "views": 15305,
+    "tags": [
+     {
+      "tag": "Client"
+     },
+     {
+      "tag": "1.4.4"
+     },
+     {
+      "tag": "1.4.3"
+     }
+    ]
+   },
+   {
+    "publishedfileid": "1",
+    "result": 9
+   }
+  ]
+ }
+}

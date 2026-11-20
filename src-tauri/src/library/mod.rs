@@ -16,7 +16,7 @@ mod riot;
 mod rockstar;
 mod steam;
 mod ubisoft;
-mod vdf;
+pub(crate) mod vdf;
 mod xbox;
 
 use serde::{Deserialize, Serialize};
