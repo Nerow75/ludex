@@ -199,7 +199,7 @@ pub fn is_game_exe_name(name: &str) -> bool {
 const LAUNCHER_APPS: &[&str] = &[
     "ubisoftconnect", "ubisoftgamelauncher", "steam", "epicgameslauncher", "eaapp", "eadesktop", "origin", "battlenet",
     "goggalaxy", "rockstargameslauncher", "riotclient", "battleyelauncher", "paradoxlauncher", "curseforge", "overwolf",
-    "ankamalauncher", "hoyoplay", "unityhub", "contentmanager",
+    "ankamalauncher", "hoyoplay", "unityhub", "contentmanager", "amazongames", "itch",
 ];
 /// Dossiers où l'exécutable du jeu ne se trouve jamais.
 const NOT_GAME_DIR: &[&str] = &[

@@ -151,7 +151,7 @@ pub fn steam_uri(appid: &str, args: &[String]) -> Option<String> {
 
 /// Pourquoi ce jeu ne peut pas recevoir d'options, `None` s'il le peut : jeu Steam, ou
 /// exécutable du jeu lui-même (« Autres », jeux manuels, EA, Battle.net sans son client,
-/// Rockstar, GOG sans Galaxy).
+/// Rockstar, GOG sans Galaxy, itch.io).
 pub fn refusal(game: &Game) -> Option<&'static str> {
     match (game.platform, &game.launch) {
         (Platform::Steam, Launch::Uri(_)) if steam_uri(&game.platform_id, &[]).is_some() => None,
@@ -164,11 +164,13 @@ pub fn refusal(game: &Game) -> Option<&'static str> {
         (Platform::Gog, _) => Some("Lancé par GOG Galaxy, qui ne transmet pas d'options : règle-les dans Galaxy."),
         (Platform::Xbox, _) => Some("Les jeux du Microsoft Store ne reçoivent pas d'options de lancement."),
         (Platform::Riot, _) => Some("Le client Riot ne transmet pas d'options de lancement."),
+        (Platform::Amazon, _) => Some("L'appli Amazon Games ne transmet pas d'options de lancement."),
+        (Platform::Itch, Launch::Uri(_)) => Some("Lancé par l'appli itch (pas d'exécutable Windows), qui ne transmet pas d'options."),
         (Platform::Battlenet, Launch::Uri(_)) => {
             Some("Lancé par Battle.net, qui ne transmet pas d'options : règle-les dans ses paramètres du jeu.")
         }
         (_, Launch::Exec { .. }) if game.via_launcher => Some("Ce jeu passe par son propre lanceur, qui ne transmet pas d'options."),
-        (Platform::Other | Platform::Ea | Platform::Battlenet | Platform::Rockstar, Launch::Exec { .. }) => None,
+        (Platform::Other | Platform::Ea | Platform::Battlenet | Platform::Rockstar | Platform::Itch, Launch::Exec { .. }) => None,
         (_, Launch::Uri(_)) => Some("Ce lanceur ne transmet pas d'options de lancement."),
     }
 }
@@ -264,7 +266,7 @@ mod tests {
     #[test]
     fn refus_par_launcher() {
         assert_eq!(refusal(&steam()), None);
-        for p in [Platform::Other, Platform::Ea, Platform::Battlenet, Platform::Rockstar, Platform::Gog] {
+        for p in [Platform::Other, Platform::Ea, Platform::Battlenet, Platform::Rockstar, Platform::Gog, Platform::Itch] {
             assert_eq!(refusal(&exec(p)), None, "{p:?}");
         }
         let mut galaxy = exec(Platform::Gog);
@@ -273,13 +275,15 @@ mod tests {
         let mut ankama = exec(Platform::Other);
         ankama.via_launcher = true;
         assert!(refusal(&ankama).is_some());
-        for p in [Platform::Xbox, Platform::Riot] {
+        for p in [Platform::Xbox, Platform::Riot, Platform::Amazon] {
             assert!(refusal(&exec(p)).is_some(), "{p:?}");
         }
         for (p, uri) in [
             (Platform::Epic, "com.epicgames.launcher://apps/Sugar?action=launch"),
             (Platform::Ubisoft, "uplay://launch/1/0"),
             (Platform::Battlenet, "battlenet://S2"),
+            (Platform::Amazon, "amazon-games://play/amzn1.adg.product.x"),
+            (Platform::Itch, "itch://install?game_id=1&launch"),
         ] {
             assert!(refusal(&Game::new(p, "x", "Jeu", Launch::Uri(uri.into()))).is_some(), "{p:?}");
         }

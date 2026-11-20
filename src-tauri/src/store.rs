@@ -565,7 +565,7 @@ mod tests {
         // Fichier d'une version future : le thème inconnu revient au défaut, le launcher inconnu est
         // oublié, et le reste du fichier (favoris, autres réglages) est gardé.
         let future: UserData = serde_json::from_str(
-            r#"{"favorites":["steam:730"],"settings":{"theme":"sepia","disabledSources":["itch","gog"],"autoSaves":false,"notifications":{"promos":true,"news":false}}}"#,
+            r#"{"favorites":["steam:730"],"settings":{"theme":"sepia","disabledSources":["humble","gog"],"autoSaves":false,"notifications":{"promos":true,"news":false}}}"#,
         )
         .unwrap();
         assert_eq!(future.settings.theme, Theme::Dark);

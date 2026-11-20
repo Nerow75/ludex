@@ -1,7 +1,7 @@
 //! Emplacements que chaque source lit (dossiers, fichiers, clés du registre), pour la page de
 //! diagnostic. Relus à la demande, sans scanner : seulement des tests d'existence.
 
-use super::{epic, local, program_data, riot, steam, Platform};
+use super::{amazon, epic, itch, local, program_data, riot, steam, Platform};
 use serde::Serialize;
 use std::path::Path;
 
@@ -77,6 +77,14 @@ pub fn locations(platform: Platform) -> Vec<Location> {
             let root = riot::root_dir();
             vec![path("Client Riot", &root.join("RiotClientInstalls.json")), path("Jeux", &root.join("Metadata"))]
         }
+        Platform::Amazon => {
+            let root = amazon::root_dir();
+            vec![path("Appli Amazon Games", &root), path("Jeux installés", &amazon::database(&root))]
+        }
+        Platform::Itch => {
+            let root = itch::root_dir();
+            vec![path("Appli itch", &root), path("Jeux installés (butler)", &itch::database(&root))]
+        }
         Platform::Other => {
             let mut list: Vec<Location> = local::library_dirs().iter().map(|d| path("Dossier de jeux", d)).collect();
             if list.is_empty() {
@@ -106,6 +114,8 @@ mod tests {
             Platform::Rockstar,
             Platform::Xbox,
             Platform::Riot,
+            Platform::Amazon,
+            Platform::Itch,
             Platform::Other,
         ] {
             let list = locations(p);
