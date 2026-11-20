@@ -177,7 +177,7 @@ pub struct Inputs<'a> {
 }
 
 /// Sources dans l'ordre du scan.
-const PLATFORMS: [Platform; 10] = [
+const PLATFORMS: [Platform; 12] = [
     Platform::Steam,
     Platform::Epic,
     Platform::Gog,
@@ -187,6 +187,8 @@ const PLATFORMS: [Platform; 10] = [
     Platform::Rockstar,
     Platform::Xbox,
     Platform::Riot,
+    Platform::Amazon,
+    Platform::Itch,
     Platform::Other,
 ];
 
@@ -644,7 +646,7 @@ mod tests {
         assert!(!text.contains('\u{2014}'), "pas de tiret cadratin");
         // La page garde les vrais chemins (affichés sur ce PC seulement).
         assert!(d.data_dir.contains("Anne"));
-        assert_eq!(d.sources.len(), 11);
+        assert_eq!(d.sources.len(), 13);
     }
 
     /// Diagnostic réel de ce PC (lecture seule, aucun fichier de l'app) :

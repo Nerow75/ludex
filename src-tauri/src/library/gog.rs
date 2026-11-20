@@ -13,7 +13,7 @@ use std::time::Duration;
 type Times = HashMap<String, (u64, Option<u64>)>;
 
 /// `AAAA-MM-JJ HH:MM:SS` (UTC, éventuellement suivi d'un `T`, de fractions ou d'un fuseau) en secondes Unix.
-fn parse_datetime(s: &str) -> Option<u64> {
+pub(super) fn parse_datetime(s: &str) -> Option<u64> {
     let s = s.get(..19)?;
     let n = |range: std::ops::Range<usize>| s.get(range)?.parse::<i64>().ok();
     let (y, m, d) = (n(0..4)?, n(5..7)?, n(8..10)?);

@@ -4,8 +4,9 @@
 //!   un téléchargement interrompu et les données du compte (`userdata/<compte>/<appid>`), puis les
 //!   sauvegardes trouvées par `saves.rs`.
 //! - Entrées de désinstallation de Windows (`HKLM`/`HKCU\…\Uninstall`) qui correspondent au jeu :
-//!   nom de clé connu (`Steam App <appid>`, `Uplay Install <id>`, `<id>_is1` de GOG), même
-//!   `InstallLocation` que le jeu, ou désinstalleur rangé dans le dossier du jeu.
+//!   nom de clé connu (`Steam App <appid>`, `Uplay Install <id>`, `<id>_is1` de GOG), désinstalleur
+//!   d'Amazon Games pour cet id (`Amazon Game Remover.exe … -p <id>`), même `InstallLocation` que
+//!   le jeu, ou désinstalleur rangé dans le dossier du jeu.
 //! - Autres clés du registre que lisent les sources du scan (Steam, GOG, Ubisoft, Rockstar, Xbox),
 //!   plus celles d'EA qui pointent vers le dossier du jeu.
 //!
@@ -206,9 +207,12 @@ pub fn matching(game: &Game, entries: &[UninstallEntry]) -> Vec<UninstallEntry> 
         Platform::Gog => safe_id(id).map(|i| format!("{i}_is1")),
         _ => None,
     };
+    // Amazon Games : une entrée par jeu, désinstalleur commun rangé chez l'appli, id après `-p`.
+    let amazon = if game.platform == Platform::Amazon { safe_id(id) } else { None };
     let mut out: Vec<UninstallEntry> = Vec::new();
     for e in entries {
-        let by_name = named.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(&e.name));
+        let by_name = named.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(&e.name))
+            || amazon.is_some_and(|i| e.uninstall_string.as_deref().is_some_and(|u| is_amazon_remover_of(u, i)));
         let by_dir = dir.as_deref().is_some_and(|d| {
             e.install_location.as_deref().is_some_and(|l| norm(l) == d)
                 || e.uninstall_string.as_deref().and_then(command_exe).is_some_and(|exe| is_under(&norm(&exe), d))
@@ -218,6 +222,14 @@ pub fn matching(game: &Game, entries: &[UninstallEntry]) -> Vec<UninstallEntry> 
         }
     }
     out
+}
+
+/// Commande du désinstalleur d'Amazon Games pour ce jeu : `"…\Amazon Game Remover.exe" -m Game -p <id>`.
+fn is_amazon_remover_of(command: &str, id: &str) -> bool {
+    let remover = command_exe(command)
+        .is_some_and(|exe| Path::new(&exe).file_name().is_some_and(|n| n.eq_ignore_ascii_case("Amazon Game Remover.exe")));
+    let mut words = command.split_whitespace();
+    remover && words.any(|w| w == "-p") && words.next().is_some_and(|w| w.trim_matches('"') == id)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -826,8 +838,10 @@ mod tests {
         reg.add(Hive::Hkcu, &format!(r"{HKCU_UNINSTALL}\Hades"), &[("DisplayName", Text("Hades")), ("UninstallString", Text(r"E:\Jeux\Hades Game\unins000.exe /SILENT"))]);
         reg.add(Hive::Hklm, &format!(r"{HKLM_UNINSTALL}\Racine"), &[("InstallLocation", Text(r"E:\"))]);
         reg.add(Hive::Hklm, &format!(r"{HKLM_UNINSTALL}\Dofus Retro"), &[("InstallLocation", Text(r"E:\Jeux\Dofus Retro"))]);
+        let remover = r#""C:\Users\Moi\AppData\Local\Amazon Games\App\Amazon Game Remover.exe" -m Game -p amzn1.adg.product.abc"#;
+        reg.add(Hive::Hkcu, &format!(r"{HKCU_UNINSTALL}\AmazonGames/Quake"), &[("DisplayName", Text("Quake")), ("UninstallString", Text(remover))]);
         let entries = uninstall_entries(&reg);
-        assert_eq!(entries.len(), 6);
+        assert_eq!(entries.len(), 7);
         let names = |g: &Game| matching(g, &entries).into_iter().map(|e| e.name).collect::<Vec<_>>();
 
         assert_eq!(names(&game(Platform::Steam, "570", r"E:\Steam\steamapps\common\dota 2 beta")), ["Steam App 570"]);
@@ -838,6 +852,10 @@ mod tests {
         assert_eq!(names(&game(Platform::Other, "hades", r"E:\Jeux\Hades Game")), ["Hades"]);
         // Dossier trop large : jamais comparé (l'entrée « Racine » irait à tous les jeux de E:).
         assert!(names(&game(Platform::Other, "x", r"E:\")).is_empty());
+        // Amazon Games : par l'id passé au désinstalleur commun, jamais celui d'un autre jeu.
+        assert_eq!(names(&game(Platform::Amazon, "amzn1.adg.product.abc", r"D:\Amazon\Quake")), ["AmazonGames/Quake"]);
+        assert!(names(&game(Platform::Amazon, "amzn1.adg.product.ab", r"D:\Amazon\Autre")).is_empty());
+        assert!(names(&game(Platform::Other, "amzn1.adg.product.abc", r"D:\Amazon\Autre")).is_empty());
         let wow = entries.iter().find(|e| e.name == "Steam App 570").unwrap();
         assert_eq!((wow.hive, wow.display_name.as_deref()), (Hive::Hklm, Some("Dota 2")));
     }

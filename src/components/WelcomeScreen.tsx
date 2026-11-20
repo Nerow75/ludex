@@ -223,7 +223,7 @@ export default function WelcomeScreen({ scan, info, pad, onDone, onShowHidden, o
                   />
                   <Switch
                     label="Garder Ludex dans la zone de notification à la fermeture"
-                    detail="Le temps des jeux Epic, Ubisoft, Rockstar, Xbox et Riot continue d'être mesuré."
+                    detail="Le temps des jeux Epic, Ubisoft, Rockstar, Xbox, Riot, Amazon Games et itch.io continue d'être mesuré."
                     checked={prefs.keepInTray}
                     onChange={(v) => change({ keepInTray: v }, () => setKeepInTray(v))}
                   />

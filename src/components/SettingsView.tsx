@@ -377,7 +377,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
             />
             <Switch
               label="Garder Ludex dans la zone de notification à la fermeture"
-              detail="Le temps des jeux Epic, Ubisoft, Rockstar, Xbox et Riot continue d'être mesuré."
+              detail="Le temps des jeux Epic, Ubisoft, Rockstar, Xbox, Riot, Amazon Games et itch.io continue d'être mesuré."
               checked={info.keepInTray}
               onChange={(v) => toggle({ keepInTray: v }, () => setKeepInTray(v))}
             />

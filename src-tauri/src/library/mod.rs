@@ -2,10 +2,12 @@
 //! Chaque source lit uniquement des fichiers locaux : aucune connexion à un compte n'est nécessaire.
 
 mod achievements;
+mod amazon;
 mod battlenet;
 mod ea;
 mod epic;
 mod gog;
+mod itch;
 mod kvbin;
 mod local;
 mod locations;
@@ -34,6 +36,10 @@ pub enum Platform {
     Xbox,
     Battlenet,
     Ea,
+    /// Amazon Games (Prime Gaming).
+    Amazon,
+    /// Appli itch (itch.io).
+    Itch,
     /// Lanceurs tiers et jeux sans launcher, trouvés dans les dossiers de jeux.
     Other,
 }
@@ -60,6 +66,8 @@ impl Platform {
             Platform::Xbox => "Xbox",
             Platform::Battlenet => "Battle.net",
             Platform::Ea => "EA",
+            Platform::Amazon => "Amazon Games",
+            Platform::Itch => "itch.io",
             Platform::Other => "Dossiers de jeux (Autres)",
         }
     }
@@ -253,6 +261,8 @@ impl Game {
             Platform::Xbox => "xbox",
             Platform::Battlenet => "battlenet",
             Platform::Ea => "ea",
+            Platform::Amazon => "amazon",
+            Platform::Itch => "itch",
             Platform::Other => "other",
         };
         Game {
@@ -428,7 +438,7 @@ pub fn scan() -> ScanResult {
 
 /// Sources dans l'ordre de priorité : un jeu vu par deux launchers (même dossier) reste au premier.
 /// « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
-const SOURCES: [(Platform, SourceFn); 10] = [
+const SOURCES: [(Platform, SourceFn); 12] = [
     (Platform::Steam, steam::scan),
     (Platform::Epic, epic::scan),
     (Platform::Gog, gog::scan),
@@ -438,6 +448,8 @@ const SOURCES: [(Platform, SourceFn); 10] = [
     (Platform::Rockstar, rockstar::scan),
     (Platform::Xbox, xbox::scan),
     (Platform::Riot, riot::scan),
+    (Platform::Amazon, amazon::scan),
+    (Platform::Itch, itch::scan),
     (Platform::Other, local::scan),
 ];
 

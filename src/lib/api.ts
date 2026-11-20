@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "other";
+export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "amazon" | "itch" | "other";
 export type PlaytimeSource = "launcher" | "ludex";
 /** `detecting` : lancé, le jeu n'est pas encore visible ; `running` : en jeu ; `ended` : terminé. */
 export type SessionPhase = "detecting" | "running" | "ended";
 
-export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "other"];
+export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "amazon", "itch", "other"];
 
 /** Ambiance tirée des tags Steam et des catégories de la boutique (`moods.rs`). */
 export type Mood = "chill" | "intense" | "story" | "friends";
@@ -172,6 +172,8 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   riot: "Riot",
   battlenet: "Battle.net",
   ea: "EA",
+  amazon: "Amazon Games",
+  itch: "itch.io",
   other: "Autres",
 };
 
