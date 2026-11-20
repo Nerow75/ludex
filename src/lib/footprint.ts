@@ -8,15 +8,24 @@ export function folderSize(f: FootprintFolder): string {
   return f.bytes === 0 ? "Vide" : formatSize(f.bytes);
 }
 
+/** Où se trouve un élément rangé dans un autre dossier de la liste, `null` : à part. */
+export function insideLabel(f: Footprint, x: FootprintFolder): string | null {
+  if (!x.inside) return null;
+  if (x.inside === "install") return "dans le dossier du jeu";
+  const parent = f.folders.find((p) => p.item === x.inside);
+  return parent ? `dans « ${parent.label} »` : null;
+}
+
 /**
- * Place des emplacements présents, sans compter deux fois ce qui est dans le dossier du jeu.
- * `unknown` : au moins un dossier présent de taille inconnue.
+ * Place des emplacements présents, sans compter deux fois ce qui est rangé dans un autre dossier
+ * présent de la liste. `unknown` : au moins un dossier présent de taille inconnue.
  */
 export function presentBytes(f: Footprint): { bytes: number; unknown: boolean } {
   let bytes = 0;
   let unknown = false;
+  const present = new Set(f.folders.filter((x) => x.exists).map((x) => x.item));
   for (const x of f.folders) {
-    if (!x.exists || x.inInstall) continue;
+    if (!x.exists || (x.inside && present.has(x.inside))) continue;
     if (x.bytes === null) unknown = true;
     else bytes += x.bytes;
   }
@@ -28,7 +37,8 @@ export function footprintStatus(f: Footprint): string {
   if (f.installed) {
     const { bytes, unknown } = presentBytes(f);
     if (bytes === 0) return unknown ? "Installé, taille en cours de mesure" : "Installé";
-    return `Installé : ${formatSize(bytes)} sur le PC${unknown ? " au moins" : ""}, sauvegardes et caches compris`;
+    const extra = f.folders.some((x) => x.kind !== "install" && x.exists);
+    return `Installé : ${formatSize(bytes)} sur le PC${unknown ? " au moins" : ""}${extra ? ", sauvegardes et caches compris" : ""}`;
   }
   if (f.leftovers === 0) return "Désinstallé : plus rien aux emplacements connus de Ludex";
   return `Désinstallé : ${f.leftovers} reste${f.leftovers > 1 ? "s" : ""} encore sur le PC`;

@@ -464,8 +464,8 @@ export interface FootprintFolder {
   file: boolean;
   /** Octets, `null` : inconnu. */
   bytes: number | null;
-  /** Sous le dossier d'installation : part avec lui. */
-  inInstall: boolean;
+  /** Clé du dossier de la liste qui le contient (`install` : part avec le jeu), `null` : à part. */
+  inside: string | null;
 }
 /** Entrée de « Applications installées » de Windows. */
 export interface FootprintUninstall {

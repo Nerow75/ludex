@@ -528,8 +528,9 @@ pub struct Folder {
     pub file: bool,
     /// Octets, `None` : inconnu (dossier absent, ou installation pas encore mesurée).
     pub bytes: Option<u64>,
-    /// Sous le dossier d'installation : part avec lui.
-    pub in_install: bool,
+    /// Clé du dossier de la liste qui le contient (le plus proche), `None` : à part. Sa taille est
+    /// déjà comptée avec ce dossier (sauvegardes sous le dossier du jeu ou sous `userdata`).
+    pub inside: Option<String>,
 }
 
 /// Ce que fait le bouton de l'entrée.
@@ -622,13 +623,18 @@ fn action(entry: &UninstallEntry, steam: bool, is_file: &impl Fn(&Path) -> bool)
 /// taille d'un dossier ou d'un fichier présent.
 pub fn check(t: &Targets, reg: &impl Registry, game: Option<&Game>, size: impl Fn(&Path) -> Option<u64>, is_file: impl Fn(&Path) -> bool) -> Footprint {
     let installed = game.is_some();
-    let install = t.folders.iter().find(|f| f.kind == Kind::Install).map(|f| norm(&f.path.to_string_lossy()));
+    let paths: Vec<(&str, String)> = t.folders.iter().map(|f| (f.item.as_str(), norm(&f.path.to_string_lossy()))).collect();
     let folders: Vec<Folder> = t
         .folders
         .iter()
         .map(|f| {
             let exists = f.path.exists();
-            let in_install = f.kind != Kind::Install && install.as_deref().is_some_and(|i| is_under(&norm(&f.path.to_string_lossy()), i));
+            let me = norm(&f.path.to_string_lossy());
+            let inside = paths
+                .iter()
+                .filter(|(item, p)| *item != f.item && *p != me && is_under(&me, p))
+                .max_by_key(|(_, p)| p.len())
+                .map(|(item, _)| item.to_string());
             let bytes = match (f.kind, game) {
                 // Taille connue (launcher ou mesure de Ludex) : jamais remesuré ici (des minutes
                 // pour un gros jeu). Inconnue tant que la mesure de fond n'est pas finie.
@@ -644,7 +650,7 @@ pub fn check(t: &Targets, reg: &impl Registry, game: Option<&Game>, size: impl F
                 exists,
                 file: f.path.is_file(),
                 bytes,
-                in_install,
+                inside,
             }
         })
         .collect();
@@ -698,9 +704,9 @@ pub fn check(t: &Targets, reg: &impl Registry, game: Option<&Game>, size: impl F
     let leftovers = if installed {
         0
     } else {
-        // Un dossier sous le dossier d'installation encore là est déjà compté avec lui.
-        let install_left = folders.iter().any(|f| f.kind == Kind::Install && f.exists);
-        folders.iter().filter(|f| f.exists && !(install_left && f.in_install)).count()
+        // Un élément dans un dossier de la liste encore là est déjà compté avec lui.
+        let present = |item: &str| folders.iter().any(|f| f.item == item && f.exists);
+        folders.iter().filter(|f| f.exists && !f.inside.as_deref().is_some_and(present)).count()
             + uninstall.iter().filter(|u| u.exists).count()
             + keys.iter().filter(|k| k.exists).count()
     };
@@ -926,10 +932,10 @@ mod tests {
 
         let mut g = game(Platform::Steam, "4242", &install.to_string_lossy());
         g.size_on_disk = Some(9_000);
-        let saves = Saves { paths: vec![install.join("saves"), docs_save.clone(), install.clone()], registry: true, note: None };
+        let saves = Saves { paths: vec![install.join("saves"), docs_save.clone(), install.clone(), account.join(r"4242\remote")], registry: true, note: None };
         let t = targets(&g, &reg, &uninstall_entries(&reg), saves, Some(&account));
         let items: Vec<&str> = t.folders.iter().map(|f| f.item.as_str()).collect();
-        assert_eq!(items, ["install", "shaders", "workshop", "cloud", "save-0", "save-1"], "dossier du jeu pas repris en sauvegarde");
+        assert_eq!(items, ["install", "shaders", "workshop", "cloud", "save-0", "save-1", "save-2"], "dossier du jeu pas repris en sauvegarde");
         assert_eq!(t.uninstall, [(Hive::Hklm, entry.clone())]);
         assert!(t.steam && t.saves_registry);
 
@@ -940,7 +946,8 @@ mod tests {
         let by = |item: &str| f.folders.iter().find(|x| x.item == item).unwrap().clone();
         assert_eq!(by("install").bytes, Some(9_000), "taille du launcher, pas remesurée");
         assert_eq!((by("shaders").bytes, by("workshop").bytes, by("cloud").bytes), (Some(30), Some(50), Some(5)));
-        assert!(by("save-0").in_install && !by("save-1").in_install);
+        assert_eq!((by("save-0").inside.as_deref(), by("save-1").inside.as_deref()), (Some("install"), None));
+        assert_eq!(by("save-2").inside.as_deref(), Some("cloud"), "sauvegarde Steam sous userdata/<appid>");
         assert!(by("save-1").file && by("save-1").exists);
         let u = &f.uninstall[0];
         assert_eq!(u.key, format!(r"HKLM\{entry}"));
@@ -954,9 +961,9 @@ mod tests {
         let after = check(&t, &reg, None, size_of, steam_exe);
         assert!(!after.installed && !after.steam);
         let left: Vec<&str> = after.folders.iter().filter(|f| f.exists).map(|f| f.item.as_str()).collect();
-        assert_eq!(left, ["shaders", "workshop", "cloud", "save-1"]);
+        assert_eq!(left, ["shaders", "workshop", "cloud", "save-1", "save-2"]);
         assert!(!after.uninstall[0].exists && after.keys[0].exists);
-        assert_eq!(after.leftovers, 5, "4 dossiers ou fichiers et la clé de Steam");
+        assert_eq!(after.leftovers, 5, "4 dossiers ou fichiers (save-2 compté avec cloud) et la clé de Steam");
         assert_eq!(after.uninstall[0].action, Action::None);
 
         // Dossier du jeu encore là (fichiers ajoutés par le jeu) : ses sauvegardes comptent avec lui.

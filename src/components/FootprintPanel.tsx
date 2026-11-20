@@ -9,7 +9,7 @@ import {
   type FootprintFolder,
 } from "../lib/api";
 import { formatSize } from "../lib/format";
-import { actionHint, folderSize, footprintStatus, installDay, mainAction } from "../lib/footprint";
+import { actionHint, folderSize, footprintStatus, insideLabel, installDay, mainAction } from "../lib/footprint";
 
 /** Copie un texte (clé du registre) : clic de l'utilisateur, aucune permission Tauri. */
 function CopyButton({ text }: { text: string }) {
@@ -34,13 +34,13 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function FolderRow({ f, onOpen }: { f: FootprintFolder; onOpen: (item: string) => void }) {
+function FolderRow({ f, inside, onOpen }: { f: FootprintFolder; inside: string | null; onOpen: (item: string) => void }) {
   return (
     <li className={f.exists ? undefined : "is-gone"}>
       <div className="foot__what">
         <span className="foot__label">
           {f.label}
-          {f.inInstall && <span className="foot__tag">dans le dossier du jeu</span>}
+          {inside && <span className="foot__tag">{inside}</span>}
         </span>
         <span className="path" title={f.path}>{f.path}</span>
       </div>
@@ -173,7 +173,7 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
 
       <h4>Dossiers et fichiers</h4>
       <ul className="foot__list">
-        {fp.folders.map((f) => <FolderRow key={f.item} f={f} onOpen={open} />)}
+        {fp.folders.map((f) => <FolderRow key={f.item} f={f} inside={insideLabel(fp, f)} onOpen={open} />)}
       </ul>
       {fp.savesNote && <p className="foot__note">Sauvegardes : {fp.savesNote}</p>}
 
