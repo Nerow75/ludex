@@ -28,7 +28,10 @@ export const SORTS = Object.keys(SORT_LABEL) as Sort[];
 export type Layout = "grid" | "list";
 export const LAYOUTS: readonly Layout[] = ["grid", "list"];
 
-const byTitle = (a: Game, b: Game) => cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr", { sensitivity: "base" });
+// Un seul collateur : `localeCompare` avec des options en recrée un à chaque comparaison (des
+// centaines de millisecondes pour trier quelques milliers de jeux). Même ordre.
+const TITLE_ORDER = new Intl.Collator("fr", { sensitivity: "base" });
+const byTitle = (a: Game, b: Game) => TITLE_ORDER.compare(cleanTitle(a.title), cleanTitle(b.title));
 
 /** Compare deux valeurs : celle qui manque (`null`) va toujours en fin de liste. */
 function known(a: number | null, b: number | null, desc: boolean): number {
@@ -126,6 +129,13 @@ export function selectGames(games: Game[], filter: Filter, sort: Sort, query: st
   return games
     .filter((g) => rank.has(g.id))
     .sort((a, b) => rank.get(a.id)! - rank.get(b.id)! || (q ? (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) : 0) || COMPARE[sort](a, b));
+}
+
+/** Nombre de jeux d'un filtre (pastilles de la barre) : mêmes jeux que `selectGames` sans recherche, sans les trier. */
+export function countGames(games: Game[], filter: Filter, facets: Facets = NO_FACETS): number {
+  let n = 0;
+  for (const g of games) if (matchesFilter(g, filter) && matchesFacets(g, facets)) n++;
+  return n;
 }
 
 /** Les derniers jeux joués, hors jeux masqués. */

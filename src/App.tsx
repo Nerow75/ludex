@@ -75,6 +75,7 @@ import {
   rememberedFacets,
   rememberedText,
   selectGames,
+  countGames,
   SORT_LABEL,
   sortMeta,
   SORTS,
@@ -1033,7 +1034,9 @@ export default function App() {
   const errors = scan?.sources.filter((s) => s.error) ?? [];
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
   const meta = useCallback((g: Game) => sortMeta(g, sort), [sort]);
-  const count = (f: Filter) => selectGames(scoped, f, sort, "", facets).length;
+  // Comptes des pastilles mémorisés : refaits à chaque rendu (chaque flèche), ils coûtaient ~250 ms avec 3 000 jeux.
+  const counts = useMemo(() => new Map(FILTERS.map((f) => [f, countGames(scoped, f, facets)])), [scoped, facets]);
+  const count = (f: Filter) => counts.get(f) ?? 0;
   // Choix des listes Tag, Ambiance et Genre : jeux de la section et du filtre par launcher.
   const facetPool = useMemo(() => scoped.filter((g) => matchesFilter(g, activeFilter)), [scoped, activeFilter]);
   const tagChoices = useMemo(() => libraryTags(facetPool), [facetPool]);
