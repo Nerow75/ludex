@@ -21,10 +21,11 @@ pub enum Service {
     Details,
     Hltb,
     Saves,
+    News,
 }
 
 impl Service {
-    pub const ALL: [Service; 5] = [Service::Images, Service::Art, Service::Details, Service::Hltb, Service::Saves];
+    pub const ALL: [Service; 6] = [Service::Images, Service::Art, Service::Details, Service::Hltb, Service::Saves, Service::News];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -33,6 +34,7 @@ impl Service {
             Service::Details => "Fiches des jeux",
             Service::Hltb => "Durées de vie",
             Service::Saves => "Base des sauvegardes",
+            Service::News => "Actualités des jeux",
         }
     }
 
@@ -44,6 +46,7 @@ impl Service {
             Service::Details => "boutique Steam",
             Service::Hltb => "HowLongToBeat",
             Service::Saves => "manifeste Ludusavi sur GitHub",
+            Service::News => "annonces Steam",
         }
     }
 
@@ -59,7 +62,7 @@ struct Track {
     last_error: Option<(u64, String)>,
 }
 
-static SERVICES: Mutex<[Track; 5]> = Mutex::new([const { Track { last_ok: None, last_error: None } }; 5]);
+static SERVICES: Mutex<[Track; 6]> = Mutex::new([const { Track { last_ok: None, last_error: None } }; 6]);
 
 fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
@@ -444,6 +447,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             (Service::Details, &state.meta_busy),
             (Service::Hltb, &state.hltb_busy),
             (Service::Saves, &state.saves_busy),
+            (Service::News, &state.news_busy),
         ]
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))

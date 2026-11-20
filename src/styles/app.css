@@ -1206,6 +1206,47 @@ button.diag__head:hover { border-color: var(--lx-border); }
   background: var(--lx-bg); color: var(--lx-text-2); font: 12px/1.5 var(--lx-font-mono);
 }
 
+/* ---------- Actualités (onglet de la fiche) ---------- */
+.news { list-style: none; margin: 0; padding: 0 8px 0 0; display: flex; flex-direction: column; max-height: 640px; overflow-y: auto; }
+.news__item + .news__item { border-top: 1px solid var(--lx-border); }
+.news__head {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 8px; border: 0; border-radius: var(--lx-radius-m);
+  background: none; color: var(--lx-text); text-align: left; transition: background-color .15s;
+}
+.news__head:hover { background: var(--lx-surface-2); }
+.news__thumb { flex: none; width: 128px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--lx-radius-s); background: var(--lx-surface-2); }
+.news__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.news__title { font-size: 14px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
+.news__meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--lx-text-3); }
+.news__new { color: var(--lx-accent-text); font-weight: 500; }
+.news__excerpt {
+  font-size: 13px; line-height: 20px; color: var(--lx-text-2); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.news__chev { flex: none; display: inline-flex; margin-top: 2px; color: var(--lx-text-3); transition: transform .2s var(--lx-ease); }
+.news__head[aria-expanded="true"] .news__chev { transform: rotate(90deg); }
+.news__body { display: flex; flex-direction: column; gap: 12px; max-width: 76ch; padding: 4px 8px 16px; font-size: 14px; line-height: 22px; color: var(--lx-text-2); }
+.news__p, .news__list li { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.news__h { margin: 8px 0 0; color: var(--lx-text); font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.news__h--1 { font-size: 18px; }
+.news__h--2 { font-size: 16px; }
+.news__h--3 { font-size: 14px; }
+.news__list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 20px; }
+.news__img { display: block; max-width: 100%; height: auto; border-radius: var(--lx-radius-s); }
+.news__rule { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--lx-border); }
+.news .is-bold { font-weight: 600; color: var(--lx-text); }
+.news .is-italic { font-style: italic; }
+.news .is-underline { text-decoration: underline; }
+.news__link {
+  display: inline; padding: 0; border: 0; background: none; font: inherit; text-align: inherit;
+  color: var(--lx-accent-text); text-decoration: underline; text-underline-offset: 2px;
+}
+.news__link:hover { color: var(--lx-text); }
+.news__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.news__author { font-size: 12px; color: var(--lx-text-3); }
+.news__steam { display: inline-flex; align-items: center; gap: 8px; height: 36px; margin-left: auto; padding: 0 12px; font-size: 13px; }
+.news__error { font-size: 12px; line-height: 18px; color: var(--lx-danger); }
+
 /* ---------- Contraste élevé ([data-theme="contrast"]) ----------
    Les tokens donnent les couleurs (textes AAA, contours clairs) ; ici, ce qui ne tient pas dans un
    token : focus plus épais, contour au survol des boutons sans bordure (le fond qui s'éclaircit ne
@@ -1217,7 +1258,7 @@ button.diag__head:hover { border-color: var(--lx-border); }
   .caption button, .top__tools button, .side__toggle, .side__item, .side__couch, .side__last, .side__add,
   .hist__row, .vitrine__row, .board__item, .recap__row, .facts button, .shelf__title.is-link, .strip__close,
   .strip__note, .fiche__link, .fiche__tab, .seg button, .pill button, .saves-page__row, button.jgame__head,
-  .couch__quit, .shots-group__link
+  .couch__quit, .shots-group__link, .news__head
 ):hover:not(:disabled, :focus-visible) { outline: 1px solid var(--lx-text); outline-offset: -1px; }
 [data-theme="contrast"] :is(.card, .shelf__hit):hover .cover { outline-color: var(--lx-text); }
 [data-theme="contrast"] :is(.side__item[aria-current="page"], .seg button[aria-pressed="true"]) { box-shadow: inset 0 0 0 2px var(--lx-text); }
