@@ -534,6 +534,9 @@ fn rewatch(watcher: &mut impl Watcher, watched: &mut Vec<Watched>, manifests: &m
 pub struct Changes {
     pub added: Vec<String>,
     pub removed: Vec<String>,
+    /// Ids des jeux apparus (notification d'un jeu Steam installé).
+    #[serde(skip)]
+    pub added_ids: Vec<String>,
 }
 
 pub fn changes(before: &[Game], after: &[Game]) -> Changes {
@@ -542,7 +545,8 @@ pub fn changes(before: &[Game], after: &[Game]) -> Changes {
     let titles = |games: &[Game], other: &HashSet<String>| {
         games.iter().filter(|g| !g.hidden && !other.contains(&g.id)).map(|g| g.title.clone()).collect()
     };
-    Changes { added: titles(after, &old), removed: titles(before, &new) }
+    let added_ids = after.iter().filter(|g| !g.hidden && !old.contains(&g.id)).map(|g| g.id.clone()).collect();
+    Changes { added: titles(after, &old), removed: titles(before, &new), added_ids }
 }
 
 #[cfg(test)]

@@ -787,6 +787,7 @@ mod tests {
         let rpg = d.create_collection("RPG", 1).unwrap();
         d.set_in_collection(&rpg, "steam:730", true).unwrap();
         d.settings.theme = crate::store::Theme::Oled;
+        d.settings.notifications.set(crate::notify::Kind::News, false);
         d.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
         let picked = Picked { ext: "png".into(), at: 42 };
         covers::save(root, "riot:valorant", Kind::Cover, &png(600, 900), "png").unwrap();
@@ -864,6 +865,8 @@ mod tests {
         assert_eq!(result.settings.saves_dir, Some(PathBuf::from(r"E:\Ailleurs")));
         assert!(result.settings.launch_at_startup);
         assert_eq!(result.settings.theme, crate::store::Theme::Oled);
+        // Notifications : préférence de l'utilisateur, pas de ce PC (elles suivent l'archive).
+        assert!(!result.settings.notifications.news && result.settings.notifications.download);
         assert!(result.favorites.contains("steam:730"));
 
         let _ = fs::remove_dir_all(root);

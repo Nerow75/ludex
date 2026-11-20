@@ -17,6 +17,7 @@ mod screenshots;
 mod saves;
 mod moods;
 mod news;
+mod notify;
 mod quick;
 mod session;
 mod settings;
@@ -484,6 +485,11 @@ fn sweep_news(app: &tauri::AppHandle, state: &AppState) {
         alerts
     };
     if !alerts.is_empty() {
+        // Fenêtre cachée : notification Windows ; sinon (ou type coupé) toast de l'appli, tout de
+        // suite ou au retour sur la fenêtre.
+        if notify::news_note(&alerts).is_some_and(|note| notify_user(app, note)) {
+            return;
+        }
         if let Ok(mut pending) = lock(&state.pending_news) {
             pending.extend(alerts);
         }
@@ -664,6 +670,7 @@ fn auto_backup<R: Runtime>(app: &AppHandle<R>, game_id: &str) {
         Err(e) if e == saves::NOTHING_FOUND => return,
         Err(e) => {
             eprintln!("Copie des sauvegardes de {} impossible : {e}", game.title);
+            notify_user(app, notify::saves_error_note(&game.id, &game.title, &e));
             SavesEvent { id: game.id, title: game.title, copy: None, unchanged: false, error: Some(e) }
         }
     };
@@ -1140,6 +1147,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     resolve_sizes(app.clone());
     resolve_news(app.clone());
     refresh_tray(app, false);
+    check_disks(app);
 }
 
 #[tauri::command]
@@ -1207,12 +1215,29 @@ const INSTALL_EVENT: &str = "game-install";
 /// Pose la progression relue sur le jeu de l'état, puis prévient le front si elle a changé.
 fn install_progress(app: &tauri::AppHandle, progress: &watch::Progress) {
     let Some(state) = app.try_state::<AppState>() else { return };
-    let event = match lock(&state.games) {
-        Ok(mut games) => watch::apply(&mut games, progress),
-        Err(_) => None,
+    let (event, done) = match lock(&state.games) {
+        Ok(mut games) => {
+            let before = games
+                .iter()
+                .find(|g| g.platform == library::Platform::Steam && g.platform_id == progress.appid)
+                .map(|g| (g.install_state, g.hidden));
+            let event = watch::apply(&mut games, progress);
+            let done = match (&event, before) {
+                (Some(e), Some((state, false))) if notify::download_done(state, e.install_state) => {
+                    games.iter().find(|g| g.id == e.id).map(|g| notify::download_note(&g.id, &g.title, true))
+                }
+                _ => None,
+            };
+            (event, done)
+        }
+        Err(_) => (None, None),
     };
     if let Some(event) = event {
         let _ = app.emit(INSTALL_EVENT, event);
+    }
+    if let Some(note) = done {
+        notify_user(app, note);
+        check_disks(app);
     }
 }
 
@@ -1233,7 +1258,22 @@ fn auto_rescan(app: &tauri::AppHandle, only_if_stale: bool) -> bool {
     }
     match rescan(app, &state, scanning) {
         Ok((scan, changes)) => {
+            let installed: Vec<(String, String)> = scan
+                .games
+                .iter()
+                .filter(|g| g.platform == library::Platform::Steam && changes.added_ids.contains(&g.id))
+                .map(|g| (g.id.clone(), g.title.clone()))
+                .collect();
             let _ = app.emit(LIBRARY_EVENT, LibraryEvent { added: changes.added, removed: changes.removed, scan, complement: false });
+            match installed.as_slice() {
+                [] => {}
+                [(id, title)] => {
+                    notify_user(app, notify::download_note(id, title, false));
+                }
+                many => {
+                    notify_user(app, notify::downloads_note(many.len()));
+                }
+            }
         }
         Err(e) => eprintln!("Rescan automatique impossible : {e}"),
     }
@@ -1839,6 +1879,47 @@ fn show_main<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// État de la fenêtre principale, pour décider d'une notification Windows.
+fn presence<R: Runtime>(app: &AppHandle<R>) -> notify::Presence {
+    let Some(w) = app.get_webview_window(MAIN_WINDOW) else { return notify::Presence::Hidden };
+    if !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false) {
+        notify::Presence::Hidden
+    } else if w.is_focused().unwrap_or(false) {
+        notify::Presence::Focused
+    } else {
+        notify::Presence::Visible
+    }
+}
+
+/// Notification Windows, si son type est activé, si la fenêtre ne la rend pas inutile et si le
+/// limiteur l'accepte. `false` : rien n'est parti (l'appelant garde alors son toast de l'appli).
+pub(crate) fn notify_user<R: Runtime>(app: &AppHandle<R>, note: notify::Note) -> bool {
+    let Some(state) = app.try_state::<AppState>() else { return false };
+    if !lock(&state.data).is_ok_and(|d| d.settings.notifications.get(note.kind)) || !notify::wanted(note.kind, presence(app)) {
+        return false;
+    }
+    app.try_state::<notify::Notifier>().is_some_and(|n| n.show(note))
+}
+
+/// Clic sur une notification : fenêtre affichée, puis le front ouvre la fiche ou la section.
+fn notification_clicked<R: Runtime>(app: &AppHandle<R>, target: notify::Target) {
+    show_main(app);
+    let _ = app.emit_to(MAIN_WINDOW, notify::OPEN_EVENT, target);
+}
+
+/// Disques presque pleins (moins de 10 % libres) qui portent des jeux : une notification par
+/// disque et par jour.
+fn check_disks<R: Runtime>(app: &AppHandle<R>) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if !lock(&state.data).is_ok_and(|d| d.settings.notifications.low_disk) {
+        return;
+    }
+    let Ok(games) = lock(&state.games).map(|g| g.clone()) else { return };
+    for note in notify::low_disk_notes(&storage::disks(&games, &storage::volumes()), &notify::today()) {
+        notify_user(app, note);
+    }
+}
+
 fn autostart_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
     app.try_state::<AutoLaunchManager>().is_some_and(|m| m.is_enabled().unwrap_or(false))
 }
@@ -2307,6 +2388,9 @@ pub fn run() {
                 news_busy: AtomicBool::new(false),
                 pending_news: Mutex::default(),
             });
+            let clicks = app.handle().clone();
+            let notes_dir = app.state::<AppState>().data_dir.clone();
+            app.manage(notify::Notifier::spawn(&notes_dir, move |target| notification_clicked(&clicks, target)));
             // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
             let welcome = welcome::Welcome::detect(&app.state::<AppState>());
             app.manage(welcome);
@@ -2428,6 +2512,7 @@ pub fn run() {
             update::check_update,
             settings::settings,
             settings::set_theme,
+            settings::set_notification,
             settings::set_quick_shortcut,
             settings::pause_quick_shortcut,
             settings::set_launch_at_startup,

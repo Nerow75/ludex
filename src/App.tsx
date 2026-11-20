@@ -19,6 +19,7 @@ import {
   onGameInstall,
   onGameHltb,
   onGameNews,
+  onNotificationOpen,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -774,6 +775,22 @@ export default function App() {
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [openGame, showToast]);
+
+  // Clic sur une notification Windows (fenêtre déjà affichée côté Rust) : fiche du jeu, sur
+  // l'onglet voulu, ou section Stockage.
+  useEffect(() => {
+    const unlisten = onNotificationOpen((t) => {
+      if (t.target === "storage") {
+        live.current.goTo("storage");
+      } else if (t.target === "game") {
+        const game = live.current.games.find((g) => g.id === t.id);
+        if (!game) return;
+        if (t.tab) remember("ficheTab", t.tab);
+        openGame(game);
+      }
+    });
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [openGame]);
 
   /** Ouvre la fiche d'un jeu : sur place s'il est dans la grille affichée, sinon dans « Tous les jeux ». */
   const showFiche = (game: Game, edit?: FicheEdit) => {

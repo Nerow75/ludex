@@ -51,6 +51,8 @@ pub fn spawn_check(app: AppHandle) {
         loop {
             match tauri::async_runtime::block_on(check(&app)) {
                 Ok(Some(info)) => {
+                    // Ludex caché ou en arrière-plan : notification Windows en plus du toast.
+                    crate::notify_user(&app, crate::notify::update_note(&info.version));
                     let _ = app.emit(UPDATE_EVENT, info);
                     return;
                 }

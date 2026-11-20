@@ -51,8 +51,11 @@ pelite = "0.10"
 winreg = "0.55"
 # Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
 # Cartes graphiques, niveau DirectX et mémoire installée (`requirements.rs`) : DXGI, Direct3D 11,
-# SystemInformation.
+# SystemInformation. Notifications Windows (`notify.rs`) : toasts WinRT et leur clic.
 windows = { version = "0.62", features = [
+    "Data_Xml_Dom",
+    "Foundation",
+    "UI_Notifications",
     "Win32_Foundation",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",

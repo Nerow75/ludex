@@ -88,6 +88,8 @@ pub struct Settings {
     /// Launchers dont les jeux sont écartés du scan (écran Paramètres). Valeur inconnue ignorée.
     #[serde(deserialize_with = "known_platforms")]
     pub disabled_sources: Vec<Platform>,
+    /// Notifications Windows activées, par type (`notify.rs`). Type inconnu ignoré.
+    pub notifications: crate::notify::Prefs,
 }
 
 /// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, celui de
@@ -134,6 +136,7 @@ impl Default for Settings {
             welcome_shown: None,
             theme: Theme::Dark,
             disabled_sources: Vec::new(),
+            notifications: crate::notify::Prefs::default(),
         }
     }
 }
@@ -556,10 +559,13 @@ mod tests {
         // Fichier d'une version future : le thème inconnu revient au défaut, le launcher inconnu est
         // oublié, et le reste du fichier (favoris, autres réglages) est gardé.
         let future: UserData = serde_json::from_str(
-            r#"{"favorites":["steam:730"],"settings":{"theme":"sepia","disabledSources":["itch","gog"],"autoSaves":false}}"#,
+            r#"{"favorites":["steam:730"],"settings":{"theme":"sepia","disabledSources":["itch","gog"],"autoSaves":false,"notifications":{"promos":true,"news":false}}}"#,
         )
         .unwrap();
         assert_eq!(future.settings.theme, Theme::Dark);
+        assert!(!future.settings.notifications.news && future.settings.notifications.download, "type inconnu ignoré");
+        let odd: UserData = serde_json::from_str(r#"{"favorites":["a"],"settings":{"notifications":"tout"}}"#).unwrap();
+        assert!(odd.favorites.contains("a") && odd.settings.notifications == crate::notify::Prefs::default());
         assert_eq!(future.settings.disabled_sources, [Platform::Gog]);
         assert!(!future.settings.auto_saves && future.favorites.contains("steam:730"));
         let text = serde_json::to_string(&read.settings).unwrap();
