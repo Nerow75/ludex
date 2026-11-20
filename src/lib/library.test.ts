@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  countGames,
   achievementPercent,
   hasFacets,
   libraryGenres,
@@ -180,6 +181,10 @@ describe("selectGames : filtre, facettes et recherche", () => {
   });
   it("recherche faite d'espaces : pas de recherche", () => {
     expect(selectGames(tous, "all", "title", "   ")).toHaveLength(3);
+  });  it("countGames compte les mêmes jeux que selectGames sans recherche", () => {
+    const facettes = [NO_FACETS, { tag: "Sport", mood: null, genre: null }, { tag: "Football", mood: null, genre: null }];
+    for (const f of ["all", "favorites", "hidden", "riot", "ea", "steam"] as const)
+      for (const fa of facettes) expect(countGames(tous, f, fa)).toBe(selectGames(tous, f, "recent", "", fa).length);
   });
 });
 

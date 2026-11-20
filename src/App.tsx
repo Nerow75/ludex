@@ -77,6 +77,7 @@ import {
   rememberedFacets,
   rememberedText,
   selectGames,
+  countGames,
   SORT_LABEL,
   sortMeta,
   SORTS,
@@ -99,6 +100,7 @@ import { LibraryList } from "./components/LibraryList";
 import { SHIFT_EVENT } from "./components/ProgressBoard";
 import { spatialNext } from "./lib/spatial";
 import { installPatch } from "./lib/install";
+import { FAKE_GAMES, withFakeGames } from "./lib/fake";
 import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, GridIcon, ListIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
 import { SettingsView } from "./components/SettingsView";
@@ -194,7 +196,8 @@ export default function App() {
   }, []);
 
   // Les applis masquées (Wallpaper Engine…) restent dans le scan mais n'apparaissent que dans « Masqués ».
-  const games = scan?.games ?? [];
+  // Bibliothèque factice (mesures avec beaucoup de jeux) seulement dans une build faite pour : `FAKE_GAMES` vaut 0 sinon.
+  const games = useMemo(() => (FAKE_GAMES ? withFakeGames(scan?.games ?? [], FAKE_GAMES) : scan?.games ?? []), [scan]);
   // Sections fixes, puis une par collection (après : les raccourcis Ctrl+1… des fixes ne bougent pas).
   const sections = useMemo<Section[]>(() => [...SECTIONS, ...collectionSections(collections, games)], [collections, games]);
   // Rendu appelé plus bas, une fois l'état (mise à jour, écran d'accueil) déclaré.
@@ -925,8 +928,9 @@ export default function App() {
     if (!s.results.length) return void (dir === "left" && focusSidebar());
     // Liste : une seule colonne, droite ne fait rien.
     if (s.layout === "list" && dir === "right") return;
-    const cards = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".grid .card") ?? [])];
-    const cols = s.layout === "list" ? 1 : Math.max(1, cards.filter((c) => c.offsetTop === cards[0]?.offsetTop).length);
+    // Colonnes calculées par la grille (une grille virtualisée ne rend pas toutes ses jaquettes).
+    const grid = scrollRef.current?.querySelector<HTMLElement>(".grid");
+    const cols = s.layout === "list" ? 1 : Math.max(1, Number(grid?.dataset.cols) || 1);
     const i = Math.max(0, s.results.findIndex((g) => g.id === s.selected?.id));
     if (dir === "left" && i % cols === 0) return focusSidebar();
     // Fiche ouverte sous la rangée : bas y entre (Jouer) avant la rangée suivante.
@@ -1050,7 +1054,9 @@ export default function App() {
   const errors = scan?.sources.filter((s) => s.error) ?? [];
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
   const meta = useCallback((g: Game) => sortMeta(g, sort), [sort]);
-  const count = (f: Filter) => selectGames(scoped, f, sort, "", facets).length;
+  // Comptes des pastilles mémorisés : refaits à chaque rendu (chaque flèche), ils coûtaient ~250 ms avec 3 000 jeux.
+  const counts = useMemo(() => new Map(FILTERS.map((f) => [f, countGames(scoped, f, facets)])), [scoped, facets]);
+  const count = (f: Filter) => counts.get(f) ?? 0;
   // Choix des listes Tag, Ambiance et Genre : jeux de la section et du filtre par launcher.
   const facetPool = useMemo(() => scoped.filter((g) => matchesFilter(g, activeFilter)), [scoped, activeFilter]);
   const tagChoices = useMemo(() => libraryTags(facetPool), [facetPool]);

@@ -1,9 +1,12 @@
-import { Fragment, memo, type ReactNode } from "react";
+import { Fragment, memo, useRef, type ReactNode } from "react";
 import { PLATFORM_LABEL, type Game } from "../lib/api";
 import { formatAchievements, formatDate, formatPlaytime, formatSize, installBadge, relativeTime, releaseYear } from "../lib/format";
+import { virtualDisabled } from "../lib/fake";
 import { achievementPercent, SORT_LABEL, storyMinutes, type Sort } from "../lib/library";
+import { VIRTUAL_MIN } from "../lib/virtual";
 import { Cover } from "./Cover";
 import { PlayIcon, StarIcon } from "./Icons";
+import { useVirtualRows } from "./useVirtualRows";
 
 /** Colonnes triables : en-tête cliquable, tri de la barre (même sens que dans la grille). */
 const COLUMNS: { sort: Sort | null; label: string; className: string }[] = [
@@ -40,10 +43,33 @@ interface Props {
   renderStrip: (game: Game, notch: number) => ReactNode;
 }
 
-/** Bibliothèque en liste dense : une ligne par jeu, en-têtes qui trient, fiche dépliée sous la ligne. */
+/** Hauteur d'une ligne (estimation avant la première mesure). */
+const ROW_H = 50;
+
+/**
+ * Bibliothèque en liste dense : une ligne par jeu, en-têtes qui trient, fiche dépliée sous la ligne.
+ * Au-delà de `VIRTUAL_MIN` jeux, seules les lignes proches de l'écran et celle du jeu choisi sont
+ * rendues (`useVirtualRows`), les autres remplacées par des cales `.vgap`.
+ */
 export function LibraryList({ games, selectedId, open, sort, playing, onSort, onSelect, onPlay, renderStrip }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+  const index = games.findIndex((g) => g.id === selectedId);
+  const segments = useVirtualRows(ref, {
+    enabled: games.length >= VIRTUAL_MIN && !virtualDisabled(),
+    count: games.length,
+    keep: index,
+    extraRow: open ? index : -1,
+    estimate: ROW_H,
+    item: ":scope > .lrow",
+  });
+  const row = (g: Game) => (
+    <Fragment key={g.id}>
+      <ListRow game={g} selected={g.id === selectedId} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
+      {open && g.id === selectedId && renderStrip(g, NOTCH)}
+    </Fragment>
+  );
   return (
-    <div className="lib-list">
+    <div className="lib-list" ref={ref}>
       <div className="lhead" role="group" aria-label="Trier la liste">
         <span aria-hidden />
         {COLUMNS.map((c) =>
@@ -64,12 +90,12 @@ export function LibraryList({ games, selectedId, open, sort, playing, onSort, on
           ),
         )}
       </div>
-      {games.map((g) => (
-        <Fragment key={g.id}>
-          <ListRow game={g} selected={g.id === selectedId} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
-          {open && g.id === selectedId && renderStrip(g, NOTCH)}
-        </Fragment>
-      ))}
+      {segments
+        ? // Une seule liste à plat : une ligne garde sa clé (et son état) quand les morceaux changent.
+          segments.flatMap((s, n) =>
+            s.kind === "space" ? [<div key={`vgap-${n}`} className="vgap" style={{ height: s.size }} aria-hidden />] : games.slice(s.first, s.last + 1).map(row),
+          )
+        : games.map(row)}
     </div>
   );
 }

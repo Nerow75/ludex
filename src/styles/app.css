@@ -380,6 +380,10 @@ kbd {
 /* ---------- Grille ---------- */
 .grid { --card-min: 140px; --gap-x: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr)); gap: 24px var(--gap-x); }
 .card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Cale d'une grille ou d'une liste virtualisée : la place des rangées non rendues (hauteur posée par le code). */
+/* Jamais point d'ancrage du défilement : une cale change de place quand les rangées rendues changent,
+   le navigateur décalerait alors la page pour la suivre. */
+.vgap { grid-column: 1 / -1; flex: none; pointer-events: none; overflow-anchor: none; }
 .card__art { position: relative; }
 .card__hit { display: block; width: 100%; padding: 0; border: 0; background: none; border-radius: var(--lx-radius-s); }
 .card__hit:focus-visible { outline: none; }
