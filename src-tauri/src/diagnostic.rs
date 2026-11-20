@@ -73,7 +73,8 @@ struct Track {
     last_error: Option<(u64, String)>,
 }
 
-static SERVICES: Mutex<[Track; 6]> = Mutex::new([const { Track { last_ok: None, last_error: None } }; 6]);
+static SERVICES: Mutex<[Track; Service::ALL.len()]> =
+    Mutex::new([const { Track { last_ok: None, last_error: None } }; Service::ALL.len()]);
 
 fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
