@@ -577,7 +577,7 @@ impl Builder {
 
 /// Convertit le BBCode d'une annonce en blocs, avec les adresses des liens permis (numérotés).
 pub fn parse_bbcode(source: &str) -> (Vec<Block>, Vec<String>) {
-    let source = source.replace("\r\n", "\n");
+    let source = source.replace("\r\n", "\n").replace("\\]", "]");
     let mut b = Builder::default();
     let mut rest = source.as_str();
     while !rest.is_empty() {
@@ -585,6 +585,13 @@ pub fn parse_bbcode(source: &str) -> (Vec<Block>, Vec<String>) {
             b.text(rest);
             break;
         };
+        // `\[` : crochet échappé (notes de mise à jour de CS2), jamais une balise.
+        if let Some(before) = rest[..open].strip_suffix('\\') {
+            b.text(before);
+            b.text("[");
+            rest = &rest[open + 1..];
+            continue;
+        }
         b.text(&rest[..open]);
         rest = &rest[open..];
         match read_tag(rest) {
@@ -946,6 +953,9 @@ mod tests {
         assert!(!items.iter().find(|r| r.title.contains("Singapore")).unwrap().update);
         let news = update.news();
         assert!(news.blocks.iter().any(|b| matches!(b, Block::List { .. })));
+        // Crochets échappés de la vraie réponse : rendus sans la barre oblique inverse.
+        assert!(update.contents.contains(r"\["));
+        assert!(!all_text(&news.blocks).contains('\\'), "{}", news.excerpt);
     }
 
     #[test]
@@ -1006,6 +1016,9 @@ mod tests {
         let Block::List { ordered: false, items } = &blocks[2] else { panic!("{blocks:?}") };
         assert_eq!(items.iter().map(|i| text(i)).collect::<Vec<_>>(), ["Un", "Deux", "Trois"]);
         assert_eq!(blocks[3], Block::Rule);
+        // Crochets échappés : du texte, jamais une balise.
+        let (escaped, _) = parse_bbcode(r"[p]\[ MAPS \] \[b]non[/b][/p]");
+        assert!(matches!(&escaped[0], Block::Paragraph { spans } if text(spans) == "[ MAPS ] [b]non"), "{escaped:?}");
         // Crochets inconnus : du texte.
         assert!(matches!(&blocks[4], Block::Paragraph { spans } if text(spans) == "[PC] Correctif"));
     }
