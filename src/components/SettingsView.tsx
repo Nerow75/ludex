@@ -402,7 +402,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
             <h3 id="set-notes">Notifications</h3>
             <p className="set__note">Notifications de Windows, seulement quand Ludex n'est pas au premier plan. Un clic ouvre la fiche du jeu ou le Stockage.</p>
             {info.notificationsBlocked && (
-              <p className="set__msg" role="status">Windows a coupé les notifications de Ludex. Pour les recevoir : Paramètres de Windows, Système, Notifications.</p>
+              <p className="set__msg" role="status">Windows ne montre pas les notifications de Ludex (coupées pour Ludex ou pour toutes les applis). Pour les recevoir : Paramètres de Windows, Système, Notifications.</p>
             )}
             {NOTIFICATION_ROWS.map((row) => (
               <Switch
