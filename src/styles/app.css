@@ -260,6 +260,35 @@ kbd {
 .store__row { grid-template-columns: 40px minmax(0, 1fr) 140px 140px 72px; padding-right: 176px; }
 .store__size { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 .store__action { position: absolute; right: 8px; top: 50%; height: 36px; margin-top: -18px; padding: 0 12px; font-size: 13px; }
+.store__action[aria-expanded="true"] { background: var(--lx-surface-2); }
+.store__panel { list-style: none; }
+
+/* Vue avancée « Désinstaller… » : ce que le jeu laisse sur le PC. */
+.foot { margin: 4px 0 12px; padding: 16px; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.foot__head { display: flex; align-items: flex-start; gap: 12px; }
+.foot__head > div { flex: 1; min-width: 0; }
+.foot__head h3 { font-size: 16px; font-weight: 600; }
+.foot__head .btn-ghost, .foot__acts .btn-ghost, .foot__list .btn-ghost { height: 32px; padding: 0 12px; font-size: 13px; flex-shrink: 0; }
+.foot__status { margin: 4px 0 0; font-size: 13px; color: var(--lx-text-2); font-variant-numeric: tabular-nums; }
+.foot__status.is-left { color: var(--lx-warning); }
+.foot__acts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
+.foot__hint { flex: 1 1 240px; font-size: 12px; color: var(--lx-text-3); }
+.foot h4 { margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--lx-text-3); }
+.foot__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m); overflow: hidden; }
+.foot__list > li { display: flex; align-items: center; gap: 12px; padding: 8px 12px; min-width: 0; font-size: 13px; }
+.foot__list > li + li { border-top: 1px solid var(--lx-border); }
+.foot__list > li.is-gone .foot__what { opacity: .55; }
+.foot__list--entries > li { align-items: flex-start; }
+.foot__what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.foot__label { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--lx-text); }
+.foot__tag { font-size: 12px; color: var(--lx-text-3); }
+.foot__size { flex-shrink: 0; min-width: 88px; text-align: right; font-size: 13px; color: var(--lx-text-2); font-variant-numeric: tabular-nums; }
+.foot__list > li.is-gone .foot__size { color: var(--lx-text-3); }
+.foot__facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 4px 0 0; font-size: 12px; }
+.foot__facts dt { color: var(--lx-text-3); }
+.foot__facts dd { margin: 0; min-width: 0; color: var(--lx-text-2); font-variant-numeric: tabular-nums; }
+.foot__facts dd.path { color: var(--lx-text-2); }
+.foot__note { margin: 0; font-size: 12px; color: var(--lx-text-3); }
 
 .bar { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; flex-wrap: wrap; }
 .bar h2 { font-size: 18px; margin-right: auto; }

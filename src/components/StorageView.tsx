@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { openInstallDir, PLATFORM_LABEL, storageReport, uninstallGame, type DiskUsage, type Game, type StorageReport, type UninstallCandidate } from "../lib/api";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { PLATFORM_LABEL, storageReport, type DiskUsage, type Game, type StorageReport, type UninstallCandidate } from "../lib/api";
 import { formatDate, formatSize, relativeTime } from "../lib/format";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { EmptyState } from "./States";
+import { FootprintPanel } from "./FootprintPanel";
 
 /** Part d'un total, en % borné (largeur d'un segment de barre). */
 const share = (part: number, total: number) => (total > 0 ? Math.min(100, Math.max(0, (part / total) * 100)) : 0);
@@ -47,12 +48,12 @@ function DiskRow({ disk }: { disk: DiskUsage }) {
 /**
  * Section « Stockage » : une barre par disque qui porte des jeux (part des jeux de Ludex, autres
  * fichiers, espace libre), puis les jeux pas lancés depuis six mois ou jamais lancés, le plus gros
- * d'abord. Ludex ne supprime rien : Steam ouvre sa propre désinstallation, les autres ouvrent le dossier.
+ * d'abord. « Désinstaller… » ouvre la vue avancée sous la ligne (`FootprintPanel`) : ce que le jeu
+ * laisse sur le PC, puis Steam, le désinstalleur officiel ou le dossier. Ludex ne supprime rien.
  */
 export function StorageView({ games, openGame }: SectionContext) {
   const [report, setReport] = useState<StorageReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
   const [poll, setPoll] = useState(0);
 
   // Relu quand la bibliothèque change (taille mesurée, jeu désinstallé…), avec un petit délai
@@ -88,20 +89,16 @@ export function StorageView({ games, openGame }: SectionContext) {
   const disks = useMemo(() => [...(report?.disks ?? [])].sort((a, b) => Number(b.low) - Number(a.low)), [report]);
   const total = list.reduce((sum, [c]) => sum + c.bytes, 0);
 
-  const act = async (c: UninstallCandidate) => {
-    try {
-      if (c.uninstall) {
-        await uninstallGame(c.id);
-        setNote(`Steam demande confirmation avant de désinstaller ${c.title}. La liste se met à jour ensuite.`);
-      } else {
-        await openInstallDir(c.id);
-        setNote(null);
-      }
-      setError(null);
-    } catch (e) {
-      setError(String(e));
-    }
-  };
+  // Vue avancée ouverte : la ligne reste à sa place même quand le jeu quitte la liste (désinstallé),
+  // pour en montrer les restes.
+  const [open, setOpen] = useState<{ c: UninstallCandidate; g: Game; index: number } | null>(null);
+  const rows = useMemo(() => {
+    if (!open || list.some(([c]) => c.id === open.c.id)) return list;
+    const out = [...list];
+    out.splice(Math.min(open.index, out.length), 0, [open.c, open.g] as const);
+    return out;
+  }, [list, open]);
+  const toggle = (c: UninstallCandidate, g: Game, index: number) => setOpen((o) => (o?.c.id === c.id ? null : { c, g, index }));
 
   if (!report) {
     return error ? <p className="notice notice--error">{error}</p> : <p className="hint">Lecture des disques…</p>;
@@ -116,7 +113,6 @@ export function StorageView({ games, openGame }: SectionContext) {
         {report.measuring && <span className="storage__busy">Mesure des dossiers en cours</span>}
       </div>
       {error && <p className="notice notice--error">{error}</p>}
-      {note && <p className="notice">{note}</p>}
       <ul className="disks">
         {disks.map((d) => <DiskRow key={d.letter} disk={d} />)}
       </ul>
@@ -130,8 +126,9 @@ export function StorageView({ games, openGame }: SectionContext) {
         <>
           <p className="storage__intro">Pas lancés depuis six mois, ou jamais lancés, le plus gros d'abord</p>
           <ol className="hist store">
-            {list.map(([c, g]) => (
-              <li key={c.id} className="hist__item store__item">
+            {rows.map(([c, g], index) => (
+              <Fragment key={c.id}>
+              <li className="hist__item store__item">
                 <button
                   type="button"
                   className="hist__row store__row"
@@ -151,10 +148,23 @@ export function StorageView({ games, openGame }: SectionContext) {
                   <span className="hist__when">{c.lastPlayed || c.launcherDates ? relativeTime(c.lastPlayed) : "Jamais depuis Ludex"}</span>
                   <span className="store__size">{formatSize(c.bytes)}</span>
                 </button>
-                <button type="button" className="btn-ghost store__action" data-nav onClick={() => act(c)}>
-                  {c.uninstall ? "Désinstaller" : "Ouvrir le dossier"}
+                <button
+                  type="button"
+                  className="btn-ghost store__action"
+                  data-nav
+                  aria-expanded={open?.c.id === c.id}
+                  onClick={() => toggle(c, g, index)}
+                  title="Ce que le jeu laisse sur le PC, puis sa désinstallation"
+                >
+                  {open?.c.id === c.id ? "Fermer" : "Désinstaller…"}
                 </button>
               </li>
+              {open?.c.id === c.id && (
+                <li className="store__panel">
+                  <FootprintPanel id={c.id} title={c.title} present={byId.has(c.id)} />
+                </li>
+              )}
+              </Fragment>
             ))}
           </ol>
         </>
