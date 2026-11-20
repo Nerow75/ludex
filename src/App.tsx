@@ -896,16 +896,29 @@ export default function App() {
     else if (s.selected) focusCard(s.selected.id);
     else (document.activeElement as HTMLElement | null)?.blur(); // grille vide : la barre rend la main
   };
-  /** Section voisine (barre, LB/RB), en boucle ; le focus suit si la barre l'avait. */
+  /** Section voisine (LB/RB), en boucle ; le focus suit si la barre l'avait. */
   const stepSection = (delta: number) => {
     const s = live.current;
     // Les Paramètres ferment la boucle : dernier élément de la barre, joignables au clavier et à la manette.
     const ids = [...s.sectionIds, SETTINGS_ID];
     const i = Math.max(0, ids.indexOf(s.sectionId));
-    const next = (i + delta + ids.length) % ids.length;
+    const next = ids[(i + delta + ids.length) % ids.length];
     const follow = inSidebar();
-    s.goTo(ids[next]);
-    if (follow) sideItems()[next]?.focus();
+    s.goTo(next);
+    // La catégorie de la section s'ouvre au rendu suivant : le focus attend qu'elle soit là.
+    if (follow) requestAnimationFrame(() => document.querySelector<HTMLElement>(`.side__item[data-section="${CSS.escape(next)}"]`)?.focus());
+  };
+  /**
+   * Haut et bas dans la barre : élément visible voisin, en boucle. Une section s'ouvre aussitôt ;
+   * un titre de catégorie prend seulement le focus (Entrée l'ouvre ou la ferme).
+   */
+  const stepSidebar = (delta: number) => {
+    const items = sideItems();
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const next = items[(i < 0 ? 0 : i + delta + items.length) % items.length];
+    next.focus();
+    if (next.dataset.section) live.current.goTo(next.dataset.section);
   };
 
   /** Flèche ou croix : barre latérale, élément `[data-nav]` d'une section à elle, ou grille. */
@@ -922,7 +935,7 @@ export default function App() {
     }
     if (inSidebar()) {
       if (dir === "right") focusContent();
-      else if (dir !== "left") stepSection(dir === "down" ? 1 : -1);
+      else if (dir !== "left") stepSidebar(dir === "down" ? 1 : -1);
     } else if (live.current.custom) {
       const items = [...(scrollRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? [])];
       const current = document.activeElement as HTMLElement;
@@ -1038,10 +1051,10 @@ export default function App() {
         // Taper n'importe où commence une recherche : le caractère arrive dans le champ.
         searchRef.current?.focus();
       } else if (key === "Enter" && target.matches(".side__item")) {
-        // Entrée dans la barre : ouvre la section et passe à son contenu.
+        // Entrée dans la barre : ouvre la section et passe à son contenu ; sur une catégorie, l'ouvre ou la ferme.
         e.preventDefault();
         target.click();
-        requestAnimationFrame(focusContent);
+        if (!target.dataset.group) requestAnimationFrame(focusContent);
       } else if (onGame && key === "Enter") {
         e.preventDefault();
         if (s.selected) s.play(s.selected);
@@ -1139,8 +1152,12 @@ export default function App() {
       case "confirm":
       case "details":
         // Dans la barre : entrer dans la section. Dans une section à elle : l'élément choisi (fiche du jeu).
-        if (inSidebar()) focusContent();
-        else if (s.custom) (document.activeElement?.closest<HTMLElement>("[data-nav]") ?? null)?.click();
+        if (inSidebar()) {
+          // Sur un titre de catégorie : l'ouvrir ou la fermer, le focus reste dans la barre.
+          const head = document.activeElement?.closest<HTMLElement>(".side__item--group");
+          if (head) head.click();
+          else focusContent();
+        } else if (s.custom) (document.activeElement?.closest<HTMLElement>("[data-nav]") ?? null)?.click();
         // Dans la fiche, A agit sur l'élément choisi (onglet, statut, action) ; X la referme toujours.
         else if (action === "confirm" && document.activeElement?.closest(".strip [data-nav]")) (document.activeElement as HTMLElement).click();
         else if (action === "confirm" && s.selected) s.play(s.selected);

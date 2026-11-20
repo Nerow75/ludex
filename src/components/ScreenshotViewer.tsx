@@ -87,6 +87,13 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
     };
   }, []);
 
+  // Visionneuse ouverte : boutons de la fenêtre retirés, son « Fermer » prend le coin haut droit
+  // (deux croix côte à côte prêtaient à confusion).
+  useEffect(() => {
+    document.documentElement.classList.add("has-viewer");
+    return () => document.documentElement.classList.remove("has-viewer");
+  }, []);
+
   // Images voisines chargées d'avance : la flèche suivante affiche tout de suite.
   useEffect(() => {
     setError(null);

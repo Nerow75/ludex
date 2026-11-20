@@ -4,7 +4,7 @@ import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
-import { BoardIcon, ChartIcon, ClockIcon, DriveIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
@@ -62,20 +62,19 @@ export interface Section {
 /** Filtres par launcher seulement : « Favoris » et « Masqués » n'ont pas de sens dans ces sections. */
 const launchersOnly = (f: Filter) => f !== "favorites" && f !== "hidden";
 
-/** Sections fixes, dans l'ordre de la barre (et des raccourcis Ctrl+1, Ctrl+2…). Nouvelle section : une entrée ici. */
+/** Catégories repliables de la barre, pour ne pas montrer quinze entrées d'un coup. */
+export const ACTIVITY_GROUP = "Activité";
+export const MEMORIES_GROUP = "Succès et captures";
+export const TOOLS_GROUP = "Outils";
+
+/**
+ * Sections fixes, dans l'ordre de la barre (et des raccourcis Ctrl+1, Ctrl+2…) : quatre entrées
+ * toujours visibles, puis les catégories. Nouvelle section : une entrée ici, à côté de sa catégorie.
+ */
 export const SECTIONS: readonly Section[] = [
   // Accueil : bannière « Ce soir », Reprendre, idées par ambiance, pile des jeux pas commencés.
   { id: "for-you", label: "Pour toi", icon: HomeIcon, render: (ctx) => <HomeView {...ctx} /> },
   { id: "all", label: "Tous les jeux", icon: GridIcon, filters: (f) => f !== "favorites" },
-  // Ludex ne liste que des jeux installés : ici, ceux qui se lancent sans mise à jour ni installation à finir.
-  {
-    id: "installed",
-    label: "Installés",
-    icon: DriveIcon,
-    scope: (g) => g.installState.kind === "ready",
-    filters: launchersOnly,
-    empty: "Les jeux qui attendent une mise à jour ou une fin d'installation sont dans « Tous les jeux »",
-  },
   {
     id: "favorites",
     label: "Favoris",
@@ -85,18 +84,19 @@ export const SECTIONS: readonly Section[] = [
     empty: "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné",
   },
   { id: "tags", label: "Tags", icon: TagIcon, render: (ctx) => <TagsView {...ctx} /> },
-  { id: "history", label: "Historique", icon: ClockIcon, render: (ctx) => <HistoryList {...ctx} /> },
-  { id: "progress", label: "Progression", icon: BoardIcon, render: (ctx) => <ProgressBoard {...ctx} /> },
+  { id: "progress", label: "Progression", icon: BoardIcon, group: ACTIVITY_GROUP, render: (ctx) => <ProgressBoard {...ctx} /> },
+  { id: "history", label: "Historique", icon: ClockIcon, group: ACTIVITY_GROUP, render: (ctx) => <HistoryList {...ctx} /> },
   // Frise jour par jour : sessions, succès Steam et captures.
-  { id: "journal", label: "Journal", icon: JournalIcon, render: (ctx) => <JournalView {...ctx} /> },
-  { id: "recap", label: "Récap", icon: ChartIcon, render: (ctx) => <RecapView {...ctx} /> },
+  { id: "journal", label: "Journal", icon: JournalIcon, group: ACTIVITY_GROUP, render: (ctx) => <JournalView {...ctx} /> },
+  { id: "recap", label: "Récap", icon: ChartIcon, group: ACTIVITY_GROUP, render: (ctx) => <RecapView {...ctx} /> },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
-  { id: "showcase", label: "Vitrine", icon: TrophyIcon, render: (ctx) => <ShowcaseView {...ctx} /> },
+  { id: "showcase", label: "Vitrine", icon: TrophyIcon, group: MEMORIES_GROUP, render: (ctx) => <ShowcaseView {...ctx} /> },
   // Captures Steam et Xbox Game Bar, jeu par jeu.
   {
     id: "screenshots",
     label: "Captures",
     icon: ImageIcon,
+    group: MEMORIES_GROUP,
     render: (ctx) => (
       <ScreenshotsPage
         onOpenGame={(id) => {
@@ -107,9 +107,27 @@ export const SECTIONS: readonly Section[] = [
     ),
   },
   // Copies de sécurité des sauvegardes (base Ludusavi).
-  { id: "saves", label: "Sauvegardes", icon: SaveIcon, render: () => <SavesPage /> },
-  { id: "storage", label: "Stockage", icon: StorageIcon, render: (ctx) => <StorageView {...ctx} /> },
+  { id: "saves", label: "Sauvegardes", icon: SaveIcon, group: TOOLS_GROUP, render: () => <SavesPage /> },
+  { id: "storage", label: "Stockage", icon: StorageIcon, group: TOOLS_GROUP, render: (ctx) => <StorageView {...ctx} /> },
 ];
+
+/** Catégories ouvertes au premier lancement : les collections perso, où l'on crée. */
+export const OPEN_GROUPS_DEFAULT: readonly string[] = ["Mes collections"];
+
+/** Ordre des catégories dans la barre : celles des sections fixes, puis les collections. */
+export function sideGroups(sections: readonly Section[]): string[] {
+  const fixed = [...new Set(sections.filter((s) => !s.collection && s.group).map((s) => s.group!))];
+  const rest = [...new Set(sections.filter((s) => s.collection).map((s) => s.group!))].filter((g) => g !== MINE_GROUP);
+  return [...fixed, MINE_GROUP, ...rest];
+}
+
+/**
+ * Une catégorie est dépliée si l'utilisateur l'a ouverte, ou si elle contient la section affichée
+ * (on voit toujours où l'on est).
+ */
+export function groupOpen(group: string, opened: ReadonlySet<string>, sections: readonly Section[], active: string): boolean {
+  return opened.has(group) || sections.some((s) => s.id === active && s.group === group);
+}
 
 export const MINE_GROUP = "Mes collections";
 export const STEAM_GROUP = "Collections Steam";

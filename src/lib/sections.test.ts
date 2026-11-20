@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { collectionSections, MINE_GROUP, SECTIONS, STEAM_GROUP } from "./sections";
+import {
+  ACTIVITY_GROUP,
+  collectionSections,
+  groupOpen,
+  MEMORIES_GROUP,
+  MINE_GROUP,
+  OPEN_GROUPS_DEFAULT,
+  SECTIONS,
+  sideGroups,
+  STEAM_GROUP,
+  TOOLS_GROUP,
+} from "./sections";
 import type { CollectionsInfo } from "./api";
 import { jeu } from "../test/jeu";
 
@@ -11,10 +22,15 @@ describe("SECTIONS", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids[0]).toBe("for-you");
   });
-  it("« Installés » : jeux prêts seulement", () => {
-    const scope = section("installed").scope!;
-    expect(scope(jeu())).toBe(true);
-    expect(scope(jeu({ installState: { kind: "update_required" } }))).toBe(false);
+  it("quatre entrées hors catégorie, les autres rangées", () => {
+    expect(SECTIONS.filter((s) => !s.group).map((s) => s.id)).toEqual(["for-you", "all", "favorites", "tags"]);
+    expect(sideGroups(SECTIONS)).toEqual([ACTIVITY_GROUP, MEMORIES_GROUP, TOOLS_GROUP, MINE_GROUP]);
+  });
+  it("catégorie ouverte par l'utilisateur ou parce qu'elle contient la section affichée", () => {
+    expect(groupOpen(ACTIVITY_GROUP, new Set(), SECTIONS, "journal")).toBe(true);
+    expect(groupOpen(ACTIVITY_GROUP, new Set(), SECTIONS, "all")).toBe(false);
+    expect(groupOpen(TOOLS_GROUP, new Set([TOOLS_GROUP]), SECTIONS, "all")).toBe(true);
+    expect(OPEN_GROUPS_DEFAULT).toEqual([MINE_GROUP]);
   });
   it("« Favoris » : favoris seulement, sans filtres Favoris ni Masqués", () => {
     const fav = section("favorites");
@@ -73,5 +89,6 @@ describe("collectionSections", () => {
     const sections = collectionSections(info, jeux);
     expect(sections.map((s) => s.id)).toEqual(["col:c-1", "steam-col:uc-1", "steam-col:uc-3"]);
     expect(sections[1]).toMatchObject({ group: STEAM_GROUP, collection: { id: "uc-1", kind: "steam" } });
+    expect(sideGroups([...SECTIONS, ...sections])).toEqual([ACTIVITY_GROUP, MEMORIES_GROUP, TOOLS_GROUP, MINE_GROUP, STEAM_GROUP]);
   });
 });
