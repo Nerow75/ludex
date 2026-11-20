@@ -57,3 +57,12 @@ export function summarize({ games, sources }: Pick<ScanResult, "games" | "source
     tools: games.filter((g) => g.isTool && g.hidden).length,
   };
 }
+
+/** Étapes de l'accueil, dans l'ordre (noms lus par les lecteurs d'écran). */
+export const STEPS = ["Ce que Ludex a trouvé", "Données de Ludex", "Réglages", "Raccourcis"] as const;
+
+/** Étape suivante (`1`) ou précédente (`-1`) ; `null` au-delà des bords (après la dernière : fin). */
+export function stepAfter(step: number, delta: 1 | -1): number | null {
+  const to = step + delta;
+  return to >= 0 && to < STEPS.length ? to : null;
+}

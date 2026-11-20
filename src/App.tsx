@@ -1592,6 +1592,7 @@ export default function App() {
           scan={scan!}
           info={welcomeInfo!}
           pad={padConnected}
+          onScan={(result) => setScan(result)}
           onDone={() => closeWelcome(() => goTo("for-you"))}
           onShowHidden={() =>
             closeWelcome(() => {

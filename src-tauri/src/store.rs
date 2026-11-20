@@ -69,6 +69,11 @@ pub struct Settings {
     pub tray_hint_shown: bool,
     /// Dossier des copies de sauvegardes, choisi avec le sélecteur natif. `None` : `Documents\Ludex\Sauvegardes`.
     pub saves_dir: Option<PathBuf>,
+    /// Dossier des données lourdes (« D:\Ludex ») : cache des images et index des sauvegardes dans
+    /// `Cache`, copies de sauvegardes dans `Sauvegardes` (`relocate.rs`). `None` : `%APPDATA%` et
+    /// `Documents\Ludex\Sauvegardes`. Propre à ce PC (jamais repris d'un import).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_dir: Option<PathBuf>,
     /// Copie des sauvegardes à la fin de chaque partie (une minute au moins). Active par défaut.
     pub auto_saves: bool,
     /// Raccourci clavier global qui ouvre la recherche rapide (`quick.rs`), au format du plugin
@@ -130,6 +135,7 @@ impl Default for Settings {
             launch_at_startup: false,
             tray_hint_shown: false,
             saves_dir: None,
+            data_dir: None,
             auto_saves: true,
             quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
             couch_fullscreen: false,
@@ -533,7 +539,7 @@ mod tests {
     fn settings_default_to_tray_without_autostart() {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
-        assert!(s.auto_saves && s.saves_dir.is_none() && s.welcome_shown.is_none());
+        assert!(s.auto_saves && s.saves_dir.is_none() && s.data_dir.is_none() && s.welcome_shown.is_none());
         assert!(!s.couch_fullscreen);
         assert_eq!(s.quick_shortcut, "Alt+Space");
         assert!(!UserData::default().has_history());

@@ -59,6 +59,13 @@ impl Welcome {
     }
 }
 
+impl Welcome {
+    /// Aperçu forcé (`LUDEX_WELCOME=1`) : rien n'est enregistré ni déplacé.
+    pub fn forced(&self) -> bool {
+        self.forced
+    }
+}
+
 fn forced() -> bool {
     (cfg!(debug_assertions) || cfg!(feature = "welcome-preview")) && std::env::var(FORCE_VAR).is_ok_and(|v| v == "1")
 }
@@ -74,6 +81,8 @@ fn returning(data: &UserData, dir: &Path) -> bool {
 pub struct WelcomeInfo {
     /// Dossiers « Jeux », « Games » (et « Jeux Epic » dedans) lus à la racine des disques.
     folders: Vec<String>,
+    /// Aperçu forcé : les réglages et le déplacement des données sont simulés.
+    preview: bool,
 }
 
 /// `null` : écran déjà vu.
@@ -83,7 +92,8 @@ pub async fn welcome(app: AppHandle) -> Result<Option<WelcomeInfo>, String> {
         return Ok(None);
     }
     let folders = tauri::async_runtime::spawn_blocking(library::game_folders).await.map_err(|e| e.to_string())?;
-    Ok(Some(WelcomeInfo { folders: folders.iter().map(|d| d.display().to_string()).collect() }))
+    let preview = app.state::<Welcome>().forced;
+    Ok(Some(WelcomeInfo { folders: folders.iter().map(|d| d.display().to_string()).collect(), preview }))
 }
 
 /// « Revoir l'écran de premier lancement » (Paramètres) : l'écran est de nouveau dû, sans rien

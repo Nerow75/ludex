@@ -37,6 +37,7 @@ import {
 import { applyTheme } from "../lib/theme";
 import { NOTIFICATION_ROWS } from "../lib/notifications";
 import { DiagnosticPanel } from "./DiagnosticPanel";
+import { DataPlace } from "./DataPlace";
 import { previewOrigin, summaryText } from "../lib/transfer";
 
 interface Props {
@@ -77,7 +78,7 @@ function sourceState(s: SourceReport): string {
 }
 
 /** Interrupteur : un bouton `switch`, navigable comme le reste (`data-nav`). */
-function Switch({ label, icon, detail, checked, disabled, onChange }: { label: string; icon?: ReactNode; detail?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+export function Switch({ label, icon, detail, checked, disabled, onChange }: { label: string; icon?: ReactNode; detail?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="set__row">
       <span className="set__text">
@@ -396,6 +397,22 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               detail="Parties lancées depuis Ludex, d'une minute au moins. 5 copies gardées par jeu."
               checked={info.autoSaves}
               onChange={(v) => toggle({ autoSaves: v }, () => setAutoSaves(v))}
+            />
+          </section>
+
+          <section className="set__group" aria-labelledby="set-place">
+            <h3 id="set-place">Stockage de Ludex</h3>
+            <p className="set__note">
+              Images des jeux, base et copies des sauvegardes : les données qui grossissent avec la bibliothèque. Un autre disque évite de remplir celui
+              de Windows.
+            </p>
+            <DataPlace
+              explainKept
+              onMoved={(done) => {
+                onScan(done.scan);
+                reload();
+                onToast({ title: "Données de Ludex déplacées", detail: done.location.root || "Emplacement d'origine" });
+              }}
             />
           </section>
 

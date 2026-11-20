@@ -12,6 +12,7 @@ mod launch_args;
 mod library;
 mod metadata;
 mod recap;
+mod relocate;
 mod requirements;
 mod screenshots;
 mod saves;
@@ -125,6 +126,10 @@ struct AppState {
     news_busy: AtomicBool,
     /// Annonces à signaler quand la fenêtre principale sera de nouveau visible.
     pending_news: Mutex<Vec<news::Alert>>,
+    /// Un déplacement des données lourdes tourne (`relocate.rs`).
+    relocating: AtomicBool,
+    /// Dossier des données choisi avec le sélecteur, en attente de confirmation (`relocate.rs`).
+    picked_data_dir: Mutex<Option<PathBuf>>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, image passée en cache, ou
@@ -292,6 +297,11 @@ fn download_images(app: &tauri::AppHandle, state: &AppState, jobs: Vec<images::J
 /// front image par image. Recommence si des jaquettes sont apparues entre-temps (`art.rs`).
 fn resolve_images(app: tauri::AppHandle) {
     let Some(state) = app.try_state::<AppState>() else { return };
+    // Disque des données débranché : rien n'est téléchargé (ni créé ailleurs).
+    if relocate::unavailable(&state) {
+        eprintln!("Dossier des données de Ludex introuvable : images non téléchargées.");
+        return;
+    }
     if state.images_busy.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -585,10 +595,10 @@ fn resolve_saves(app: tauri::AppHandle) {
         (Ok(known), Ok(games)) => known.needs_lookup(&games),
         _ => false,
     };
-    if !needed || state.saves_busy.swap(true, Ordering::SeqCst) {
+    if !needed || relocate::unavailable(&state) || state.saves_busy.swap(true, Ordering::SeqCst) {
         return;
     }
-    let dir = state.data_dir.clone();
+    let dir = relocate::current_cache(&state);
     std::thread::spawn(move || {
         let Some(state) = app.try_state::<AppState>() else { return };
         match saves::refresh_manifest(&dir) {
@@ -614,9 +624,11 @@ fn resolve_saves(app: tauri::AppHandle) {
     });
 }
 
-/// Dossier des copies de sauvegardes : réglage, sinon `Documents\Ludex\Sauvegardes`.
+/// Dossier des copies de sauvegardes : réglage, sinon `<dataDir>\Sauvegardes`, sinon
+/// `Documents\Ludex\Sauvegardes`.
 fn saves_root(state: &AppState) -> PathBuf {
-    lock(&state.data).ok().and_then(|d| d.settings.saves_dir.clone()).unwrap_or_else(saves::default_dir)
+    let (saves_dir, data_dir) = lock(&state.data).map(|d| (d.settings.saves_dir.clone(), d.settings.data_dir.clone())).unwrap_or_default();
+    relocate::copies_root(saves_dir.as_deref(), data_dir.as_deref(), saves::default_dir)
 }
 
 /// Entrée de la base des sauvegardes d'un jeu, et état de la base.
@@ -2522,15 +2534,18 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             let data_path = store::file_in(dir.clone());
             let handle = app.handle().clone();
+            let data = UserData::load(&data_path);
+            // Cache des images dans le dossier choisi pour les données lourdes, s'il y en a un.
+            let cache = relocate::cache_root(&dir, data.settings.data_dir.as_deref());
             app.manage(AppState {
                 games: Mutex::default(),
-                data: Mutex::new(UserData::load(&data_path)),
+                data: Mutex::new(data),
                 data_path,
                 tracker: Tracker::spawn(history::Journal::open(&dir), move |update| on_session_update(&handle, update)),
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 hltb: Mutex::new(hltb::HltbCache::load(&dir)),
-                images: Mutex::new(images::ImageCache::load(dir.join("images"))),
+                images: Mutex::new(images::ImageCache::load(cache.join("images"))),
                 global: Mutex::new(showcase::GlobalCache::load(&dir)),
                 requirements: Mutex::new(requirements::ReqCache::load(&dir)),
                 requirements_lock: Mutex::new(()),
@@ -2561,6 +2576,8 @@ pub fn run() {
                 pending_import: Mutex::new(None),
                 news_busy: AtomicBool::new(false),
                 pending_news: Mutex::default(),
+                relocating: AtomicBool::new(false),
+                picked_data_dir: Mutex::default(),
             });
             let clicks = app.handle().clone();
             let notes_dir = app.state::<AppState>().data_dir.clone();
@@ -2691,6 +2708,9 @@ pub fn run() {
             window_controls::window_toggle_maximize,
             window_controls::window_close,
             welcome::welcome_again,
+            relocate::data_location,
+            relocate::choose_data_dir,
+            relocate::move_data,
             update::check_update,
             settings::settings,
             settings::set_theme,
