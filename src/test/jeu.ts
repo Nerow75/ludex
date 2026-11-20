@@ -28,6 +28,8 @@ export function jeu(fields: Partial<Game> = {}): Game {
     hidden: false,
     launchLabel: "Steam",
     details: null,
+    customGenres: false,
+    aliases: [],
     customArt: [],
     status: null,
     note: null,

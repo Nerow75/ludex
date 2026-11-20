@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxTypos, prefixDistance, prepareQuery, RANK_META, searchRank, titleRank } from "./search";
+import { maxTypos, prefixDistance, prepareQuery, RANK_ALIAS, RANK_META, searchRank, titleRank } from "./search";
 import { fiche, jeu } from "../test/jeu";
 
 describe("titleRank : rang du titre", () => {
@@ -96,5 +96,31 @@ describe("prefixDistance et maxTypos", () => {
   });
   it("fautes tolérées selon la longueur", () => {
     expect([3, 4, 6, 7, 12].map(maxTypos)).toEqual([0, 1, 1, 2, 2]);
+  });
+});
+
+describe("searchRank : alias choisis par l'utilisateur", () => {
+  const cod = jeu({ title: "Call of Duty®", aliases: ["cod", "Modern Warfare"] });
+  it("un alias est classé comme le titre", () => {
+    expect(searchRank(cod, "modern")).toBe(0);
+    expect(searchRank(cod, "warfare")).toBe(2);
+    expect(searchRank(cod, "modrn warfare")).toBe(4);
+    expect(searchRank(jeu({ title: "Gold Rush: The Game", aliases: ["Gold Mining Simulator"] }), "mining")).toBe(2);
+  });
+  it("le meilleur rang du titre et des alias l'emporte", () => {
+    expect(searchRank(cod, "call")).toBe(0);
+    expect(searchRank(jeu({ title: "Wallpaper Engine", aliases: ["fond d'écran"] }), "fond")).toBe(0);
+  });
+  it("un alias tapé en entier passe devant tout, casse et accents ignorés", () => {
+    expect(searchRank(cod, "COD")).toBe(RANK_ALIAS);
+    expect(searchRank(cod, "modern warfare")).toBe(RANK_ALIAS);
+    const vein = jeu({ title: "Code Vein", lastPlayed: 2_000_000_000 });
+    const q = prepareQuery("cod");
+    const ranks = [vein, cod].map((g) => searchRank(g, q) ?? 99);
+    expect(ranks[1]).toBeLessThan(ranks[0]);
+  });
+  it("sans alias ni correspondance, rien ne change", () => {
+    expect(searchRank(jeu({ title: "Hades", aliases: [] }), "cod")).toBeNull();
+    expect(searchRank(jeu({ title: "Hades", aliases: ["roguelike"] }), "zelda")).toBeNull();
   });
 });

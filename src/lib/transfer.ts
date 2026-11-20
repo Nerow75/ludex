@@ -15,6 +15,8 @@ export function summaryParts(s: TransferSummary): string[] {
     [s.sessions, "session", "sessions"],
     [s.manualGames, "jeu ajouté à la main", "jeux ajoutés à la main"],
     [s.titles, "titre choisi", "titres choisis"],
+    [s.aliases, "jeu avec des alias", "jeux avec des alias"],
+    [s.genres, "jeu aux genres corrigés", "jeux aux genres corrigés"],
     [s.launchArgs, "option de lancement", "options de lancement"],
     [s.covers, "image perso", "images perso"],
     [s.hidden, "jeu masqué", "jeux masqués"],

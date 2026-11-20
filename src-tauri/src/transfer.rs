@@ -23,6 +23,7 @@
 //! manque reste enregistré et réapparaît quand le fichier existe.
 
 use crate::collections::{self, Collection};
+use crate::corrections;
 use crate::covers::{self, CustomArt, Kind, Picked};
 use crate::history::{self, PastSession};
 use crate::library::ScanResult;
@@ -129,6 +130,8 @@ pub struct Summary {
     collections: usize,
     manual_games: usize,
     titles: usize,
+    aliases: usize,
+    genres: usize,
     launch_args: usize,
     playtime_games: usize,
     sessions: usize,
@@ -144,6 +147,8 @@ fn summarize(data: &UserData, sessions: &[PastSession]) -> Summary {
         collections: data.collections.len(),
         manual_games: data.manual.len(),
         titles: data.titles.len(),
+        aliases: data.aliases.len(),
+        genres: data.genres.len(),
         launch_args: data.launch_args.len(),
         playtime_games: data.playtime.values().filter(|&&s| s > 0).count(),
         sessions: sessions.len(),
@@ -397,6 +402,18 @@ fn sanitize(mut data: UserData) -> UserData {
         .filter(|(id, _)| valid_id(id))
         .filter_map(|(id, t)| Some((id, manual::clean_title(&t)?)))
         .collect();
+    data.aliases = std::mem::take(&mut data.aliases)
+        .into_iter()
+        .filter(|(id, _)| valid_id(id))
+        .map(|(id, list)| (id, corrections::clean_alias_list(list.iter().map(String::as_str))))
+        .filter(|(_, list)| !list.is_empty())
+        .collect();
+    data.genres = std::mem::take(&mut data.genres)
+        .into_iter()
+        .filter(|(id, _)| valid_id(id))
+        .map(|(id, list)| (id, corrections::known_genres(&list)))
+        .filter(|(_, list)| !list.is_empty())
+        .collect();
     data.notes = std::mem::take(&mut data.notes)
         .into_iter()
         .filter(|(id, _)| valid_id(id))
@@ -506,6 +523,8 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
             }
             fill(&mut out.exes, incoming.exes);
             fill(&mut out.titles, incoming.titles);
+            fill(&mut out.aliases, incoming.aliases);
+            fill(&mut out.genres, incoming.genres);
             fill(&mut out.status, incoming.status);
             fill(&mut out.notes, incoming.notes);
             fill(&mut out.launch_args, incoming.launch_args);
@@ -781,6 +800,8 @@ mod tests {
         d.set_status("steam:730", Some(Status::Playing));
         d.set_note("steam:730", Some("Rang Or".into()));
         d.titles.insert("other:e-jeux-ck".into(), "Crusader Kings III".into());
+        d.set_aliases("steam:1938090", vec!["cod".into(), "Call of Duty".into()]);
+        d.set_genres("steam:431960", vec!["Occasionnel".into()]);
         d.launch_args.insert("steam:730".into(), "-novid".into());
         d.add_playtime("epic:Sugar", 4200);
         d.launched.insert("epic:Sugar".into(), 100);
@@ -839,6 +860,8 @@ mod tests {
         assert_eq!(back.data.status, data.status);
         assert_eq!(back.data.notes, data.notes);
         assert_eq!(back.data.titles, data.titles);
+        assert_eq!(back.data.aliases, data.aliases);
+        assert_eq!(back.data.genres, data.genres);
         assert_eq!(back.data.launch_args, data.launch_args);
         assert_eq!(back.data.playtime, data.playtime);
         assert_eq!(back.data.manual, data.manual);
@@ -851,6 +874,7 @@ mod tests {
         assert_eq!(back.data.covers["riot:valorant"].get(Kind::Cover), Some(&Picked { ext: "png".into(), at: 42 }));
         let s = summarize(&back.data, &back.sessions);
         assert_eq!((s.favorites, s.collections, s.manual_games, s.sessions, s.covers), (1, 1, 1, 2, 1));
+        assert_eq!((s.aliases, s.genres), (1, 1));
 
         // Remplacement sur un autre PC : jaquette écrite là-bas, réglages propres au PC gardés.
         let other = temp_dir("round-other");
@@ -963,6 +987,8 @@ mod tests {
             "favorites": ["steam:730", "", "steam:\u0007bip"],
             "titles": {"steam:730": "  Counter \u200B Strike  ", "steam:440": "   "},
             "notes": {"steam:730": "ligne\nsuivante"},
+            "aliases": {"steam:730": [" cod ", "COD", "x\u0000y"], "": ["vide"], "steam:440": [" "]},
+            "genres": {"steam:730": ["rpg", "Fantaisie", "RPG"], "steam:\u0007": ["RPG"], "steam:440": ["Inconnu"]},
             "launchArgs": {"steam:730": "-novid & calc", "steam:440": "-windowed"},
             "manual": [
                 {"id": "other:manual-1", "exe": "D:\\Jeux\\a.exe", "title": "A", "args": ["--danger"]},
@@ -989,6 +1015,8 @@ mod tests {
         assert_eq!(d.titles.get("steam:730").map(String::as_str), Some("Counter Strike"));
         assert!(!d.titles.contains_key("steam:440"));
         assert_eq!(d.notes.get("steam:730").map(String::as_str), Some("ligne suivante"));
+        assert_eq!(d.aliases.into_iter().collect::<Vec<_>>(), [("steam:730".to_string(), vec!["cod".to_string(), "x y".to_string()])]);
+        assert_eq!(d.genres.into_iter().collect::<Vec<_>>(), [("steam:730".to_string(), vec!["RPG".to_string()])]);
         assert!(!d.launch_args.contains_key("steam:730"));
         assert_eq!(d.launch_args.get("steam:440").map(String::as_str), Some("-windowed"));
         assert_eq!(d.manual.len(), 1);
@@ -1009,6 +1037,8 @@ mod tests {
         here.set_favorite("steam:730", true);
         here.set_status("steam:730", Some(Status::Done));
         here.titles.insert("other:a".into(), "Mon titre".into());
+        here.set_aliases("other:a", vec!["mien".into()]);
+        here.set_genres("other:a", vec!["RPG".into()]);
         here.playtime.insert("epic:Sugar".into(), 600);
         here.launched.insert("epic:Sugar".into(), 50);
         here.settings.theme = crate::store::Theme::Light;
@@ -1022,6 +1052,10 @@ mod tests {
         there.set_status("steam:730", Some(Status::Dropped));
         there.set_status("steam:440", Some(Status::Todo));
         there.titles.insert("other:a".into(), "Autre titre".into());
+        there.set_aliases("other:a", vec!["autre".into()]);
+        there.set_aliases("steam:440", vec!["tf2".into()]);
+        there.set_genres("other:a", vec!["Action".into()]);
+        there.set_genres("steam:440", vec!["Action".into()]);
         there.playtime.insert("epic:Sugar".into(), 300);
         there.playtime.insert("epic:Fortnite".into(), 60);
         there.launched.insert("epic:Sugar".into(), 90);
@@ -1041,6 +1075,10 @@ mod tests {
         assert_eq!(out.status["steam:730"], Status::Done); // ce PC l'emporte
         assert_eq!(out.status["steam:440"], Status::Todo);
         assert_eq!(out.titles["other:a"], "Mon titre");
+        assert_eq!(out.aliases["other:a"], ["mien"]);
+        assert_eq!(out.aliases["steam:440"], ["tf2"]);
+        assert_eq!(out.genres["other:a"], ["RPG"]);
+        assert_eq!(out.genres["steam:440"], ["Action"]);
         assert_eq!(out.playtime["epic:Sugar"], 600); // le plus grand, jamais la somme
         assert_eq!(out.playtime["epic:Fortnite"], 60);
         assert_eq!(out.launched["epic:Sugar"], 90);

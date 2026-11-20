@@ -32,6 +32,12 @@ pub struct UserData {
     pub exes: BTreeMap<String, PathBuf>,
     /// Titre choisi par l'utilisateur, par id (jeux détectés ; un jeu manuel garde le sien).
     pub titles: BTreeMap<String, String>,
+    /// Alias de recherche, par id (`corrections.rs` : nettoyés, 8 au plus).
+    #[serde(deserialize_with = "alias_lists")]
+    pub aliases: BTreeMap<String, Vec<String>>,
+    /// Genres choisis à la place de ceux de Steam, par id (genres de `metadata::GENRES`, 3 au plus).
+    #[serde(deserialize_with = "genre_lists")]
+    pub genres: BTreeMap<String, Vec<String>>,
     /// Jaquette et image de fond choisies par l'utilisateur, par id (`covers.rs`). Gardées même
     /// si le jeu quitte la bibliothèque : il les retrouve en revenant.
     pub covers: BTreeMap<String, CustomArt>,
@@ -54,6 +60,31 @@ pub struct UserData {
 fn known_statuses<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<String, Status>, D::Error> {
     let raw = BTreeMap::<String, serde_json::Value>::deserialize(d)?;
     Ok(raw.into_iter().filter_map(|(id, v)| Some((id, serde_json::from_value(v).ok()?))).collect())
+}
+
+/// Alias relus et renettoyés (fichier modifié à la main) ; une entrée illisible est ignorée.
+fn alias_lists<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<String, Vec<String>>, D::Error> {
+    let raw = BTreeMap::<String, serde_json::Value>::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|(id, v)| {
+            let list: Vec<String> = serde_json::from_value(v).ok()?;
+            let list = crate::corrections::clean_alias_list(list.iter().map(String::as_str));
+            (!list.is_empty()).then_some((id, list))
+        })
+        .collect())
+}
+
+/// Genres relus en écartant ceux qu'une version future aurait ajoutés à la liste.
+fn genre_lists<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<String, Vec<String>>, D::Error> {
+    let raw = BTreeMap::<String, serde_json::Value>::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|(id, v)| {
+            let list = crate::corrections::known_genres(&serde_json::from_value::<Vec<String>>(v).ok()?);
+            (!list.is_empty()).then_some((id, list))
+        })
+        .collect())
 }
 
 /// Réglages de l'application, modifiés depuis le menu de la zone de notification.
@@ -177,6 +208,8 @@ impl UserData {
                 && self.manual.is_empty()
                 && self.exes.is_empty()
                 && self.titles.is_empty()
+                && self.aliases.is_empty()
+                && self.genres.is_empty()
                 && self.covers.is_empty()
                 && self.status.is_empty()
                 && self.notes.is_empty()
@@ -260,6 +293,29 @@ impl UserData {
             Some(t) => drop(self.titles.insert(id.to_string(), t)),
             None => drop(self.titles.remove(id)),
         }
+    }
+
+    /// Alias de recherche d'un jeu, déjà nettoyés. Liste vide : alias effacés.
+    pub fn set_aliases(&mut self, id: &str, aliases: Vec<String>) {
+        if aliases.is_empty() {
+            self.aliases.remove(id);
+        } else {
+            self.aliases.insert(id.to_string(), aliases);
+        }
+    }
+
+    /// Genres corrigés d'un jeu, déjà vérifiés. Liste vide : retour aux genres de Steam.
+    pub fn set_genres(&mut self, id: &str, genres: Vec<String>) {
+        if genres.is_empty() {
+            self.genres.remove(id);
+        } else {
+            self.genres.insert(id.to_string(), genres);
+        }
+    }
+
+    /// Genres corrigés posés sur un jeu, à appeler après sa fiche (`metadata.rs`).
+    pub fn correct_genres(&self, game: &mut Game) {
+        crate::corrections::apply_genres(game, self.genres.get(&game.id));
     }
 
     /// Statut de progression d'un jeu. `None` : aucun.
@@ -355,6 +411,7 @@ impl UserData {
         game.favorite = self.favorites.contains(&game.id);
         game.status = self.status.get(&game.id).copied();
         game.note = self.notes.get(&game.id).cloned();
+        game.aliases = self.aliases.get(&game.id).cloned().unwrap_or_default();
         // Options gardées même si le launcher les refuse aujourd'hui (Galaxy installé depuis),
         // mais ni montrées ni utilisées tant qu'il les refuse.
         game.launch_args_refusal = crate::launch_args::refusal(game).map(String::from);
@@ -717,5 +774,32 @@ mod tests {
         assert_eq!(loaded.settings, data.settings);
         assert_eq!(loaded.playtime.get("epic:Sugar"), Some(&4200));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn aliases_and_genres_are_kept_and_applied() {
+        let mut data = UserData::default();
+        data.set_aliases("steam:1938090", vec!["cod".into()]);
+        data.set_genres("steam:431960", vec!["Occasionnel".into()]);
+        assert!(data.has_history());
+        let mut cod = game("1938090", false);
+        data.apply(&mut cod);
+        assert_eq!(cod.aliases, vec!["cod"]);
+        let mut we = game("431960", true);
+        data.correct_genres(&mut we);
+        assert!(we.custom_genres);
+        assert_eq!(we.details.unwrap().genres, vec!["Occasionnel"]);
+
+        // Fichier modifié à la main ou d'une version future : renettoyé, l'inconnu écarté.
+        let text = r#"{"aliases":{"a":[" cod ","COD","x\u0000y"],"b":[" "],"c":"illisible"},"genres":{"a":["RPG","Fantaisie"],"b":["Inconnu"]}}"#;
+        let loaded: UserData = serde_json::from_str(text).unwrap();
+        assert_eq!(loaded.aliases.get("a"), Some(&vec!["cod".to_string(), "x y".to_string()]));
+        assert_eq!(loaded.aliases.len(), 1);
+        assert_eq!(loaded.genres.get("a"), Some(&vec!["RPG".to_string()]));
+        assert_eq!(loaded.genres.len(), 1);
+
+        data.set_aliases("steam:1938090", Vec::new());
+        data.set_genres("steam:431960", Vec::new());
+        assert!(data.aliases.is_empty() && data.genres.is_empty());
     }
 }

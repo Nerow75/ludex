@@ -139,7 +139,12 @@ pub struct Game {
     #[serde(skip)]
     pub steam_appid: Option<u32>,
     /// Genres, studio, éditeur, sortie et description (`metadata.rs`), `None` tant qu'inconnus.
+    /// Genres corrigés par l'utilisateur posés par-dessus (`corrections.rs`).
     pub details: Option<crate::metadata::Details>,
+    /// Les genres de `details` sont ceux choisis par l'utilisateur, pas ceux de Steam.
+    pub custom_genres: bool,
+    /// Alias de recherche choisis par l'utilisateur (`corrections.rs`), déjà nettoyés.
+    pub aliases: Vec<String>,
     /// Progression choisie par l'utilisateur (`collections.rs`), `None` : aucun statut.
     pub status: Option<crate::collections::Status>,
     /// Note perso de l'utilisateur, déjà nettoyée.
@@ -282,6 +287,8 @@ impl Game {
             details: None,
             status: None,
             note: None,
+            custom_genres: false,
+            aliases: Vec::new(),
             custom_art: Vec::new(),
             hltb: None,
         }
