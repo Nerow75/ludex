@@ -18,6 +18,7 @@ import {
   onGameSize,
   onGameInstall,
   onGameHltb,
+  onGameNews,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -55,6 +56,7 @@ import {
   welcome as getWelcome,
   welcomeDone,
 } from "./lib/api";
+import { newsToast } from "./lib/news";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { useGamepad, type PadAction } from "./lib/gamepad";
 import { COUCH_KEY, COUCH_VALUES, couchPadAction, type CouchAction } from "./lib/couch";
@@ -754,6 +756,24 @@ export default function App() {
   const sectionIds = sections.map((s) => s.id);
   const live = useRef({ results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games, layout });
   live.current = { results, selected, open, query, facets, changeFacets, play, toggleFavorite, refresh, addManualGame, custom, sectionId: view.id, sectionIds, goTo, toggleSidebar, games, layout };
+
+  // Annonce récente d'un jeu « En cours » (vérifiée une fois par jour côté Rust) : toast, « Voir »
+  // ouvre sa fiche sur l'onglet Actualités.
+  useEffect(() => {
+    const unlisten = onGameNews((alerts) => {
+      const t = newsToast(alerts);
+      if (!t) return;
+      const first = alerts[0];
+      const show = () => {
+        const game = live.current.games.find((g) => g.id === first.id);
+        if (!game) return;
+        remember("ficheTab", "news");
+        openGame(game);
+      };
+      showToast({ ...t, action: { label: "Voir", run: show } }, 8000);
+    });
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [openGame, showToast]);
 
   /** Ouvre la fiche d'un jeu : sur place s'il est dans la grille affichée, sinon dans « Tous les jeux ». */
   const showFiche = (game: Game, edit?: FicheEdit) => {

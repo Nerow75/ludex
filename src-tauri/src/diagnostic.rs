@@ -22,10 +22,19 @@ pub enum Service {
     Hltb,
     Saves,
     Requirements,
+    News,
 }
 
 impl Service {
-    pub const ALL: [Service; 6] = [Service::Images, Service::Art, Service::Details, Service::Hltb, Service::Saves, Service::Requirements];
+    pub const ALL: [Service; 7] = [
+        Service::Images,
+        Service::Art,
+        Service::Details,
+        Service::Hltb,
+        Service::Saves,
+        Service::Requirements,
+        Service::News,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -35,6 +44,7 @@ impl Service {
             Service::Hltb => "Durées de vie",
             Service::Saves => "Base des sauvegardes",
             Service::Requirements => "Configurations requises",
+            Service::News => "Actualités des jeux",
         }
     }
 
@@ -47,6 +57,7 @@ impl Service {
             Service::Hltb => "HowLongToBeat",
             Service::Saves => "manifeste Ludusavi sur GitHub",
             Service::Requirements => "boutique Steam",
+            Service::News => "annonces Steam",
         }
     }
 
@@ -448,6 +459,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             (Service::Hltb, &state.hltb_busy),
             (Service::Saves, &state.saves_busy),
             (Service::Requirements, &state.requirements_busy),
+            (Service::News, &state.news_busy),
         ]
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))

@@ -156,3 +156,7 @@ export const CheckIcon = () => (
 export const SlidersIcon = () => (
   <svg {...base}><path d="M4 7h9m4 0h3M4 17h3m4 0h9M4 12h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /><circle cx="9" cy="12" r="2" /></svg>
 );
+/** Lien qui s'ouvre hors de Ludex (navigateur, client Steam). */
+export const ExternalIcon = () => (
+  <svg {...base}><path d="M14 5h5v5M19 5l-8 8M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10" /></svg>
+);

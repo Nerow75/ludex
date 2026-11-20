@@ -821,3 +821,47 @@ export const exportData = () => invoke<ExportInfo | null>("export_data");
 export const importData = () => invoke<ImportPreview | null>("import_data");
 export const cancelImport = () => invoke<void>("cancel_import");
 export const applyImport = (mode: ImportMode) => invoke<ImportDone>("apply_import", { mode });
+
+/** Morceau de texte d'une annonce ; `link` : numéro d'un lien Steam, ouvert par `openNews`. */
+export interface NewsSpan {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  link?: number;
+}
+/** Bloc d'une annonce, tiré du BBCode Steam côté Rust (jamais de HTML). */
+export type NewsBlock =
+  | { kind: "heading"; level: 1 | 2 | 3; spans: NewsSpan[] }
+  | { kind: "paragraph"; spans: NewsSpan[] }
+  | { kind: "list"; ordered: boolean; items: NewsSpan[][] }
+  /** Image du CDN des annonces Steam, adresse vérifiée côté Rust. */
+  | { kind: "image"; url: string }
+  | { kind: "rule" };
+/** Annonce officielle d'un jeu (Steam), dans la langue du studio. */
+export interface News {
+  gid: string;
+  title: string;
+  /** Publication, secondes Unix. */
+  date: number;
+  author: string | null;
+  /** Notes de mise à jour. */
+  update: boolean;
+  image: string | null;
+  excerpt: string;
+  blocks: NewsBlock[];
+}
+/** Annonce récente d'un jeu « En cours », signalée une seule fois. */
+export interface NewsAlert {
+  id: string;
+  game: string;
+  title: string;
+  gid: string;
+  update: boolean;
+}
+/** Annonces du jeu (relues au plus toutes les 6 h) ; `seen` : l'onglet est affiché, plus de notification. */
+export const gameNews = (id: string, seen: boolean) => invoke<News[]>("game_news", { id, seen });
+/** Ouvre l'annonce sur Steam, ou son lien numéro `link` : l'adresse est reprise côté Rust. */
+export const openNews = (id: string, gid: string, link: number | null) => invoke<void>("open_news", { id, gid, link });
+export const onGameNews = (handler: (alerts: NewsAlert[]) => void): Promise<UnlistenFn> =>
+  listen<NewsAlert[]>("game-news", (e) => handler(e.payload));

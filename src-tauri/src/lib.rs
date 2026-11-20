@@ -16,6 +16,7 @@ mod requirements;
 mod screenshots;
 mod saves;
 mod moods;
+mod news;
 mod quick;
 mod session;
 mod settings;
@@ -110,6 +111,12 @@ struct AppState {
     requirements_busy: AtomicBool,
     /// Archive d'import lue et vérifiée, en attente de confirmation (`transfer.rs`).
     pending_import: Mutex<Option<transfer::Export>>,
+    /// Annonces officielles des jeux (`news.rs`), lues à l'ouverture d'une fiche.
+    news: Mutex<news::NewsCache>,
+    /// Une vérification des actualités des jeux « En cours » tourne déjà.
+    news_busy: AtomicBool,
+    /// Annonces à signaler quand la fenêtre principale sera de nouveau visible.
+    pending_news: Mutex<Vec<news::Alert>>,
 }
 
 /// Événement `game-art` : jaquette trouvée pour un jeu après le scan, image passée en cache, ou
@@ -407,6 +414,154 @@ fn resolve_hltb(app: tauri::AppHandle) {
         }
         state.hltb_busy.store(false, Ordering::SeqCst);
     });
+}
+
+/// Événement `game-news` : annonces récentes de jeux « En cours », jamais signalées.
+const NEWS_EVENT: &str = "game-news";
+
+/// Vérification de fond des actualités des jeux « En cours », au plus une fois par jour : quelques
+/// requêtes espacées, puis `game-news` pour les annonces de moins de 3 jours jamais signalées.
+fn resolve_news(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    if !lock(&state.news).is_ok_and(|c| c.sweep_due(news::now())) || state.news_busy.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        sweep_news(&app, &state);
+        state.news_busy.store(false, Ordering::SeqCst);
+    });
+}
+
+fn sweep_news(app: &tauri::AppHandle, state: &AppState) {
+    let games: Vec<(String, String, u32)> = match lock(&state.games) {
+        Ok(games) => games
+            .iter()
+            .filter(|g| g.status == Some(collections::Status::Playing) && !g.hidden)
+            .filter_map(|g| g.steam_appid.map(|appid| (g.id.clone(), g.title.clone(), appid)))
+            .take(news::SWEEP_MAX)
+            .collect(),
+        Err(_) => return,
+    };
+    let agent = news::agent();
+    let mut asked = false;
+    for (_, _, appid) in &games {
+        if !lock(&state.news).is_ok_and(|c| c.stale(*appid, news::now())) {
+            continue;
+        }
+        if asked {
+            std::thread::sleep(news::SWEEP_GAP);
+        }
+        asked = true;
+        match news::fetch(&agent, *appid) {
+            Ok(items) => {
+                diagnostic::ok(diagnostic::Service::News);
+                if let Ok(mut cache) = lock(&state.news) {
+                    cache.record(*appid, items, news::now());
+                }
+            }
+            Err(e) => {
+                // Réessayée au prochain scan : la journée n'est pas comptée comme vérifiée.
+                diagnostic::failed(diagnostic::Service::News, &e);
+                eprintln!("Vérification des actualités interrompue : {e}");
+                if let Ok(cache) = lock(&state.news)
+                    && let Err(e) = cache.save()
+                {
+                    eprintln!("Cache des actualités non enregistré : {e}");
+                }
+                return;
+            }
+        }
+    }
+    let alerts = {
+        let Ok(mut cache) = lock(&state.news) else { return };
+        let at = news::now();
+        cache.swept(at);
+        let alerts = cache.alerts(&games, at);
+        if let Err(e) = cache.save() {
+            eprintln!("Cache des actualités non enregistré : {e}");
+        }
+        alerts
+    };
+    if !alerts.is_empty() {
+        if let Ok(mut pending) = lock(&state.pending_news) {
+            pending.extend(alerts);
+        }
+        flush_news(app);
+    }
+}
+
+/// Envoie les annonces en attente si la fenêtre principale est à l'écran ; sinon elles attendent
+/// le retour sur la fenêtre (Ludex dans la zone de notification).
+fn flush_news<R: Runtime>(app: &AppHandle<R>) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let shown = app
+        .get_webview_window(MAIN_WINDOW)
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false));
+    if !shown {
+        return;
+    }
+    let alerts = match lock(&state.pending_news) {
+        Ok(mut pending) if !pending.is_empty() => std::mem::take(&mut *pending),
+        _ => return,
+    };
+    let _ = app.emit_to(MAIN_WINDOW, NEWS_EVENT, alerts);
+}
+
+/// Relit les annonces d'un jeu si elles ont plus de 6 heures. Erreur seulement si rien n'est connu.
+fn refresh_news(state: &AppState, appid: u32) -> Result<(), String> {
+    if !lock(&state.news)?.stale(appid, news::now()) {
+        return Ok(());
+    }
+    match news::fetch(&news::agent(), appid) {
+        Ok(items) => {
+            diagnostic::ok(diagnostic::Service::News);
+            let mut cache = lock(&state.news)?;
+            cache.record(appid, items, news::now());
+            if let Err(e) = cache.save() {
+                eprintln!("Cache des actualités non enregistré : {e}");
+            }
+            Ok(())
+        }
+        Err(e) => {
+            diagnostic::failed(diagnostic::Service::News, &e);
+            eprintln!("Actualités de {appid} non relues : {e}");
+            if lock(&state.news)?.known(appid) { Ok(()) } else { Err(format!("Actualités indisponibles : {e}")) }
+        }
+    }
+}
+
+/// Annonces officielles d'un jeu (Steam), la plus récente d'abord ; vide sans appid connu. Relues
+/// au plus toutes les 6 heures. `seen` : l'onglet est affiché, ses annonces ne seront plus signalées.
+#[tauri::command]
+async fn game_news(app: AppHandle, id: String, seen: bool) -> Result<Vec<news::News>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let Some(appid) = find_game(&state, &id)?.steam_appid else { return Ok(Vec::new()) };
+        refresh_news(&state, appid)?;
+        let mut cache = lock(&state.news)?;
+        if seen && cache.mark_seen(appid) && let Err(e) = cache.save() {
+            eprintln!("Cache des actualités non enregistré : {e}");
+        }
+        Ok(cache.news(appid))
+    })
+    .await
+}
+
+/// Ouvre une annonce sur la boutique Steam (`link` absent) ou l'un de ses liens, par son numéro :
+/// l'adresse est reprise dans le cache, jamais envoyée par le front, et revérifiée (https vers un
+/// hôte Steam).
+#[tauri::command]
+fn open_news(app: AppHandle, state: State<'_, AppState>, id: String, gid: String, link: Option<u32>) -> Result<(), String> {
+    if gid.len() > 24 {
+        return Err("Annonce inconnue.".into());
+    }
+    let appid = find_game(&state, &id)?.steam_appid.ok_or("Pas d'actualités pour ce jeu.")?;
+    let url = lock(&state.news)?
+        .target(appid, &gid, link)
+        .and_then(|u| news::safe_link(&u))
+        .ok_or("Lien introuvable : rouvre les actualités du jeu.")?;
+    app.opener().open_url(&url, None::<&str>).map_err(|e| format!("Impossible d'ouvrir le lien : {e}"))
 }
 
 /// Lit la base des sauvegardes (téléchargée au plus une fois par semaine) et garde les entrées des
@@ -983,6 +1138,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     resolve_hltb(app.clone());
     resolve_saves(app.clone());
     resolve_sizes(app.clone());
+    resolve_news(app.clone());
     refresh_tray(app, false);
 }
 
@@ -2127,6 +2283,7 @@ pub fn run() {
                 requirements: Mutex::new(requirements::ReqCache::load(&dir)),
                 requirements_lock: Mutex::new(()),
                 requirements_busy: AtomicBool::new(false),
+                news: Mutex::new(news::NewsCache::load(&dir)),
                 sizes: Mutex::new(storage::SizeCache::load(&dir)),
                 sizes_busy: AtomicBool::new(false),
                 data_dir: dir,
@@ -2147,6 +2304,8 @@ pub fn run() {
                 saves_busy: AtomicBool::new(false),
                 saves_lock: Mutex::new(()),
                 pending_import: Mutex::new(None),
+                news_busy: AtomicBool::new(false),
+                pending_news: Mutex::default(),
             });
             // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
             let welcome = welcome::Welcome::detect(&app.state::<AppState>());
@@ -2192,10 +2351,16 @@ pub fn run() {
             // Fenêtre principale fermée pour de bon (« garder dans la zone de notification » coupé) :
             // la recherche rapide, cachée, ne doit pas garder Ludex ouvert.
             tauri::WindowEvent::Destroyed if window.label() == MAIN_WINDOW => window.app_handle().exit(0),
-            // Retour sur Ludex après un long moment : relit les launchers sans surveillance.
-            tauri::WindowEvent::Focused(true) if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) => {
-                let app = window.app_handle().clone();
-                std::thread::spawn(move || auto_rescan(&app, true));
+            // Retour sur Ludex : annonces en attente, et après un long moment, relecture des
+            // launchers sans surveillance.
+            tauri::WindowEvent::Focused(true) => {
+                if window.label() == MAIN_WINDOW {
+                    flush_news(window.app_handle());
+                }
+                if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) {
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || auto_rescan(&app, true));
+                }
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 if let Some(state) = window.app_handle().try_state::<AppState>()
@@ -2222,6 +2387,8 @@ pub fn run() {
             journal,
             game_achievements,
             game_requirements,
+            game_news,
+            open_news,
             showcase,
             storage,
             uninstall_game,

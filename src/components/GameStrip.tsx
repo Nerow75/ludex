@@ -45,6 +45,8 @@ import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
+import { NewsTab, useNews } from "./NewsPanel";
+import { newNewsCount } from "../lib/news";
 import { SavesPanel } from "./SavesPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 
@@ -97,7 +99,7 @@ interface Props {
 export type FicheEdit = "rename" | "collection";
 
 /** Onglets de la fiche, dans l'ordre de la barre. */
-const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal"] as const;
+const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "news"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   overview: "Aperçu",
@@ -106,6 +108,7 @@ const TAB_LABEL: Record<Tab, string> = {
   saves: "Sauvegardes",
   sessions: "Sessions",
   journal: "Journal",
+  news: "Actualités",
 };
 /** Onglet retenu entre deux fiches (stockage local, comme les autres préférences d'affichage). */
 const TAB_KEY = "ficheTab";
@@ -541,6 +544,7 @@ export function GameStrip({
   const history = useHistory(game.id, playing);
   const shots = useScreenshots(game.id, playing);
   const hasSaves = useHasSaves(game.id, playing);
+  const news = useNews(game.id);
   const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const d = game.details;
@@ -562,6 +566,7 @@ export function GameStrip({
     saves: hasSaves,
     sessions: history && history.length > 0,
     journal: !onJournal ? false : journalData ? true : history === null || shots === null ? null : false,
+    news: news && news.length > 0,
   };
   const tabs = TABS.filter((t) => has[t] === true || (has[t] === null && t === chosen));
   const active: Tab = tabs.includes(chosen) ? chosen : "overview";
@@ -574,6 +579,8 @@ export function GameStrip({
     achievements: achievements ? `${achievements.unlocked}/${achievements.total}` : undefined,
     shots: shots?.length ? String(shots.length) : undefined,
     sessions: history?.length ? String(history.length) : undefined,
+    // Annonces publiées depuis la dernière partie.
+    news: news && newNewsCount(news, game.lastPlayed) > 0 ? String(newNewsCount(news, game.lastPlayed)) : undefined,
   };
   const tabId = (t: Tab) => `fiche-${t}`;
 
@@ -694,6 +701,7 @@ export function GameStrip({
             {active === "saves" && <SavesPanel key={`saves-${game.id}`} gameId={game.id} playing={playing} />}
             {active === "sessions" && <SessionsTab key={`sessions-${game.id}`} game={game} history={history} />}
             {active === "journal" && onJournal && <JournalTab key={`journal-${game.id}`} game={game} playing={playing} onJournal={onJournal} />}
+            {active === "news" && <NewsTab key={`news-${game.id}`} game={game} news={news} />}
           </div>
         </div>
 
