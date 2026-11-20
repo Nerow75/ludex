@@ -1,5 +1,6 @@
 mod art;
 mod collections;
+mod corrections;
 mod covers;
 mod deeplink;
 mod diagnostic;
@@ -334,9 +335,15 @@ const DETAILS_EVENT: &str = "game-details";
 /// Reporte les fiches d'un cache à jour sur les jeux de l'état, garde ce cache et prévient le front.
 fn publish_details(app: &tauri::AppHandle, state: &AppState, fresh: &metadata::MetaCache) {
     let mut events = Vec::new();
+    // Genres corrigés copiés avant de prendre la bibliothèque (jamais `data` sous `games`) : une
+    // fiche qui arrive ne doit pas effacer la correction de l'utilisateur.
+    let genres = lock(&state.data).map(|d| d.genres.clone()).unwrap_or_default();
     if let Ok(mut games) = lock(&state.games) {
         for g in games.iter_mut() {
-            if fresh.apply(g)
+            let before = g.details.clone();
+            fresh.apply(g);
+            corrections::apply_genres(g, genres.get(&g.id));
+            if g.details != before
                 && let Some(details) = &g.details
             {
                 events.push(DetailsEvent { id: g.id.clone(), details: details.clone() });
@@ -1278,6 +1285,8 @@ fn store(state: &AppState, result: &mut ScanResult) -> Result<watch::Changes, St
             data.apply(g);
             art.apply(g);
             meta.apply(g);
+            // Les genres choisis par l'utilisateur, par-dessus ceux de la fiche.
+            data.correct_genres(g);
             // Après la fiche : son année de sortie fait partie de la clé.
             durations.apply(g);
             // Puis les images distantes (launcher ou `art.rs`) déjà sur disque.
@@ -1841,6 +1850,55 @@ fn set_note(state: State<'_, AppState>, id: String, note: String) -> Result<Opti
     let saved = note.clone();
     update_data(&state, &id, move |data, game| data.set_note(&game.id, note))?;
     Ok(saved)
+}
+
+/// Alias de recherche d'un jeu, séparés par des virgules, nettoyés ici
+/// (`corrections::clean_aliases`) ; renvoie la liste enregistrée (vide : alias effacés).
+#[tauri::command]
+fn set_aliases(state: State<'_, AppState>, id: String, text: String) -> Result<Vec<String>, String> {
+    collections::check_input(&text)?;
+    let aliases = corrections::clean_aliases(&text);
+    let saved = aliases.clone();
+    update_data(&state, &id, move |data, game| data.set_aliases(&game.id, aliases))?;
+    Ok(saved)
+}
+
+/// Genres d'un jeu après une correction : fiche à jour et provenance des genres.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GenresUpdate {
+    details: Option<metadata::Details>,
+    custom_genres: bool,
+}
+
+/// Genres choisis à la place de ceux de Steam : seulement ceux de la liste de Ludex, trois au
+/// plus (`corrections::clean_genres`). Liste vide : genres de Steam. Renvoie la fiche à jour.
+#[tauri::command]
+fn set_genres(state: State<'_, AppState>, id: String, genres: Vec<String>) -> Result<GenresUpdate, String> {
+    if genres.iter().any(|g| g.len() > 64) {
+        return Err("Genre inconnu.".into());
+    }
+    let genres = corrections::clean_genres(&genres)?;
+    let mut fresh = find_game(&state, &id)?;
+    let mut data = lock(&state.data)?;
+    data.set_genres(&fresh.id, genres);
+    data.save(&state.data_path)?;
+    // Fiche refaite depuis le cache (genres de Steam), puis la correction s'il y en a une. Le cache
+    // est relâché avant de prendre la bibliothèque (`publish_details` les prend dans l'autre sens).
+    fresh.details = None;
+    lock(&state.meta)?.apply(&mut fresh);
+    data.correct_genres(&mut fresh);
+    if let Some(g) = lock(&state.games)?.iter_mut().find(|g| g.id == id) {
+        g.details = fresh.details.clone();
+        g.custom_genres = fresh.custom_genres;
+    }
+    Ok(GenresUpdate { details: fresh.details, custom_genres: fresh.custom_genres })
+}
+
+/// Genres que l'on peut choisir dans la fiche, dans l'ordre de Ludex.
+#[tauri::command]
+fn genre_choices() -> Vec<&'static str> {
+    metadata::genre_names().collect()
 }
 
 /// Options de lancement d'un jeu, validées et normalisées ici (`launch_args::clean`) ; renvoie
@@ -2801,6 +2859,9 @@ pub fn run() {
             set_status,
             set_note,
             set_launch_args,
+            set_aliases,
+            set_genres,
+            genre_choices,
             collections,
             create_collection,
             rename_collection,

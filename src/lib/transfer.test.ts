@@ -10,6 +10,8 @@ const vide: TransferSummary = {
   collections: 0,
   manualGames: 0,
   titles: 0,
+  aliases: 0,
+  genres: 0,
   launchArgs: 0,
   playtimeGames: 0,
   sessions: 0,

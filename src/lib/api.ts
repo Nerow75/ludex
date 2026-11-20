@@ -96,8 +96,12 @@ export interface Game {
   favorite: boolean;
   hidden: boolean;
   launchLabel: string;
-  /** Genres, studio, éditeur, sortie et description ; `null` tant qu'inconnus. */
+  /** Genres, studio, éditeur, sortie et description ; `null` tant qu'inconnus. Genres corrigés par l'utilisateur compris. */
   details: GameDetails | null;
+  /** Les genres de `details` sont ceux choisis par l'utilisateur, pas ceux de Steam. */
+  customGenres: boolean;
+  /** Alias de recherche choisis par l'utilisateur (nettoyés côté Rust), cherchés comme le titre. */
+  aliases: string[];
   /** Images choisies par l'utilisateur, qui priment sur celles du launcher. */
   customArt: ArtKind[];
   /** Progression choisie par l'utilisateur, `null` : aucun statut. */
@@ -208,6 +212,18 @@ export const setStatus = (id: string, status: Status | null) => invoke<void>("se
 export const setNote = (id: string, note: string) => invoke<string | null>("set_note", { id, note });
 /** Options de lancement d'un jeu, validées et normalisées côté Rust ; renvoie le texte enregistré (`null` : effacées). */
 export const setLaunchArgs = (id: string, text: string) => invoke<string | null>("set_launch_args", { id, text });
+/** Alias de recherche, séparés par des virgules (nettoyés côté Rust) ; renvoie la liste enregistrée (vide : effacés). */
+export const setAliases = (id: string, text: string) => invoke<string[]>("set_aliases", { id, text });
+/** Longueur d'un alias et nombre d'alias par jeu (`corrections.rs`). */
+export const MAX_ALIAS = 40;
+export const MAX_ALIASES = 8;
+/** Genres corrigés (liste de Ludex, 3 au plus) ; vide : genres de Steam. Renvoie la fiche à jour. */
+export const setGenres = (id: string, genres: string[]) =>
+  invoke<{ details: GameDetails | null; customGenres: boolean }>("set_genres", { id, genres });
+/** Genres que l'on peut choisir dans la fiche (`metadata::GENRES`). */
+export const genreChoices = () => invoke<string[]>("genre_choices");
+/** Genres corrigés par jeu, trois au plus. */
+export const MAX_GENRES = 3;
 export const getCollections = () => invoke<CollectionsInfo>("collections");
 /** `game` : jeu à mettre tout de suite dans la nouvelle collection. */
 export const createCollection = (name: string, game: string | null) =>
@@ -905,6 +921,8 @@ export interface TransferSummary {
   collections: number;
   manualGames: number;
   titles: number;
+  aliases: number;
+  genres: number;
   launchArgs: number;
   playtimeGames: number;
   sessions: number;

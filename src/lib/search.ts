@@ -9,10 +9,14 @@ import type { Game } from "./api";
  *   4 une faute de frappe, 5 deux fautes (« rocet », « footbal manger ») : jamais sous 4 lettres,
  *     première lettre juste, nombres jamais changés
  *   6 studio, éditeur, genre ou tag Steam dont un mot commence par la recherche
+ * Les alias choisis par l'utilisateur (« cod » pour Call of Duty) sont classés comme le titre ;
+ * un alias tapé en entier passe devant tout (`RANK_ALIAS`).
  * Accents, casse, ®/™, apostrophes et ponctuation ignorés. Fonctions pures, sans dépendance.
  */
 
 export const RANK_META = 6;
+/** Alias choisi par l'utilisateur tapé en entier : avant tous les autres rangs. */
+export const RANK_ALIAS = -1;
 
 const ARTICLES = new Set(["the", "a", "an", "le", "la", "les", "l"]);
 const ROMAN: Record<string, string> = { ii: "2", iii: "3", iv: "4", v: "5", vi: "6", vii: "7", viii: "8", ix: "9", x: "10" };
@@ -188,10 +192,21 @@ export const prepareQuery = (query: string): Query => prepare(query);
 export const titleRank = (title: string, query: string | Query): number | null =>
   rankTitle(prepareTitle(title), typeof query === "string" ? prepare(query) : query);
 
-/** Rang d'un jeu (0 à 5 par le titre, `RANK_META` par studio, éditeur ou tag), `null` sinon. */
+/**
+ * Rang d'un jeu (0 à 5 par le titre ou un alias choisi par l'utilisateur, `RANK_ALIAS` pour un
+ * alias tapé en entier, `RANK_META` par studio, éditeur ou tag), `null` sinon. Un alias compte
+ * comme le titre : le meilleur des deux l'emporte.
+ */
 export function searchRank(game: Game, query: string | Query): number | null {
   const q = typeof query === "string" ? prepare(query) : query;
-  const r = rankTitle(prepareTitle(game.title), q);
-  if (r !== null) return r;
+  let best = rankTitle(prepareTitle(game.title), q);
+  for (const alias of game.aliases ?? []) {
+    const a = prepareTitle(alias);
+    // Alias tapé en entier : c'est le jeu que l'utilisateur a désigné (« cod » avant Code Vein).
+    if (q.compact && a.compact === q.compact) return RANK_ALIAS;
+    const r = rankTitle(a, q);
+    if (r !== null && (best === null || r < best)) best = r;
+  }
+  if (best !== null) return best;
   return metaMatch(game, q) ? RANK_META : null;
 }

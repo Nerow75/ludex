@@ -5,8 +5,12 @@ import {
   gameMods,
   gameSaves,
   gameScreenshots,
+  genreChoices,
   journal,
+  MAX_ALIAS,
+  MAX_ALIASES,
   MAX_COLLECTION_NAME,
+  MAX_GENRES,
   MAX_LAUNCH_ARGS,
   MAX_NOTE,
   MAX_TITLE,
@@ -46,7 +50,7 @@ import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, SearchIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { NewsTab, useNews } from "./NewsPanel";
 import { newNewsCount } from "../lib/news";
@@ -88,6 +92,10 @@ interface Props {
   onStatus: (game: Game, status: Status | null) => void;
   /** Note vide : note effacée. */
   onNote: (game: Game, note: string) => void;
+  /** Alias de recherche séparés par des virgules (vide : effacés). Rejette avec le message de Rust. */
+  onAliases: (game: Game, text: string) => Promise<void>;
+  /** Genres choisis à la place de ceux de Steam (vide : genres d'origine). */
+  onGenres: (game: Game, genres: string[]) => void;
   /** Options de lancement (texte vide : effacées). Rejette avec le message de Rust si refusées. */
   onLaunchArgs: (game: Game, text: string) => Promise<void>;
   onToggleCollection: (game: Game, collection: Collection, value: boolean) => void;
@@ -223,6 +231,157 @@ Cliquer pour modifier. Vide : options effacées` : "Ajouter des options de lance
             {game.platform === "steam" && " Steam peut demander de confirmer."}
           </p>
         )
+      )}
+    </div>
+  );
+}
+
+/** Alias de recherche : champ sur place comme les options (Entrée valide, Échap annule), message
+ * de Rust sous le champ rouvert si l'enregistrement échoue. */
+function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"] }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setEditing(false);
+    setDraft(null);
+    setError(null);
+  }, [game.id]);
+  const submit = (text: string) => {
+    setError(null);
+    onAliases(game, text).catch((e) => {
+      setDraft(text);
+      setError(String(e));
+      setEditing(true);
+    });
+  };
+  const text = game.aliases.join(", ");
+  return (
+    <div className="fiche__block">
+      <p className="fiche__label">Alias de recherche</p>
+      {editing ? (
+        <InlineInput
+          key={draft ?? ""}
+          className="strip__note-input"
+          initial={draft ?? text}
+          // Huit alias, chacun avec sa virgule et son espace.
+          maxLength={MAX_ALIASES * (MAX_ALIAS + 2)}
+          label={`Alias de recherche de ${game.title}`}
+          placeholder="cod, call of duty"
+          onSubmit={submit}
+          onDone={() => {
+            setEditing(false);
+            setDraft(null);
+            setError(null);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          data-nav
+          className={`strip__note ${text ? "" : "is-empty"}`}
+          title={text ? `${text}\nCliquer pour modifier. Vide : alias effacés` : "Ajouter des alias : d'autres noms sous lesquels la recherche trouve ce jeu"}
+          onClick={() => {
+            setError(null);
+            setEditing(true);
+          }}
+        >
+          <SearchIcon />
+          <span>{text || "Ajouter des alias"}</span>
+        </button>
+      )}
+      {error ? (
+        <p className="strip__args-error" role="alert">{error}</p>
+      ) : (
+        editing && (
+          <p className="strip__args-help">
+            Séparés par des virgules, {MAX_ALIASES} au plus : la recherche les trouve comme le titre, et un alias tapé en entier passe en tête.
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
+// Liste des genres demandée une fois à Rust, à la première correction.
+let genreList: Promise<string[]> | null = null;
+const loadGenres = () => {
+  genreList ??= genreChoices().catch((e) => {
+    genreList = null;
+    throw e;
+  });
+  return genreList;
+};
+
+/** Genres du jeu : ceux de la fiche Steam, ou ceux choisis par l'utilisateur. Pastilles à cocher
+ * (liste de Ludex, trois au plus) et retour aux genres d'origine. */
+function Genres({ game, onGenres }: { game: Game; onGenres: Props["onGenres"] }) {
+  const [open, setOpen] = useState(false);
+  const [choices, setChoices] = useState<string[] | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => setOpen(false), [game.id]);
+  useEffect(() => {
+    if (!open || choices) return;
+    let live = true;
+    setError(false);
+    loadGenres().then(
+      (list) => live && setChoices(list),
+      () => live && setError(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [open, choices]);
+  const current = game.details?.genres ?? [];
+  const full = current.length >= MAX_GENRES;
+  const toggle = (genre: string) =>
+    onGenres(game, current.includes(genre) ? current.filter((g) => g !== genre) : [...current, genre]);
+  return (
+    <div className="fiche__block">
+      <div className="fiche__row">
+        <p className="fiche__label">Genres</p>
+        <button type="button" className="fiche__link" data-nav aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? "Fermer" : "Corriger"}
+        </button>
+      </div>
+      {open ? (
+        <>
+          {error && <p className="strip__args-error" role="alert">Liste des genres illisible pour l'instant.</p>}
+          {choices && (
+            <div className="strip__cols" role="group" aria-label={`Genres de ${game.title}, ${MAX_GENRES} au plus`}>
+              {choices.map((g) => {
+                const on = current.includes(g);
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className="chip"
+                    data-nav
+                    aria-pressed={on}
+                    disabled={!on && full}
+                    title={!on && full ? `${MAX_GENRES} genres au plus : retire d'abord un genre` : undefined}
+                    onClick={() => toggle(g)}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+              {game.customGenres && (
+                <button type="button" className="chip chip--add" data-nav onClick={() => onGenres(game, [])}>
+                  <UndoIcon />Genres d'origine
+                </button>
+              )}
+            </div>
+          )}
+          <p className="strip__args-help">
+            {MAX_GENRES} au plus. {game.customGenres ? "Ton choix remplace les genres de Steam." : "Cocher ou décocher un genre remplace ceux de Steam."}
+          </p>
+        </>
+      ) : (
+        <p className="strip__member" title={game.customGenres ? "Genres choisis par toi" : undefined}>
+          {current.length ? current.join(", ") : "Aucun genre"}
+          {game.customGenres && " (corrigés)"}
+        </p>
       )}
     </div>
   );
@@ -547,6 +706,8 @@ export function GameStrip({
   collections,
   onStatus,
   onNote,
+  onAliases,
+  onGenres,
   onLaunchArgs,
   onToggleCollection,
   onCreateCollection,
@@ -576,6 +737,8 @@ export function GameStrip({
   const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const d = game.details;
+  // Un jeu sans fiche Steam dont l'utilisateur a choisi les genres reçoit une fiche qui ne porte que ceux-ci.
+  const steamFiche = !!d && !(game.customGenres && !d.description && d.tags.length === 0 && d.developers.length === 0 && d.publishers.length === 0 && !d.releaseDate);
   const moods = d?.moods ?? [];
   const tags = d?.tags ?? [];
   const lastSession = lastSessionText(game, history?.[0] ?? null);
@@ -705,7 +868,11 @@ export function GameStrip({
                   </ul>
                 )}
                 <dl className="fiche__facts">
-                  {d && d.genres.length > 0 && <div><dt>Genres</dt><dd>{d.genres.join(", ")}</dd></div>}
+                  {d && d.genres.length > 0 && (
+                    <div title={game.customGenres ? "Genres choisis par toi à la place de ceux de Steam" : undefined}>
+                      <dt>Genres</dt><dd>{d.genres.join(", ")}</dd>
+                    </div>
+                  )}
                   {d && d.developers.length > 0 && <div><dt>Studio</dt><dd>{d.developers.join(", ")}</dd></div>}
                   {d && d.publishers.length > 0 && <div><dt>Édition</dt><dd>{d.publishers.join(", ")}</dd></div>}
                   {d?.releaseDate && <div><dt>Sortie</dt><dd title={formatDate(d.releaseDate)}>{releaseYear(d.releaseDate)}</dd></div>}
@@ -722,7 +889,7 @@ export function GameStrip({
                   )}
                   {game.installDir && <div className="is-wide"><dt>Dossier</dt><dd className="path" title={game.installDir}>{game.installDir}</dd></div>}
                 </dl>
-                {!d && <p className="fiche__note">Pas de fiche Steam pour ce jeu : ni description, ni genres, ni tags.</p>}
+                {!steamFiche && <p className="fiche__note">Pas de fiche Steam pour ce jeu : ni description, ni {game.customGenres ? "" : "genres, ni "}tags.</p>}
                 <RequirementsPanel key={`reqs-${game.id}`} gameId={game.id} />
               </>
             )}
@@ -819,6 +986,10 @@ export function GameStrip({
               <p className="strip__member">{member.length ? member.map((c) => `« ${c.name} »`).join(", ") : "Dans aucune collection"}</p>
             )}
           </div>
+
+          <Genres game={game} onGenres={onGenres} />
+
+          <Aliases game={game} onAliases={onAliases} />
 
           {game.hltb && (
             <div className="fiche__block">

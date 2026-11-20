@@ -27,7 +27,7 @@ const TAG_LIST: &str = "https://api.steampowered.com/IStoreService/GetTagList/v1
 const BATCH: usize = 40;
 /// Étiquettes lues par jeu, parmi lesquelles on garde les genres et les tags affichés.
 const TAG_COUNT: u32 = 20;
-const MAX_GENRES: usize = 3;
+pub const MAX_GENRES: usize = 3;
 /// Tags gardés dans la fiche, du plus voté au moins voté.
 const MAX_TAGS: usize = 10;
 /// Catégories « manette » de la boutique.
@@ -47,6 +47,12 @@ const GENRES: &[(u32, &str)] = &[
     (597, "Occasionnel"),
     (128, "Massivement multijoueur"),
 ];
+
+/// Noms des genres que Ludex reconnaît, dans l'ordre de `GENRES` : seuls choix permis pour
+/// corriger les genres d'un jeu (`corrections.rs`).
+pub fn genre_names() -> impl Iterator<Item = &'static str> {
+    GENRES.iter().map(|&(_, name)| name)
+}
 
 /// Prise en charge de la manette annoncée par la boutique.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

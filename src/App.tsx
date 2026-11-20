@@ -40,6 +40,8 @@ import {
   setHidden,
   setInCollection,
   setNote,
+  setAliases,
+  setGenres,
   setLaunchArgs,
   setStatus,
   STATUS_LABEL,
@@ -571,6 +573,27 @@ export default function App() {
     } catch (e) {
       patchGame(game.id, { note: game.note });
       showToast({ title: "Note non enregistrée", detail: String(e), error: true }, 5000);
+    }
+  }, [patchGame, showToast]);
+
+  // Rejette avec le message de Rust : la fiche l'affiche sous le champ rouvert.
+  const changeAliases = useCallback(async (game: Game, text: string) => {
+    const saved = await setAliases(game.id, text);
+    patchGame(game.id, { aliases: saved });
+    showToast({ title: saved.length ? "Alias de recherche enregistrés" : "Alias de recherche effacés", detail: saved.join(", ") || undefined }, 3000);
+  }, [patchGame, showToast]);
+
+  const changeGenres = useCallback(async (game: Game, genres: string[]) => {
+    try {
+      const { details, customGenres } = await setGenres(game.id, genres);
+      patchGame(game.id, { details, customGenres });
+      const list = details?.genres.join(", ");
+      showToast(
+        customGenres ? { title: "Genres corrigés", detail: list } : { title: "Genres d'origine rétablis", detail: list || "Aucun genre sur Steam" },
+        3000,
+      );
+    } catch (e) {
+      showToast({ title: "Genres non enregistrés", detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast]);
 
@@ -1221,6 +1244,8 @@ export default function App() {
       collections={collections?.mine ?? []}
       onStatus={changeStatus}
       onNote={changeNote}
+      onAliases={changeAliases}
+      onGenres={changeGenres}
       onLaunchArgs={changeLaunchArgs}
       onToggleCollection={toggleCollection}
       onCreateCollection={(name, game) => newCollection(name, game)}
