@@ -341,6 +341,38 @@ export interface Requirements {
 }
 /** Configuration requise d'un jeu (appid Steam), comparée à ce PC ; `null` si rien de connu. */
 export const gameRequirements = (id: string) => invoke<Requirements | null>("game_requirements", { id });
+/** Mod Steam Workshop installé. */
+export interface WorkshopMod {
+  /** Id Workshop (texte : il dépasse les entiers sûrs de JavaScript). */
+  id: string;
+  /** Titre donné par Steam, `null` tant qu'il est inconnu. */
+  title: string | null;
+  /** Vignette réduite (`images.steamusercontent.com`), reconstruite côté Rust. */
+  previewUrl: string | null;
+  /** Octets sur le disque. */
+  size: number;
+  /** Date de la version installée (secondes Unix). */
+  updated: number | null;
+  /** Steam connaît une version plus récente, pas encore téléchargée. */
+  pending: boolean;
+  /** Le dossier du mod existe. */
+  present: boolean;
+}
+export interface WorkshopMods {
+  mods: WorkshopMod[];
+  total: number;
+  /** Le dossier des mods du jeu existe. */
+  folder: boolean;
+  /** Des titres restent à demander à Steam. */
+  stale: boolean;
+}
+/** Mods Workshop installés d'un jeu Steam (disque et cache seulement) ; `null` : aucun manifeste. */
+export const gameMods = (id: string) => invoke<WorkshopMods | null>("game_mods", { id });
+/** Même liste, après avoir demandé à Steam les titres et vignettes manquants. */
+export const refreshMods = (id: string) => invoke<WorkshopMods | null>("refresh_mods", { id });
+export const openModsDir = (id: string) => invoke<void>("open_mods_dir", { id });
+/** Page d'un mod dans Steam ; l'id est revérifié côté Rust contre les mods installés du jeu. */
+export const openModPage = (id: string, modId: string) => invoke<void>("open_mod_page", { id, modId });
 /** Succès débloqué montré par la vitrine. */
 export interface ShowcaseUnlock {
   gameId: string;
@@ -755,7 +787,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "workshop";
 export interface DiagService {
   id: DiagServiceId;
   label: string;

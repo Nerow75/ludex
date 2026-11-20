@@ -29,6 +29,7 @@ mod tray;
 mod watch;
 mod welcome;
 mod window_controls;
+mod workshop;
 
 use library::{manual, Game, Launch, Platform, PlaytimeSource, ScanResult};
 use serde::Serialize;
@@ -108,6 +109,12 @@ struct AppState {
     requirements_lock: Mutex<()>,
     /// Une requête de configuration tourne.
     requirements_busy: AtomicBool,
+    /// Titres et vignettes des mods Steam Workshop (`workshop.rs`), lus à la demande.
+    workshop: Mutex<workshop::WorkshopCache>,
+    /// Tenu pendant les requêtes de l'API Workshop : une lecture à la fois.
+    workshop_lock: Mutex<()>,
+    /// Une lecture de l'API Workshop tourne.
+    workshop_busy: AtomicBool,
     /// Archive d'import lue et vérifiée, en attente de confirmation (`transfer.rs`).
     pending_import: Mutex<Option<transfer::Export>>,
 }
@@ -1199,6 +1206,99 @@ async fn game_requirements(app: AppHandle, id: String) -> Result<Option<requirem
     .await
 }
 
+/// Mods Steam Workshop installés d'un jeu Steam (onglet « Mods » de la fiche) : manifeste et
+/// dossiers lus sur le disque, titres et vignettes du cache seulement (aucune requête).
+/// `None` : pas un jeu Steam, ou aucun manifeste Workshop.
+#[tauri::command]
+async fn game_mods(app: AppHandle, id: String) -> Result<Option<workshop::Mods>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let Some((content, installed)) = workshop::installed(&game) else { return Ok(None) };
+        let cache = lock(&state.workshop)?;
+        Ok(Some(workshop::list(&content, &installed, &cache)))
+    })
+    .await
+}
+
+/// Comme `game_mods`, après avoir demandé à l'API publique de Steam les titres et vignettes
+/// inconnus ou vieux de plus de 30 jours (lots de 50, une lecture à la fois, arrêt à la première
+/// erreur réseau : ce qui est connu reste affiché).
+#[tauri::command]
+async fn refresh_mods(app: AppHandle, id: String) -> Result<Option<workshop::Mods>, String> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = find_game(&state, &id)?;
+        let Some((content, installed)) = workshop::installed(&game) else { return Ok(None) };
+        let ids: Vec<u64> = installed.iter().map(|m| m.id).collect();
+        if !lock(&state.workshop)?.to_fetch(&ids).is_empty() {
+            // Une lecture à la fois : la suivante attend, puis relit le cache.
+            let _gate = state.workshop_lock.lock().unwrap_or_else(|e| e.into_inner());
+            let todo = lock(&state.workshop)?.to_fetch(&ids);
+            if !todo.is_empty() {
+                state.workshop_busy.store(true, Ordering::SeqCst);
+                let mut changed = false;
+                for (i, chunk) in todo.chunks(workshop::BATCH).enumerate() {
+                    if i > 0 {
+                        std::thread::sleep(std::time::Duration::from_millis(300));
+                    }
+                    match workshop::request(chunk) {
+                        Ok(answers) => {
+                            diagnostic::ok(diagnostic::Service::Workshop);
+                            let mut cache = lock(&state.workshop)?;
+                            for (mod_id, info) in answers {
+                                cache.record(mod_id, info);
+                            }
+                            changed = true;
+                        }
+                        Err(e) => {
+                            diagnostic::failed(diagnostic::Service::Workshop, &e);
+                            eprintln!("Mods Workshop non lus : {e}");
+                            break;
+                        }
+                    }
+                }
+                state.workshop_busy.store(false, Ordering::SeqCst);
+                if changed && let Err(e) = lock(&state.workshop)?.save() {
+                    eprintln!("Cache des mods Workshop non enregistré : {e}");
+                }
+            }
+        }
+        let cache = lock(&state.workshop)?;
+        Ok(Some(workshop::list(&content, &installed, &cache)))
+    })
+    .await
+}
+
+/// Ouvre le dossier des mods Workshop du jeu (`steamapps/workshop/content/<appid>`), reconstruit
+/// depuis le jeu de l'état.
+#[tauri::command]
+fn open_mods_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let game = find_game(&state, &id)?;
+    let (content, _) = workshop::installed(&game).ok_or("Aucun mod Workshop pour ce jeu.")?;
+    if !content.is_dir() {
+        return Err("Le dossier des mods n'existe plus.".into());
+    }
+    app.opener()
+        .open_path(content.to_string_lossy(), None::<&str>)
+        .map_err(|e| format!("Impossible d'ouvrir {} : {e}", content.display()))
+}
+
+/// Ouvre la page d'un mod dans Steam (`steam://url/CommunityFilePage/<id>`). L'id doit être un
+/// nombre et un mod installé de ce jeu : aucune URL ne vient du front.
+#[tauri::command]
+fn open_mod_page(app: tauri::AppHandle, state: State<'_, AppState>, id: String, mod_id: String) -> Result<(), String> {
+    let game = find_game(&state, &id)?;
+    let wanted = workshop::parse_id(&mod_id).ok_or("Mod inconnu.")?;
+    let (_, installed) = workshop::installed(&game).ok_or("Aucun mod Workshop pour ce jeu.")?;
+    if !installed.iter().any(|m| m.id == wanted) {
+        return Err("Ce mod n'est plus installé.".into());
+    }
+    app.opener()
+        .open_url(format!("steam://url/CommunityFilePage/{wanted}"), None::<&str>)
+        .map_err(|e| format!("Steam n'a pas répondu : {e}"))
+}
+
 /// Section « Vitrine » : total des succès, jeux à 100 %, dix plus rares, derniers déblocages.
 /// Jeux Steam non masqués ; détail et pourcentages lus seulement pour ceux qui ont débloqué
 /// au moins un succès.
@@ -2127,6 +2227,9 @@ pub fn run() {
                 requirements: Mutex::new(requirements::ReqCache::load(&dir)),
                 requirements_lock: Mutex::new(()),
                 requirements_busy: AtomicBool::new(false),
+                workshop: Mutex::new(workshop::WorkshopCache::load(&dir)),
+                workshop_lock: Mutex::new(()),
+                workshop_busy: AtomicBool::new(false),
                 sizes: Mutex::new(storage::SizeCache::load(&dir)),
                 sizes_busy: AtomicBool::new(false),
                 data_dir: dir,
@@ -2222,6 +2325,10 @@ pub fn run() {
             journal,
             game_achievements,
             game_requirements,
+            game_mods,
+            refresh_mods,
+            open_mods_dir,
+            open_mod_page,
             showcase,
             storage,
             uninstall_game,

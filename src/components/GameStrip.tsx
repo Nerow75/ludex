@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   gameHistory,
+  gameMods,
   gameSaves,
   gameScreenshots,
   journal,
@@ -20,6 +21,7 @@ import {
   type PastSession,
   type Screenshot,
   type Status,
+  type WorkshopMods,
 } from "../lib/api";
 import {
   argsExample,
@@ -45,6 +47,7 @@ import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
 import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
+import { ModsPanel } from "./ModsPanel";
 import { SavesPanel } from "./SavesPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 
@@ -97,7 +100,7 @@ interface Props {
 export type FicheEdit = "rename" | "collection";
 
 /** Onglets de la fiche, dans l'ordre de la barre. */
-const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal"] as const;
+const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "mods"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   overview: "Aperçu",
@@ -106,6 +109,7 @@ const TAB_LABEL: Record<Tab, string> = {
   saves: "Sauvegardes",
   sessions: "Sessions",
   journal: "Journal",
+  mods: "Mods",
 };
 /** Onglet retenu entre deux fiches (stockage local, comme les autres préférences d'affichage). */
 const TAB_KEY = "ficheTab";
@@ -320,6 +324,28 @@ function useHasSaves(id: string, playing: boolean): boolean | null {
   }, [id, playing]);
   return has?.id === id ? has.value : null;
 }
+
+/**
+ * Mods Steam Workshop installés (jeux Steam seulement), lus à l'ouverture de la fiche et à la fin
+ * d'une partie (le jeu peut en télécharger). `null` : lecture ; liste vide : rien à montrer.
+ */
+function useMods(game: Game, playing: boolean): WorkshopMods | null {
+  const steam = game.platform === "steam";
+  const [mods, setMods] = useState<{ id: string; list: WorkshopMods | null } | null>(null);
+  useEffect(() => {
+    if (!steam) return;
+    let alive = true;
+    gameMods(game.id)
+      .then((list) => alive && setMods({ id: game.id, list }))
+      .catch(() => alive && setMods({ id: game.id, list: null }));
+    return () => {
+      alive = false;
+    };
+  }, [game.id, steam, playing]);
+  if (!steam) return EMPTY_MODS;
+  return mods?.id === game.id ? (mods.list ?? EMPTY_MODS) : null;
+}
+const EMPTY_MODS: WorkshopMods = { mods: [], total: 0, folder: false, stale: false };
 
 /** Vignettes montrées dans l'onglet ; la dernière annonce les suivantes (« +12 »). */
 const TAB_SHOTS = 12;
@@ -541,6 +567,7 @@ export function GameStrip({
   const history = useHistory(game.id, playing);
   const shots = useScreenshots(game.id, playing);
   const hasSaves = useHasSaves(game.id, playing);
+  const mods = useMods(game, playing);
   const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const d = game.details;
@@ -562,6 +589,7 @@ export function GameStrip({
     saves: hasSaves,
     sessions: history && history.length > 0,
     journal: !onJournal ? false : journalData ? true : history === null || shots === null ? null : false,
+    mods: mods && mods.mods.length > 0,
   };
   const tabs = TABS.filter((t) => has[t] === true || (has[t] === null && t === chosen));
   const active: Tab = tabs.includes(chosen) ? chosen : "overview";
@@ -574,6 +602,7 @@ export function GameStrip({
     achievements: achievements ? `${achievements.unlocked}/${achievements.total}` : undefined,
     shots: shots?.length ? String(shots.length) : undefined,
     sessions: history?.length ? String(history.length) : undefined,
+    mods: mods?.mods.length ? String(mods.mods.length) : undefined,
   };
   const tabId = (t: Tab) => `fiche-${t}`;
 
@@ -694,6 +723,7 @@ export function GameStrip({
             {active === "saves" && <SavesPanel key={`saves-${game.id}`} gameId={game.id} playing={playing} />}
             {active === "sessions" && <SessionsTab key={`sessions-${game.id}`} game={game} history={history} />}
             {active === "journal" && onJournal && <JournalTab key={`journal-${game.id}`} game={game} playing={playing} onJournal={onJournal} />}
+            {active === "mods" && mods && <ModsPanel key={`mods-${game.id}`} gameId={game.id} initial={mods} />}
           </div>
         </div>
 

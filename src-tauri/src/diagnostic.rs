@@ -22,10 +22,19 @@ pub enum Service {
     Hltb,
     Saves,
     Requirements,
+    Workshop,
 }
 
 impl Service {
-    pub const ALL: [Service; 6] = [Service::Images, Service::Art, Service::Details, Service::Hltb, Service::Saves, Service::Requirements];
+    pub const ALL: [Service; 7] = [
+        Service::Images,
+        Service::Art,
+        Service::Details,
+        Service::Hltb,
+        Service::Saves,
+        Service::Requirements,
+        Service::Workshop,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -35,6 +44,7 @@ impl Service {
             Service::Hltb => "Durées de vie",
             Service::Saves => "Base des sauvegardes",
             Service::Requirements => "Configurations requises",
+            Service::Workshop => "Mods Steam Workshop",
         }
     }
 
@@ -47,6 +57,7 @@ impl Service {
             Service::Hltb => "HowLongToBeat",
             Service::Saves => "manifeste Ludusavi sur GitHub",
             Service::Requirements => "boutique Steam",
+            Service::Workshop => "API publique de Steam",
         }
     }
 
@@ -62,7 +73,7 @@ struct Track {
     last_error: Option<(u64, String)>,
 }
 
-static SERVICES: Mutex<[Track; 6]> = Mutex::new([const { Track { last_ok: None, last_error: None } }; 6]);
+static SERVICES: Mutex<[Track; 7]> = Mutex::new([const { Track { last_ok: None, last_error: None } }; 7]);
 
 fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
@@ -448,6 +459,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             (Service::Hltb, &state.hltb_busy),
             (Service::Saves, &state.saves_busy),
             (Service::Requirements, &state.requirements_busy),
+            (Service::Workshop, &state.workshop_busy),
         ]
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))
