@@ -1,20 +1,32 @@
 //! Surveillance des dossiers où les launchers déclarent leurs jeux : un jeu installé ou
 //! désinstallé déclenche un rescan tout seul, une fois que les écritures se sont calmées.
 //!
+//! Pendant un téléchargement Steam, chaque écriture d'un manifeste est aussi relue tout de suite
+//! (une fois par seconde et par jeu au plus) : la progression part au front sans rescan.
+//!
 //! Aucun relevé périodique : le fil dort sur le canal des événements du système (crate `notify`)
 //! tant que rien ne bouge. Une erreur de surveillance n'est qu'un message dans la console.
 
-use crate::library::{self, Game};
+use crate::library::{self, Game, InstallState, ManifestState, Platform};
 use notify::event::{EventKind, ModifyKind};
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant, SystemTime};
 
 /// Temps de calme attendu avant de rescanner : Steam écrit un manifeste plusieurs fois de suite.
 pub const QUIET: Duration = Duration::from_secs(5);
+
+/// Écart minimal entre deux relectures d'un même manifeste pendant un téléchargement.
+pub const LIVE_GAP: Duration = Duration::from_secs(1);
+
+/// Le débit est estimé sur les relectures de ces dernières secondes.
+const SPEED_WINDOW: Duration = Duration::from_secs(20);
+
+/// Durée minimale entre la première et la dernière relecture pour donner un débit.
+const SPEED_MIN_SPAN: Duration = Duration::from_secs(2);
 
 /// Ce que contient un dossier surveillé.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -198,6 +210,172 @@ impl Pending {
     }
 }
 
+/// Débit d'un téléchargement, tiré des octets lus dans les dernières relectures du manifeste.
+#[derive(Default)]
+struct Speed {
+    samples: VecDeque<(Instant, u64)>,
+    /// Octets à télécharger annoncés : un autre chiffre = autre téléchargement, on repart de zéro.
+    total: Option<u64>,
+}
+
+impl Speed {
+    /// Ajoute une relecture : débit (octets par seconde) et temps restant (secondes), si connus.
+    fn record(&mut self, now: Instant, m: &ManifestState) -> (Option<u64>, Option<u64>) {
+        let downloading = matches!(m.install_state, InstallState::Updating { .. });
+        let restarted = self.samples.back().is_some_and(|&(_, bytes)| bytes > m.downloaded);
+        if !downloading || restarted || m.to_download != self.total {
+            self.samples.clear();
+            self.total = m.to_download;
+        }
+        if !downloading {
+            return (None, None);
+        }
+        self.samples.push_back((now, m.downloaded));
+        // Les relectures trop anciennes sortent, en gardant toujours les deux dernières.
+        while self.samples.len() > 2 && self.samples.front().is_some_and(|&(t, _)| now.saturating_duration_since(t) > SPEED_WINDOW) {
+            self.samples.pop_front();
+        }
+        let (Some(&(t0, b0)), Some(&(t1, b1))) = (self.samples.front(), self.samples.back()) else { return (None, None) };
+        let span = t1.saturating_duration_since(t0);
+        if span < SPEED_MIN_SPAN || b1 <= b0 {
+            return (None, None);
+        }
+        let speed = ((b1 - b0) as f64 / span.as_secs_f64()) as u64;
+        if speed == 0 {
+            return (None, None);
+        }
+        let remaining = self.total.map(|total| total.saturating_sub(b1).div_ceil(speed));
+        (Some(speed), remaining)
+    }
+}
+
+/// Relectures immédiates des manifestes Steam : une par seconde et par manifeste au plus. Une
+/// écriture qui arrive trop tôt est relue à la fin de l'écart, pour ne jamais manquer la dernière.
+struct Live {
+    gap: Duration,
+    entries: HashMap<PathBuf, LiveEntry>,
+}
+
+#[derive(Default)]
+struct LiveEntry {
+    last: Option<Instant>,
+    /// Une écriture attend sa relecture.
+    due: bool,
+    speed: Speed,
+}
+
+impl Live {
+    fn new(gap: Duration) -> Self {
+        Live { gap, entries: HashMap::new() }
+    }
+
+    /// Écriture vue : `true` s'il faut relire maintenant, sinon la relecture est programmée.
+    fn signal(&mut self, now: Instant, path: &Path) -> bool {
+        let entry = self.entries.entry(path.to_path_buf()).or_default();
+        if entry.last.is_some_and(|last| now.saturating_duration_since(last) < self.gap) {
+            entry.due = true;
+            return false;
+        }
+        entry.last = Some(now);
+        entry.due = false;
+        true
+    }
+
+    /// Temps avant la prochaine relecture programmée, `None` s'il n'y en a pas.
+    fn wait(&self, now: Instant) -> Option<Duration> {
+        self.entries
+            .values()
+            .filter(|e| e.due)
+            .filter_map(|e| e.last)
+            .map(|last| (last + self.gap).saturating_duration_since(now))
+            .min()
+    }
+
+    /// Manifestes à relire maintenant (écart écoulé).
+    fn take_due(&mut self, now: Instant) -> Vec<PathBuf> {
+        let gap = self.gap;
+        let mut due = Vec::new();
+        for (path, entry) in &mut self.entries {
+            if entry.due && entry.last.is_none_or(|last| now.saturating_duration_since(last) >= gap) {
+                entry.due = false;
+                entry.last = Some(now);
+                due.push(path.clone());
+            }
+        }
+        due
+    }
+
+    fn speed(&mut self, path: &Path) -> &mut Speed {
+        &mut self.entries.entry(path.to_path_buf()).or_default().speed
+    }
+
+    fn forget(&mut self, path: &Path) {
+        self.entries.remove(path);
+    }
+}
+
+/// Progression d'un jeu Steam relue dans son manifeste, sans rescan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Progress {
+    pub appid: String,
+    pub state: InstallState,
+    pub size_on_disk: Option<u64>,
+    /// Débit estimé, en octets par seconde.
+    pub speed: Option<u64>,
+    /// Temps restant estimé, en secondes.
+    pub remaining: Option<u64>,
+}
+
+/// Progression à envoyer pour un manifeste relu. Rien si le jeu n'est pas listé ou si son état
+/// installé change par rapport à ce que la surveillance connaît : c'est alors le rescan qui
+/// s'en charge, après le temps de calme.
+fn live_progress(m: &ManifestState, known: Option<bool>, speed: &mut Speed, now: Instant) -> Option<Progress> {
+    if !m.installed || known != Some(true) {
+        return None;
+    }
+    let (speed, remaining) = speed.record(now, m);
+    Some(Progress { appid: m.appid.clone(), state: m.install_state, size_on_disk: m.size_on_disk, speed, remaining })
+}
+
+/// Relit un manifeste Steam tout de suite et passe sa progression à `progress`.
+fn live_read(path: &Path, manifests: &Manifests, live: &mut Live, now: Instant, progress: &mut impl FnMut(Progress)) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        if !path.exists() {
+            live.forget(path);
+        }
+        return;
+    };
+    // En cours d'écriture : l'écriture suivante sera relue.
+    let Some(m) = library::read_steam_manifest(&text) else { return };
+    if let Some(p) = live_progress(&m, manifests.known.get(path).copied(), live.speed(path), now) {
+        progress(p);
+    }
+}
+
+/// Événement `game-install` : état d'installation d'un jeu changé pendant un téléchargement.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallEvent {
+    pub id: String,
+    pub install_state: InstallState,
+    pub size_on_disk: Option<u64>,
+    pub speed: Option<u64>,
+    pub remaining: Option<u64>,
+}
+
+/// Pose une progression sur le jeu de l'état. Un événement seulement si l'état, le % ou la
+/// taille change (le débit seul ne suffit pas).
+pub fn apply(games: &mut [Game], p: &Progress) -> Option<InstallEvent> {
+    let game = games.iter_mut().find(|g| g.platform == Platform::Steam && g.platform_id == p.appid)?;
+    let size = p.size_on_disk.filter(|_| !game.size_measured).or(game.size_on_disk);
+    if game.install_state == p.state && game.size_on_disk == size {
+        return None;
+    }
+    game.install_state = p.state;
+    game.size_on_disk = size;
+    Some(InstallEvent { id: game.id.clone(), install_state: p.state, size_on_disk: size, speed: p.speed, remaining: p.remaining })
+}
+
 enum Msg {
     Fs(notify::Result<notify::Event>),
     /// La liste des dossiers a pu changer (nouvelle bibliothèque Steam, premier jeu Epic…).
@@ -210,20 +388,23 @@ pub struct Watch {
 }
 
 impl Watch {
-    pub fn spawn(rescan: impl FnMut() -> bool + Send + 'static) -> Watch {
-        Watch::spawn_with(targets, QUIET, rescan)
+    /// `progress` reçoit chaque relecture d'un manifeste Steam pendant un téléchargement.
+    pub fn spawn(rescan: impl FnMut() -> bool + Send + 'static, progress: impl FnMut(Progress) + Send + 'static) -> Watch {
+        Watch::spawn_with(targets, QUIET, LIVE_GAP, rescan, progress)
     }
 
     fn spawn_with(
         targets: impl Fn() -> Vec<Watched> + Send + 'static,
         quiet: Duration,
+        gap: Duration,
         rescan: impl FnMut() -> bool + Send + 'static,
+        progress: impl FnMut(Progress) + Send + 'static,
     ) -> Watch {
         let (tx, rx) = mpsc::channel();
         let events = tx.clone();
         let spawned = std::thread::Builder::new()
             .name("ludex-surveillance".into())
-            .spawn(move || run(rx, events, targets, quiet, rescan));
+            .spawn(move || run(rx, events, targets, quiet, gap, rescan, progress));
         if let Err(e) = spawned {
             eprintln!("Surveillance des dossiers de jeux impossible : {e}");
         }
@@ -241,7 +422,9 @@ fn run(
     events: Sender<Msg>,
     targets: impl Fn() -> Vec<Watched>,
     quiet: Duration,
+    gap: Duration,
     mut rescan: impl FnMut() -> bool,
+    mut progress: impl FnMut(Progress),
 ) {
     let watcher = notify::recommended_watcher(move |res| {
         let _ = events.send(Msg::Fs(res));
@@ -254,10 +437,16 @@ fn run(
     let mut manifests = Manifests::default();
     rewatch(&mut watcher, &mut watched, &mut manifests, targets());
     let mut pending = Pending::new(quiet);
+    let mut live = Live::new(gap);
 
     loop {
         // Rien en attente : le fil dort jusqu'au prochain événement.
-        let msg = match pending.wait(Instant::now()) {
+        let now = Instant::now();
+        let wait = match (pending.wait(now), live.wait(now)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let msg = match wait {
             None => match rx.recv() {
                 Ok(msg) => Some(msg),
                 // Canal fermé : l'application s'arrête.
@@ -278,29 +467,36 @@ fn run(
                 }
                 for path in &event.paths {
                     for w in watched.iter().filter(|w| w.holds(path)) {
-                        pending.signal(now, verdict(w.source, &event.kind, path, || path.is_dir()), path);
+                        let verdict = verdict(w.source, &event.kind, path, || path.is_dir());
+                        // Manifeste Steam : relu tout de suite pour la progression, en plus du calme.
+                        if verdict == Verdict::Manifest && w.source == Source::SteamApps && live.signal(now, path) {
+                            live_read(path, &manifests, &mut live, now, &mut progress);
+                        }
+                        pending.signal(now, verdict, path);
                     }
                 }
             }
             Some(Msg::Fs(Err(e))) => eprintln!("Surveillance des dossiers de jeux : {e}"),
             Some(Msg::Rewatch) => rewatch(&mut watcher, &mut watched, &mut manifests, targets()),
-            None => {
-                let Some((force, paths)) = pending.take_due(now) else { continue };
-                let mut changed = force;
-                for path in paths {
-                    match manifests.update(&path, manifest_state(&path)) {
-                        Some(c) => changed |= c,
-                        // En cours d'écriture : relu au prochain calme, s'il vient d'être écrit
-                        // (un manifeste abîmé depuis longtemps n'est pas relu sans fin).
-                        None if recently_modified(&path) => pending.signal(now, Verdict::Manifest, &path),
-                        None => {}
-                    }
-                }
-                if changed && !rescan() {
-                    // Un scan tourne déjà : on retente après un nouveau temps de calme.
-                    pending.signal(now, Verdict::Rescan, Path::new(""));
-                }
+            None => {}
+        }
+        for path in live.take_due(now) {
+            live_read(&path, &manifests, &mut live, now, &mut progress);
+        }
+        let Some((force, paths)) = pending.take_due(now) else { continue };
+        let mut changed = force;
+        for path in paths {
+            match manifests.update(&path, manifest_state(&path)) {
+                Some(c) => changed |= c,
+                // En cours d'écriture : relu au prochain calme, s'il vient d'être écrit
+                // (un manifeste abîmé depuis longtemps n'est pas relu sans fin).
+                None if recently_modified(&path) => pending.signal(now, Verdict::Manifest, &path),
+                None => {}
             }
+        }
+        if changed && !rescan() {
+            // Un scan tourne déjà : on retente après un nouveau temps de calme.
+            pending.signal(now, Verdict::Rescan, Path::new(""));
         }
     }
 }
@@ -444,6 +640,100 @@ mod tests {
         assert_eq!(manifests.update(path, Some(false)), Some(true));
     }
 
+    #[test]
+    fn rereads_a_manifest_at_most_once_per_second() {
+        let t0 = Instant::now();
+        let at = |ms: u64| t0 + Duration::from_millis(ms);
+        let (a, b) = (Path::new("appmanifest_10.acf"), Path::new("appmanifest_20.acf"));
+        let mut live = Live::new(LIVE_GAP);
+        assert_eq!(live.wait(t0), None);
+        // Première écriture : relue tout de suite. Les suivantes dans la seconde : une relecture programmée.
+        assert!(live.signal(at(0), a));
+        assert!(!live.signal(at(200), a));
+        assert!(!live.signal(at(600), a));
+        // Un autre jeu a son propre écart.
+        assert!(live.signal(at(300), b));
+        assert_eq!(live.wait(at(600)), Some(Duration::from_millis(400)));
+        assert!(live.take_due(at(900)).is_empty());
+        assert_eq!(live.take_due(at(1000)), vec![a.to_path_buf()]);
+        assert_eq!(live.wait(at(1000)), None);
+        // La relecture programmée compte comme la dernière : écriture suivante attendue jusqu'à 2 s.
+        assert!(!live.signal(at(1500), a));
+        assert_eq!(live.take_due(at(2000)), vec![a.to_path_buf()]);
+        assert!(live.signal(at(3500), a));
+    }
+
+    fn manifest_at(state: InstallState, downloaded: u64, to_download: Option<u64>) -> ManifestState {
+        ManifestState { appid: "730".into(), installed: true, install_state: state, size_on_disk: Some(1000), downloaded, to_download }
+    }
+
+    #[test]
+    fn estimates_speed_and_remaining_time() {
+        let t0 = Instant::now();
+        let at = |secs: u64| t0 + Duration::from_secs(secs);
+        let updating = InstallState::Updating { progress: Some(10) };
+        let mut speed = Speed::default();
+        // Une seule relecture, puis moins de 2 s : pas encore de débit.
+        assert_eq!(speed.record(at(0), &manifest_at(updating, 0, Some(1_000_000))), (None, None));
+        assert_eq!(speed.record(at(1), &manifest_at(updating, 50_000, Some(1_000_000))), (None, None));
+        // 200 000 octets en 4 s : 50 000 o/s, 800 000 restants = 16 s.
+        assert_eq!(speed.record(at(4), &manifest_at(updating, 200_000, Some(1_000_000))), (Some(50_000), Some(16)));
+        // Seules les relectures des 20 dernières secondes comptent : 220 000 octets en 11 s.
+        for (secs, bytes) in [(30, 300_000), (40, 500_000), (50, 700_000)] {
+            speed.record(at(secs), &manifest_at(updating, bytes, Some(1_000_000)));
+        }
+        assert_eq!(speed.record(at(51), &manifest_at(updating, 720_000, Some(1_000_000))), (Some(20_000), Some(14)));
+        // Téléchargement relancé (octets en baisse) ou fini : on repart de zéro.
+        assert_eq!(speed.record(at(52), &manifest_at(updating, 10, Some(1_000_000))), (None, None));
+        assert_eq!(speed.record(at(60), &manifest_at(InstallState::Ready, 0, None)), (None, None));
+        assert!(speed.samples.is_empty());
+        // Rien ne bouge (téléchargement bloqué) : débit inconnu plutôt que nul.
+        assert_eq!(speed.record(at(70), &manifest_at(updating, 5, Some(10))), (None, None));
+        assert_eq!(speed.record(at(80), &manifest_at(updating, 5, Some(10))), (None, None));
+    }
+
+    #[test]
+    fn sends_progress_only_for_listed_games_that_stay_listed() {
+        let now = Instant::now();
+        let updating = manifest_at(InstallState::Updating { progress: Some(42) }, 42, Some(100));
+        let p = live_progress(&updating, Some(true), &mut Speed::default(), now).unwrap();
+        assert_eq!((p.appid.as_str(), p.state, p.size_on_disk), ("730", InstallState::Updating { progress: Some(42) }, Some(1000)));
+        // Jeu qui vient d'être installé (connu absent) : c'est le rescan qui l'ajoute.
+        assert_eq!(live_progress(&updating, Some(false), &mut Speed::default(), now), None);
+        assert_eq!(live_progress(&updating, None, &mut Speed::default(), now), None);
+        // Première installation (pas listée) ou désinstallation : rescan.
+        let first = ManifestState { installed: false, ..updating };
+        assert_eq!(live_progress(&first, Some(true), &mut Speed::default(), now), None);
+    }
+
+    #[test]
+    fn applies_progress_and_reports_changes_only() {
+        let mut games = vec![game("730", "Counter-Strike 2", false), game("10", "Portal", false)];
+        games[0].install_state = InstallState::UpdateRequired;
+        games[0].size_on_disk = Some(1000);
+        let progress = |state: InstallState, size: Option<u64>| Progress { appid: "730".into(), state, size_on_disk: size, speed: Some(5), remaining: Some(9) };
+
+        let event = apply(&mut games, &progress(InstallState::Queued, Some(1000))).unwrap();
+        assert_eq!(event.id, "steam:730");
+        assert_eq!(serde_json::to_value(&event).unwrap(), serde_json::json!({
+            "id": "steam:730", "installState": { "kind": "queued" }, "sizeOnDisk": 1000, "speed": 5, "remaining": 9
+        }));
+        // Même état, même taille : rien (le débit seul ne compte pas).
+        assert_eq!(apply(&mut games, &Progress { speed: Some(99), ..progress(InstallState::Queued, Some(1000)) }), None);
+        let downloading = InstallState::Updating { progress: Some(10) };
+        assert!(apply(&mut games, &progress(downloading, Some(1000))).is_some());
+        assert_eq!(apply(&mut games, &progress(downloading, None)), None); // taille absente : gardée
+        assert!(apply(&mut games, &progress(InstallState::Updating { progress: Some(11) }, Some(1000))).is_some());
+        // Fin de la mise à jour : prêt, nouvelle taille.
+        let done = apply(&mut games, &progress(InstallState::Ready, Some(1500))).unwrap();
+        assert_eq!((done.install_state, done.size_on_disk), (InstallState::Ready, Some(1500)));
+        assert_eq!((games[0].install_state, games[0].size_on_disk), (InstallState::Ready, Some(1500)));
+        // Jeu absent de l'état, ou jeu d'une autre plateforme avec le même numéro : rien.
+        assert_eq!(apply(&mut games, &Progress { appid: "99".into(), ..progress(InstallState::Queued, None) }), None);
+        let mut other = vec![Game::new(Platform::Gog, "730", "Autre", Launch::Uri(String::new()))];
+        assert_eq!(apply(&mut other, &progress(InstallState::Queued, None)), None);
+    }
+
     fn game(id: &str, title: &str, hidden: bool) -> Game {
         let mut g = Game::new(Platform::Steam, id, title, Launch::Uri(String::new()));
         g.hidden = hidden;
@@ -477,51 +767,82 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ludex-watch-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let manifest = |appid: u32, flags: u32| {
-            let text = format!("\"AppState\"\n{{\n\t\"appid\"\t\t\"{appid}\"\n\t\"name\"\t\t\"Jeu {appid}\"\n\t\"StateFlags\"\t\t\"{flags}\"\n}}\n");
+        // Manifeste réduit : buildid connu (jeu déjà installé une fois) et octets du téléchargement.
+        let manifest = |appid: u32, flags: u32, downloaded: u64| {
+            let buildid = if appid == 10 { 42 } else { 0 };
+            let text = format!(
+                "\"AppState\"\n{{\n\t\"appid\"\t\t\"{appid}\"\n\t\"name\"\t\t\"Jeu {appid}\"\n\t\"StateFlags\"\t\t\"{flags}\"\n\
+                 \t\"buildid\"\t\t\"{buildid}\"\n\t\"SizeOnDisk\"\t\t\"5000\"\n\t\"BytesToDownload\"\t\t\"1000\"\n\
+                 \t\"BytesDownloaded\"\t\t\"{downloaded}\"\n}}\n"
+            );
             std::fs::write(dir.join(format!("appmanifest_{appid}.acf")), text).unwrap();
         };
         // Un jeu déjà installé avant la surveillance : ne déclenche rien.
-        manifest(10, 4);
+        manifest(10, 4, 0);
 
         let rescans = Arc::new(AtomicUsize::new(0));
         let counter = rescans.clone();
+        let seen: Arc<std::sync::Mutex<Vec<(Instant, Progress)>>> = Arc::default();
+        let sink = seen.clone();
         let target = dir.clone();
         let quiet = Duration::from_secs(2);
         let _watch = Watch::spawn_with(
             move || vec![Watched { dir: target.clone(), source: Source::SteamApps }],
             quiet,
+            LIVE_GAP,
             move || {
                 counter.fetch_add(1, Ordering::SeqCst);
                 println!("rescan demandé");
                 true
             },
+            move |p| {
+                println!("progression : {:?}", p);
+                sink.lock().unwrap().push((Instant::now(), p));
+            },
         );
         std::thread::sleep(Duration::from_millis(500));
 
-        // Téléchargement : manifeste réécrit sans être installé, et mise à jour d'un jeu installé.
-        for _ in 0..5 {
-            manifest(20, 1026);
-            manifest(10, 6);
+        // Première installation (jamais listée) et mise à jour d'un jeu installé, écrites toutes les
+        // 300 ms pendant 3 s.
+        let downloading = 2 | 4 | 1024 | 256 | 1_048_576;
+        for step in 1..=10 {
+            manifest(20, 1026, step * 100);
+            manifest(10, downloading, step * 100);
             std::thread::sleep(Duration::from_millis(300));
         }
-        std::thread::sleep(quiet + Duration::from_secs(1));
+        std::thread::sleep(quiet + Duration::from_secs(2));
         assert_eq!(rescans.load(Ordering::SeqCst), 0, "un téléchargement ne doit pas rescanner");
+        {
+            let seen = seen.lock().unwrap();
+            assert!(seen.iter().all(|(_, p)| p.appid == "10"), "une première installation n'envoie rien");
+            // Une relecture par seconde au plus, et la dernière écriture toujours relue.
+            assert!((3..=5).contains(&seen.len()), "{} relectures", seen.len());
+            assert!(seen.windows(2).all(|w| w[1].0 - w[0].0 >= LIVE_GAP - Duration::from_millis(50)));
+            assert_eq!(seen.last().unwrap().1.state, InstallState::Updating { progress: Some(100) });
+            assert!(seen.iter().any(|(_, p)| p.speed.is_some()), "débit estimé");
+        }
+
+        // Fin de la mise à jour : « prêt » envoyé sans rescan.
+        manifest(10, 4, 0);
+        std::thread::sleep(Duration::from_millis(500));
+        assert_eq!(seen.lock().unwrap().last().unwrap().1.state, InstallState::Ready);
+        std::thread::sleep(quiet + Duration::from_secs(2));
+        assert_eq!(rescans.load(Ordering::SeqCst), 0);
 
         // Fin de l'installation : plusieurs écritures rapprochées, un seul rescan après le calme.
         let start = Instant::now();
         for _ in 0..6 {
-            manifest(20, 4);
+            manifest(20, 4, 0);
             std::thread::sleep(Duration::from_millis(300));
         }
         assert_eq!(rescans.load(Ordering::SeqCst), 0, "pas de rescan pendant les écritures");
-        std::thread::sleep(quiet + Duration::from_secs(1));
+        std::thread::sleep(quiet + Duration::from_secs(2));
         assert_eq!(rescans.load(Ordering::SeqCst), 1);
         println!("rescan après {:?}", start.elapsed());
 
         // Désinstallation : le manifeste disparaît.
         std::fs::remove_file(dir.join("appmanifest_20.acf")).unwrap();
-        std::thread::sleep(quiet + Duration::from_secs(1));
+        std::thread::sleep(quiet + Duration::from_secs(2));
         assert_eq!(rescans.load(Ordering::SeqCst), 2);
         let _ = std::fs::remove_dir_all(&dir);
     }

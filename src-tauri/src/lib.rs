@@ -977,8 +977,26 @@ const STALE_ON_FOCUS: Duration = Duration::from_secs(5 * 60);
 /// Surveille les dossiers des launchers, après le premier scan seulement : la bibliothèque
 /// entière ne doit jamais être annoncée comme nouvelle.
 fn start_watch(app: &tauri::AppHandle) {
-    let handle = app.clone();
-    app.state::<AppState>().watch.get_or_init(|| watch::Watch::spawn(move || auto_rescan(&handle, false)));
+    let (handle, live) = (app.clone(), app.clone());
+    app.state::<AppState>()
+        .watch
+        .get_or_init(|| watch::Watch::spawn(move || auto_rescan(&handle, false), move |p| install_progress(&live, &p)));
+}
+
+/// Événement `game-install` : progression d'un téléchargement ou d'une mise à jour Steam, relue
+/// dans le manifeste du jeu sans rescan.
+const INSTALL_EVENT: &str = "game-install";
+
+/// Pose la progression relue sur le jeu de l'état, puis prévient le front si elle a changé.
+fn install_progress(app: &tauri::AppHandle, progress: &watch::Progress) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let event = match lock(&state.games) {
+        Ok(mut games) => watch::apply(&mut games, progress),
+        Err(_) => None,
+    };
+    if let Some(event) = event {
+        let _ = app.emit(INSTALL_EVENT, event);
+    }
 }
 
 fn is_stale(state: &AppState) -> bool {

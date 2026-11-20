@@ -408,7 +408,7 @@ impl SteamStats {
 
 pub use epic::item_installed;
 pub use steam::account_dir as steam_account_dir;
-pub use steam::{cloud_storage_file, manifest_installed, steam_root};
+pub use steam::{cloud_storage_file, manifest_installed, read_manifest as read_steam_manifest, steam_root, ManifestState};
 
 /// Scan de toutes les sources (relevés réels des tests).
 #[cfg(test)]

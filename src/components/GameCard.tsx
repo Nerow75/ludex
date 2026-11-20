@@ -30,7 +30,7 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
           onClick={() => onSelect(game)}
           onDoubleClick={() => onPlay(game)}
         >
-          <Cover game={game} />
+          <Cover game={game} progress />
           {game.favorite && <span className="card__fav" aria-label="Favori"><StarIcon filled badge /></span>}
           {game.platform !== "steam" && <span className="card__plat">{PLATFORM_LABEL[game.platform]}</span>}
           {percent !== null && (

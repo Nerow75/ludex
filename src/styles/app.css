@@ -353,6 +353,10 @@ kbd {
   border-radius: var(--lx-radius-s); background: var(--lx-surface-2);
 }
 .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Progression d'un téléchargement : barre fine au bas de la jaquette, sans animation. */
+.cover__bar { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; height: 4px; background: var(--lx-art-scrim); }
+.cover__bar > span { display: block; height: 100%; background: var(--lx-accent); }
+.cover__bar.is-paused > span { background: var(--lx-warning); }
 .cover--generated {
   background:
     radial-gradient(110% 70% at 85% 0%, color-mix(in srgb, var(--cover-tint) 80%, transparent) 0%, transparent 62%),
