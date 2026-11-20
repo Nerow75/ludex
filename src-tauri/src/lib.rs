@@ -1920,6 +1920,35 @@ fn check_disks<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// Essai à l'écran (`notify-preview`, `LUDEX_NOTIFY_PREVIEW=1`) : deux vraies notifications,
+/// 15 s après le premier scan, avec les mêmes règles que les vraies (fenêtre sans le focus).
+#[cfg(feature = "notify-preview")]
+fn notify_preview(app: &tauri::AppHandle) {
+    if std::env::var("LUDEX_NOTIFY_PREVIEW").as_deref() != Ok("1") {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        while lock(&state.last_scan).is_ok_and(|t| t.is_none()) {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        std::thread::sleep(std::time::Duration::from_secs(15));
+        let game = lock(&state.games).ok().and_then(|g| g.iter().find(|g| g.platform == library::Platform::Steam && !g.hidden).cloned());
+        if let Some(g) = game {
+            println!("Essai : notification de {} : {}", g.title, notify_user(&app, notify::download_note(&g.id, &g.title, true)));
+        }
+        let note = notify::Note {
+            kind: notify::Kind::LowDisk,
+            key: format!("essai:{}", notify::now()),
+            title: "Disque E: presque plein (essai)".into(),
+            body: "Notification d'essai de Ludex : un clic ouvre le Stockage.".into(),
+            target: notify::Target::Storage,
+        };
+        println!("Essai : notification du disque : {}", notify_user(&app, note));
+    });
+}
+
 fn autostart_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
     app.try_state::<AutoLaunchManager>().is_some_and(|m| m.is_enabled().unwrap_or(false))
 }
@@ -2391,6 +2420,8 @@ pub fn run() {
             let clicks = app.handle().clone();
             let notes_dir = app.state::<AppState>().data_dir.clone();
             app.manage(notify::Notifier::spawn(&notes_dir, move |target| notification_clicked(&clicks, target)));
+            #[cfg(feature = "notify-preview")]
+            notify_preview(app.handle());
             // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
             let welcome = welcome::Welcome::detect(&app.state::<AppState>());
             app.manage(welcome);

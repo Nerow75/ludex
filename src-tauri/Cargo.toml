@@ -45,6 +45,10 @@ zip = { version = "9", default-features = false }
 # Affichage forcé de l'écran de premier lancement par `LUDEX_WELCOME=1` dans une build de release
 # (vérification à l'écran). Jamais dans une build publiée ; en debug, la variable suffit.
 welcome-preview = []
+# Essai des notifications Windows dans une build de release : `LUDEX_NOTIFY_PREVIEW=1` envoie,
+# 15 s après le premier scan, la notification de fin de téléchargement du premier jeu Steam puis
+# celle d'un disque presque plein (règles habituelles : fenêtre sans le focus). Jamais publiée.
+notify-preview = []
 
 [target.'cfg(windows)'.dependencies]
 pelite = "0.10"
