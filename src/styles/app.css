@@ -252,6 +252,7 @@ kbd {
 .disk__games { background: var(--lx-accent); }
 .disk__other { background: color-mix(in srgb, var(--lx-text-3) 45%, transparent); }
 .disk__legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; font-size: 12px; color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
+.disk__legend span { display: inline-flex; align-items: center; gap: 6px; }
 .disk__key { display: inline-flex; align-items: center; gap: 6px; color: var(--lx-text-2); }
 .disk__key::before { content: ""; width: 8px; height: 8px; border-radius: 2px; }
 .disk__key--games::before { background: var(--lx-accent); }
