@@ -114,6 +114,10 @@ pub struct Settings {
     /// occupe la fenêtre agrandie, car certains écrans VRR (Samsung Odyssey G9) clignotent dès qu'une
     /// appli passe en plein écran. Modifiable plus tard par un écran Paramètres.
     pub couch_fullscreen: bool,
+    /// Écran de lancement « cinéma » montré au clic sur Jouer (image du jeu, logo, état de la
+    /// partie). Actif par défaut ; coupé, un simple toast comme avant. Préférence de l'utilisateur :
+    /// suit l'export.
+    pub launch_screen: bool,
     /// Écran de premier lancement déjà vu. `None` : fichier d'avant ce réglage, tranché au
     /// démarrage par `welcome.rs` (un habitué ne le voit pas).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,6 +174,7 @@ impl Default for Settings {
             auto_saves: true,
             quick_shortcut: crate::quick::DEFAULT_SHORTCUT.to_string(),
             couch_fullscreen: false,
+            launch_screen: true,
             welcome_shown: None,
             theme: Theme::Dark,
             disabled_sources: Vec::new(),
@@ -597,14 +602,14 @@ mod tests {
         let s = UserData::default().settings;
         assert!(s.keep_in_tray && !s.launch_at_startup && !s.tray_hint_shown);
         assert!(s.auto_saves && s.saves_dir.is_none() && s.data_dir.is_none() && s.welcome_shown.is_none());
-        assert!(!s.couch_fullscreen);
+        assert!(!s.couch_fullscreen && s.launch_screen);
         assert_eq!(s.quick_shortcut, "Alt+Space");
         assert!(!UserData::default().has_history());
         // Fichier d'avant les réglages, ou réglages incomplets : valeurs par défaut.
         let old: UserData = serde_json::from_str(r#"{"favorites":["steam:730"]}"#).unwrap();
         assert_eq!(old.settings, Settings::default());
         let partial: UserData = serde_json::from_str(r#"{"settings":{"launchAtStartup":true}}"#).unwrap();
-        assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup);
+        assert!(partial.settings.keep_in_tray && partial.settings.launch_at_startup && partial.settings.launch_screen);
         assert_eq!(partial.settings.quick_shortcut, "Alt+Space");
         // Raccourci désactivé par l'utilisateur : la chaîne vide est gardée telle quelle.
         let off: UserData = serde_json::from_str(r#"{"settings":{"quickShortcut":""}}"#).unwrap();
@@ -768,6 +773,7 @@ mod tests {
         data.settings.quick_shortcut = "Ctrl+Shift+L".to_string();
         data.settings.welcome_shown = Some(true);
         data.settings.couch_fullscreen = true;
+        data.settings.launch_screen = false;
         data.save(&path).unwrap();
         let loaded = UserData::load(&path);
         assert!(loaded.favorites.contains("steam:730"));

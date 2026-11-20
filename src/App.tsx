@@ -13,6 +13,8 @@ import {
   getCollections,
   installUpdate,
   launchGame,
+  onSettingsChanged,
+  settings as readSettings,
   onGameArt,
   onGameDetails,
   onGameSize,
@@ -112,6 +114,7 @@ import { SettingsView } from "./components/SettingsView";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
 import CouchMode from "./components/CouchMode";
+import { LaunchScreen } from "./components/LaunchScreen";
 import { WindowControls } from "./components/WindowControls";
 
 interface Toast {
@@ -187,6 +190,15 @@ export default function App() {
   const [ambient, setAmbient] = useState<string | null>(null);
   /** Jeux lancés depuis Ludex dont un processus tourne. */
   const [playing, setPlaying] = useState<ReadonlySet<string>>(() => new Set());
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  /** Écran de lancement : réglage des Paramètres (vrai par défaut), puis lancement affiché. */
+  const launchScreenOn = useRef(true);
+  const [launching, setLaunching] = useState<{ id: string; key: number; alreadyPlaying: boolean; error: string | null } | null>(null);
+  const launchingRef = useRef(launching);
+  launchingRef.current = launching;
+  /** Fermeture de l'écran de lancement depuis la manette (posée par LaunchScreen). */
+  const launchClose = useRef<(() => void) | null>(null);
   const toastTimer = useRef<number>(undefined);
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
@@ -508,13 +520,28 @@ export default function App() {
       .catch(() => {}); // sans réponse, pas d'écran d'accueil : la bibliothèque reste utilisable
   }, []);
 
+  // Réglage « Écran de lancement », gardé côté Rust : relu au démarrage et à chaque changement.
+  useEffect(() => {
+    readSettings()
+      .then((s) => (launchScreenOn.current = s.launchScreen))
+      .catch(() => {}); // sans réponse, l'écran reste actif (défaut)
+    const unlisten = onSettingsChanged((s) => (launchScreenOn.current = s.launchScreen));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, []);
+
   const play = useCallback(async (game: Game) => {
     setSelectedId(game.id);
-    showToast({ spin: true, title: `Lancement de ${game.title}`, detail: `via ${PLATFORM_LABEL[game.platform]} · ${game.launchLabel}` });
+    // Écran de lancement par-dessus l'app, sinon le toast d'avant. `key` distingue deux lancements.
+    const key = Date.now();
+    const screen = launchScreenOn.current;
+    if (screen) setLaunching({ id: game.id, key, alreadyPlaying: playingRef.current.has(game.id), error: null });
+    else showToast({ spin: true, title: `Lancement de ${game.title}`, detail: `via ${PLATFORM_LABEL[game.platform]} · ${game.launchLabel}` });
     try {
       patchGame(game.id, { lastPlayed: await launchGame(game.id) });
     } catch (e) {
-      showToast({ title: `Impossible de lancer ${game.title}`, detail: String(e), error: true }, 6000);
+      // Écran encore ouvert pour ce lancement : l'erreur y est affichée ; sinon (fermé entre-temps) un toast.
+      if (screen && launchingRef.current?.key === key) setLaunching((l) => (l?.key === key ? { ...l, error: String(e) } : l));
+      else showToast({ title: `Impossible de lancer ${game.title}`, detail: String(e), error: true }, 6000);
     }
   }, [patchGame, showToast]);
 
@@ -1143,6 +1170,11 @@ export default function App() {
   const padConnected = useGamepad((action) => {
     setPadHints(true);
     const s = live.current;
+    // Écran de lancement : n'importe quel bouton le ferme.
+    if (launchingRef.current) {
+      launchClose.current?.();
+      return;
+    }
     // Mode canapé : il a ses propres actions (A jouer, X fiche, LB/RB rangée, B retour…).
     if (couchOpen.current) {
       const a = couchPadAction(action);
@@ -1639,6 +1671,17 @@ export default function App() {
           onExit={leaveCouch}
           onFullscreen={couchFullscreen}
           control={couchControl}
+        />
+      )}
+
+      {launching && games.some((g) => g.id === launching.id) && (
+        <LaunchScreen
+          key={launching.key}
+          game={games.find((g) => g.id === launching.id)!}
+          alreadyPlaying={launching.alreadyPlaying}
+          error={launching.error}
+          closeRef={launchClose}
+          onClosed={() => setLaunching((l) => (l?.key === launching.key ? null : l))}
         />
       )}
 

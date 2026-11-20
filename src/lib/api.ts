@@ -821,6 +821,8 @@ export interface SettingsInfo {
   /** Dossier des copies de sauvegardes (affichage seulement). */
   savesDir: string;
   autoSaves: boolean;
+  /** Écran de lancement « cinéma » au clic sur Jouer (vrai par défaut). */
+  launchScreen: boolean;
   disabledSources: Platform[];
   /** Jeux masqués par l'utilisateur (outils masqués d'office non compris). */
   hiddenGames: number;
@@ -846,6 +848,7 @@ export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quic
 export const pauseQuickShortcut = (paused: boolean) => invoke<void>("pause_quick_shortcut", { paused });
 export const setLaunchAtStartup = (value: boolean) => invoke<SettingsInfo>("set_launch_at_startup", { value });
 export const setKeepInTray = (value: boolean) => invoke<SettingsInfo>("set_keep_in_tray", { value });
+export const setLaunchScreen = (value: boolean) => invoke<SettingsInfo>("set_launch_screen", { value });
 /** Active ou désactive un launcher, puis rescanne : bibliothèque relue. */
 export const setSourceEnabled = (platform: Platform, value: boolean) => invoke<ScanResult>("set_source_enabled", { platform, value });
 /** Ré-affiche les jeux masqués par l'utilisateur ; renvoie leurs ids. */

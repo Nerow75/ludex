@@ -15,6 +15,7 @@ import {
   setAutoSaves,
   setKeepInTray,
   setLaunchAtStartup,
+  setLaunchScreen,
   setNotification,
   setQuickShortcut,
   setSourceEnabled,
@@ -332,6 +333,12 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 ))}
               </div>
             </div>
+            <Switch
+              label="Écran de lancement"
+              detail="Au clic sur Jouer, l'image du jeu occupe la fenêtre jusqu'à son ouverture. N'importe quelle touche le ferme."
+              checked={info.launchScreen}
+              onChange={(v) => toggle({ launchScreen: v }, () => setLaunchScreen(v))}
+            />
           </section>
 
           <section className="set__group" aria-labelledby="set-quick">
