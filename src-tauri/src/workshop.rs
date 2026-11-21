@@ -238,12 +238,12 @@ pub struct Info {
 /// Lit la réponse de `GetPublishedFileDetails`. Seuls les ids demandés sont gardés ; `None` pour un
 /// mod que l'API ne décrit pas (retiré, privé : `result` différent de 1).
 pub fn parse_details(body: &str, asked: &[u64]) -> Result<HashMap<u64, Option<Info>>, String> {
-    let value: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("réponse illisible : {e}"))?;
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|e| tr!("réponse illisible : {e}", "unreadable response: {e}"))?;
     let list = value
         .get("response")
         .and_then(|r| r.get("publishedfiledetails"))
         .and_then(|d| d.as_array())
-        .ok_or("réponse sans publishedfiledetails")?;
+        .ok_or_else(|| tr!("réponse sans publishedfiledetails", "response without publishedfiledetails"))?;
     let mut out = HashMap::new();
     for item in list {
         let Some(id) = item.get("publishedfileid").and_then(|v| v.as_str()).and_then(parse_id) else { continue };
@@ -275,7 +275,7 @@ pub fn request(ids: &[u64]) -> Result<HashMap<u64, Option<Info>>, String> {
     form.extend(keys.iter().map(String::as_str).zip(values.iter().map(String::as_str)));
     let response = agent.post(DETAILS_URL).send_form(&form).map_err(|e| e.to_string())?;
     if response.status() != 200 {
-        return Err(format!("réponse {}", response.status()));
+        return Err(tr!("réponse {}", "response {}", response.status()));
     }
     let mut body = String::new();
     std::io::Read::read_to_string(&mut std::io::Read::take(response.into_reader(), MAX_BODY), &mut body).map_err(|e| e.to_string())?;

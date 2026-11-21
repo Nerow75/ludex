@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { WorkshopMod } from "./api";
 import { modDetail, modsSummary, modTitle } from "./workshop";
 
@@ -36,5 +37,21 @@ describe("modDetail", () => {
 
   it("signale un dossier absent", () => {
     expect(modDetail(mod({ present: false, updated: null }))).toBe("Dossier absent");
+  });
+});
+
+describe("textes des mods en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("titre, résumé et ligne d'un mod", () => {
+    setLang("en");
+    expect(modTitle(mod({ title: null }))).toBe("Mod 2824688072");
+    // La taille vient de `formatBytes` (format.ts) : seule la phrase de Ludex est vérifiée ici.
+    expect(modsSummary({ mods: [mod()], total: 404_391_973, folder: true, stale: false })).toMatch(/^1 mod installed, \S/);
+    const list = [mod(), mod({ id: "1", pending: true }), mod({ id: "2", pending: true })];
+    expect(modsSummary({ mods: list, total: 3_300_000_000, folder: true, stale: false })).toMatch(/^3 mods installed, .+, 2 need an update$/);
+    expect(modsSummary({ mods: [mod({ pending: true })], total: 1, folder: true, stale: false })).toMatch(/, 1 needs an update$/);
+    expect(modDetail(mod({ present: false, updated: null }))).toBe("Folder missing");
+    expect(modDetail(mod())).toMatch(/ · updated /);
   });
 });

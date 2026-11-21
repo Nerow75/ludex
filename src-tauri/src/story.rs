@@ -25,21 +25,21 @@ const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'];
 /// Vérifie les octets : signature PNG, premier bloc `IHDR` de 13 octets, 1080 × 1920, taille.
 pub fn check_png(bytes: &[u8]) -> Result<(), String> {
     if bytes.len() > MAX_BYTES {
-        return Err("Image trop lourde.".into());
+        return Err(tr!("Image trop lourde.", "Image too large."));
     }
     if bytes.len() < 33 || bytes[..8] != SIGNATURE {
-        return Err("Ce n'est pas une image PNG.".into());
+        return Err(tr!("Ce n'est pas une image PNG.", "This isn't a PNG image."));
     }
     let be = |at: usize| u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
     if be(8) != 13 || &bytes[12..16] != b"IHDR" {
-        return Err("Image PNG illisible.".into());
+        return Err(tr!("Image PNG illisible.", "Unreadable PNG image."));
     }
     if be(16) != WIDTH || be(20) != HEIGHT {
-        return Err(format!("L'image doit mesurer {WIDTH} × {HEIGHT} pixels."));
+        return Err(tr!("L'image doit mesurer {WIDTH} × {HEIGHT} pixels.", "The image must be {WIDTH} × {HEIGHT} pixels."));
     }
     // Fin du fichier : le bloc `IEND` (image complète).
     if bytes.len() < 12 || &bytes[bytes.len() - 8..bytes.len() - 4] != b"IEND" {
-        return Err("Image PNG incomplète.".into());
+        return Err(tr!("Image PNG incomplète.", "Incomplete PNG image."));
     }
     Ok(())
 }
@@ -51,7 +51,7 @@ fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
-    result.map_err(|e| format!("Écriture impossible : {e}"))
+    result.map_err(|e| tr!("Écriture impossible : {e}", "Couldn't write the file: {e}"))
 }
 
 /// Nom proposé dans le sélecteur.
@@ -63,7 +63,7 @@ fn file_name(stamp: &str) -> String {
 /// sélecteur natif est ouvert ici ; renvoie le nom du fichier écrit (sans dossier), `None` si annulé.
 #[tauri::command]
 pub async fn save_story_image(window: WebviewWindow, request: Request<'_>) -> Result<Option<String>, String> {
-    let InvokeBody::Raw(bytes) = request.body() else { return Err("Image attendue.".into()) };
+    let InvokeBody::Raw(bytes) = request.body() else { return Err(tr!("Image attendue.", "Image expected.")) };
     check_png(bytes)?;
     let bytes = bytes.clone();
     blocking(move || {
@@ -71,15 +71,15 @@ pub async fn save_story_image(window: WebviewWindow, request: Request<'_>) -> Re
         let picked = window
             .dialog()
             .file()
-            .set_title("Enregistrer la page en image")
-            .add_filter("Image PNG", &["png"])
+            .set_title(tr!("Enregistrer la page en image", "Save the page as an image"))
+            .add_filter(tr!("Image PNG", "PNG image"), &["png"])
             .set_file_name(&name)
             .set_parent(&window)
             .blocking_save_file()
             .and_then(|f| f.into_path().ok());
         let Some(mut path) = picked else { return Ok(None) };
         if !path.is_absolute() {
-            return Err("Chemin invalide.".into());
+            return Err(tr!("Chemin invalide.", "Invalid path."));
         }
         if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) {
             let mut text = path.into_os_string();

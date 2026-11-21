@@ -170,7 +170,7 @@ pub async fn set_language(app: AppHandle, language: Language) -> Result<ScanResu
 #[tauri::command]
 pub fn set_quick_shortcut(app: AppHandle, text: String) -> Result<SettingsInfo, String> {
     if text.len() > MAX_SHORTCUT {
-        return Err("Raccourci trop long.".into());
+        return Err(tr!("Raccourci trop long.", "Shortcut too long."));
     }
     let text = text.trim().to_string();
     let previous = lock(&app.state::<AppState>().data)?.settings.quick_shortcut.clone();

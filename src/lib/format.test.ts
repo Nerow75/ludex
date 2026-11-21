@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLang } from "./i18n";
 import {
   argsExample,
   cleanTitle,
@@ -12,6 +13,7 @@ import {
   formatPercent,
   formatPlaytime,
   formatSize,
+  genreLabel,
   installBadge,
   installNote,
   norm,
@@ -243,5 +245,92 @@ describe("argsExample", () => {
   it("propose des options Steam ou d'exécutable", () => {
     expect(argsExample("steam")).toContain("+fps_max");
     expect(argsExample("other")).toBe("-windowed -dx11");
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+  const il_y_a = (secs: number) => relativeTime(maintenant() - secs);
+  // 10 décembre 2020, 14:23 à Paris.
+  const ts = Date.UTC(2020, 11, 10, 13, 23) / 1000;
+
+  it("relativeTime", () => {
+    setLang("en");
+    expect(relativeTime(null)).toBe("Never launched");
+    expect(il_y_a(30)).toBe("just now");
+    expect(il_y_a(5 * 60)).toBe("5 min ago");
+    expect(il_y_a(3 * 3600)).toBe("3 h ago");
+    expect(il_y_a(JOUR)).toBe("yesterday");
+    expect(il_y_a(5 * JOUR)).toBe("5 days ago");
+    expect(il_y_a(35 * JOUR)).toBe("1 month ago");
+    expect(il_y_a(90 * JOUR)).toBe("3 months ago");
+    expect(il_y_a(400 * JOUR)).toBe("over a year ago");
+  });
+  it("temps de jeu et durées", () => {
+    setLang("en");
+    expect(formatPlaytime(null)).toBe("Not tracked");
+    expect(formatPlaytime(0)).toBe("Never played");
+    expect(formatPlaytime(45)).toBe("45 min");
+    expect(formatPlaytime(150)).toBe("2.5 h");
+    expect(formatPlaytime(1240 * 60)).toBe("1,240 h");
+    expect(formatDuration(45 * 60)).toBe("45 min");
+    expect(formatDuration(80 * 60)).toBe("1h 20m");
+    expect(formatDuration(65 * 60)).toBe("1h 5m");
+    expect(formatDuration(3 * 3600)).toBe("3h");
+  });
+  it("tailles, succès et pourcentages", () => {
+    setLang("en");
+    expect(formatSize(null)).toBe("Unknown");
+    expect(formatSize(350e6)).toBe("350 MB");
+    expect(formatSize(1.54e9)).toBe("1.5 GB");
+    expect(formatSize(2.3e12)).toBe("2.3 TB");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(12_300)).toBe("12 KB");
+    expect(formatBytes(1_400_000)).toBe("1.4 MB");
+    expect(formatBytes(2.1e9)).toBe("2.1 GB");
+    expect(formatAchievements(1328, 1328)).toBe("1,328 / 1,328");
+    expect(formatPercent(0.05)).toBe("less than 0.1%");
+    expect(formatPercent(0.34)).toBe("0.3%");
+    expect(formatPercent(12.4)).toBe("12%");
+  });
+  it("état d'installation", () => {
+    setLang("en");
+    expect(installBadge({ kind: "update_required" })).toBe("Update required");
+    expect(installBadge({ kind: "queued" })).toBe("Queued");
+    expect(installBadge({ kind: "updating", progress: 42 })).toBe("Downloading 42%");
+    expect(installBadge({ kind: "paused", progress: null })).toBe("Paused");
+    expect(installBadge({ kind: "incomplete" })).toBe("Incomplete install");
+    expect(installNote({ kind: "update_required" }, "Steam")).toBe("Update required: Steam will run it at launch");
+    expect(installNote({ kind: "queued" }, "Steam")).toBe("Update queued in Steam");
+    expect(installNote({ kind: "updating", progress: 7 }, "Steam")).toBe("Downloading 7%");
+    expect(installNote({ kind: "paused", progress: 7 }, "Epic Games")).toBe("Update paused at 7%: Epic Games will resume it at launch");
+    expect(installNote({ kind: "incomplete" }, "Epic Games")).toBe("Incomplete install: Epic Games will finish it at launch");
+  });
+  it("dates", () => {
+    setLang("en");
+    expect(formatDate(ts)).toBe("December 10, 2020");
+    expect(espaces(formatDateTime(ts))).toBe("December 10, 2020 at 02:23 PM");
+    expect(espaces(formatClock(ts))).toBe("02:23 PM");
+    expect(formatDay("2026-11-18")).toBe("Wednesday, November 18, 2026");
+    expect(relativeDay("2026-11-19")).toBe("Today");
+    expect(relativeDay("2026-11-18")).toBe("Yesterday");
+    expect(relativeDay("2026-11-14")).toBe("5 days ago");
+    expect(relativeDay("2026-10-20")).toBe("1 month ago");
+    expect(relativeDay("2026-08-19")).toBe("3 months ago");
+    expect(relativeDay("2025-11-01")).toBe("1 year ago");
+    expect(relativeDay("2023-11-19")).toBe("3 years ago");
+  });
+  it("revient au français", () => {
+    setLang("en");
+    expect(formatSize(1.54e9)).toBe("1.5 GB");
+    setLang("fr");
+    expect(formatSize(1.54e9)).toBe("1,5 Go");
+    expect(formatDate(ts)).toBe("10 décembre 2020");
+  });
+  it("genreLabel", () => {
+    expect(genreLabel("Course")).toBe("Course");
+    setLang("en");
+    expect(genreLabel("Course")).toBe("Racing");
+    expect(genreLabel("Inconnu")).toBe("Inconnu");
   });
 });

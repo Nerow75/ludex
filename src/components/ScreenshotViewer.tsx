@@ -3,13 +3,14 @@ import { createPortal } from "react-dom";
 import { showScreenshot, type Screenshot } from "../lib/api";
 import { positionText } from "../lib/a11y";
 import { formatDateTime, formatSize } from "../lib/format";
+import { t } from "../lib/i18n";
 import { trapTab } from "./focus";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlayIcon } from "./Icons";
 
 /** Origine lisible d'une capture : « Steam », « Steam, appid 244210 » (jeu désinstallé), « Xbox Game Bar ». */
 function sourceLabel(shot: Screenshot): string {
   if (shot.source === "gamebar") return "Xbox Game Bar";
-  return shot.gameId || !shot.steamAppid ? "Steam" : `Steam, appid ${shot.steamAppid}`;
+  return shot.gameId || !shot.steamAppid ? "Steam" : t.extras.viewer.steamAppid(shot.steamAppid);
 }
 
 /** « 12 mars 2025 à 14:23 · 2560 × 1440 · 3 Mo · Steam ». */
@@ -31,7 +32,7 @@ interface TileProps {
 /** Vignette d'une capture : la miniature (Steam) ou l'image, jamais la pleine taille d'une vidéo. */
 export function ShotTile({ shot, label, onOpen, more, nav }: TileProps) {
   return (
-    <button type="button" className="shot" data-nav={nav || undefined} onClick={onOpen} aria-label={more ? `${label}, et ${more} autres` : label} title={shotMeta(shot)}>
+    <button type="button" className="shot" data-nav={nav || undefined} onClick={onOpen} aria-label={more ? t.extras.viewer.andMore(label, more) : label} title={shotMeta(shot)}>
       {shot.video ? (
         <span className="shot__video"><PlayIcon /></span>
       ) : (
@@ -111,13 +112,14 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
 
   const reveal = () => showScreenshot(shot).catch((e) => setError(String(e)));
 
+  const text = t.extras.viewer;
   return createPortal(
     <div
       className="viewer"
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={`Captures de ${title}`}
+      aria-label={text.dialog(title)}
       // Un portail remonte les événements React à ses parents (fiche, grille) : ils s'arrêtent ici.
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -127,11 +129,11 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
         <span className="viewer__title">{title}</span>
         <span className="viewer__count" aria-hidden="true">{index + 1} / {shots.length}</span>
         {/* Annonce de la capture affichée à chaque flèche (le compteur visible « 1 / 128 » se lit mal). */}
-        <span className="sr-only" aria-live="polite">{positionText("Capture", index, shots.length)}</span>
-        <button type="button" className="btn-icon" aria-label="Ouvrir le dossier" title="Ouvrir le dossier de la capture" onClick={reveal}>
+        <span className="sr-only" aria-live="polite">{positionText(text.shot, index, shots.length)}</span>
+        <button type="button" className="btn-icon" aria-label={text.openFolder} title={text.openFolderTitle} onClick={reveal}>
           <FolderIcon />
         </button>
-        <button type="button" className="btn-icon" ref={closeRef} aria-label="Fermer" title="Fermer (Échap)" onClick={onClose}>
+        <button type="button" className="btn-icon" ref={closeRef} aria-label={text.close} title={text.closeTitle} onClick={onClose}>
           <CloseIcon />
         </button>
       </header>
@@ -139,8 +141,8 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
         <button
           type="button"
           className="viewer__nav"
-          aria-label="Capture précédente"
-          title="Précédente (←)"
+          aria-label={text.prev}
+          title={text.prevTitle}
           disabled={index === 0}
           onClick={() => onIndex(index - 1)}
         >
@@ -149,13 +151,13 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
         {shot.video ? (
           <video key={shot.key} className="viewer__media" src={shot.url} controls autoPlay />
         ) : (
-          <img key={shot.key} className="viewer__media" src={shot.url} alt={`Capture de ${title}, ${formatDateTime(shot.taken)}`} draggable={false} />
+          <img key={shot.key} className="viewer__media" src={shot.url} alt={text.shotOf(title, formatDateTime(shot.taken))} draggable={false} />
         )}
         <button
           type="button"
           className="viewer__nav"
-          aria-label="Capture suivante"
-          title="Suivante (→)"
+          aria-label={text.next}
+          title={text.nextTitle}
           disabled={index === shots.length - 1}
           onClick={() => onIndex(index + 1)}
         >

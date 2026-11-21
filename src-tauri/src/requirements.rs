@@ -3,9 +3,10 @@
 //! Source : l'API publique de la boutique Steam `store.steampowered.com/api/appdetails` (aucun
 //! compte), champ `pc_requirements` (`minimum`, `recommended`), du HTML écrit à la main par chaque
 //! éditeur. Demandée à la demande (ouverture de la fiche), une requête à la fois, redirections
-//! refusées. Le HTML brut est gardé dans `requirements-cache.json` (dossier de données de l'app) :
-//! un appid n'est redemandé qu'au bout de 30 jours, et une réponse vide n'efface pas ce qui est
-//! connu. Il est converti ici en lignes de texte (libellé + valeur) : jamais de HTML vers le front.
+//! refusées, dans la langue de Ludex (`l=french` ou `l=english`). Le HTML brut est gardé dans un
+//! cache propre à chaque langue (dossier de données de l'app : `requirements-cache.json` en
+//! français, `requirements-cache.en.json` en anglais) : un appid n'est redemandé qu'au bout de 30
+//! jours, et une réponse vide n'efface pas ce qui est connu. Il est converti ici en lignes de texte (libellé + valeur) : jamais de HTML vers le front.
 //!
 //! Matériel (`Hardware`) lu une fois : processeur et cœurs (`sysinfo`), mémoire installée
 //! (`GetPhysicallyInstalledSystemMemory`), cartes graphiques et mémoire dédiée (DXGI), niveau
@@ -123,6 +124,10 @@ pub struct Html {
     minimum: Option<String>,
     #[serde(default)]
     recommended: Option<String>,
+    /// Langue de la requête (`request`) : une réponse n'entre jamais dans le cache d'une autre
+    /// langue (langue changée pendant la requête). `None` : inconnue (tests, cache relu).
+    #[serde(skip)]
+    lang: Option<crate::i18n::Lang>,
 }
 
 impl Html {
@@ -134,8 +139,8 @@ impl Html {
 /// Lit la réponse de `appdetails` pour un appid : `Ok(None)` si la boutique ne le connaît pas ou
 /// n'a aucune configuration PC (`pc_requirements` absent, vide ou en tableau vide).
 fn parse_response(body: &str, appid: u32) -> Result<Option<Html>, String> {
-    let value: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("réponse illisible : {e}"))?;
-    let entry = value.get(appid.to_string()).ok_or("appid absent de la réponse")?;
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|e| tr!("réponse illisible : {e}", "unreadable response: {e}"))?;
+    let entry = value.get(appid.to_string()).ok_or_else(|| tr!("appid absent de la réponse", "appid missing from the response"))?;
     if entry.get("success").and_then(|s| s.as_bool()) != Some(true) {
         return Ok(None);
     }
@@ -147,7 +152,7 @@ fn parse_response(body: &str, appid: u32) -> Result<Option<Html>, String> {
             .filter(|s| !s.is_empty() && s.len() <= MAX_HTML)
             .map(str::to_string)
     };
-    let html = Html { minimum: take("minimum"), recommended: take("recommended") };
+    let html = Html { minimum: take("minimum"), recommended: take("recommended"), lang: None };
     Ok(Some(html).filter(|h| !h.is_empty()))
 }
 
@@ -1030,14 +1035,20 @@ pub struct ReqCache {
     apps: BTreeMap<u32, Entry>,
     #[serde(skip)]
     path: PathBuf,
+    /// Langue de ce cache (celle de Ludex au chargement), `None` avant `load`.
+    #[serde(skip)]
+    lang: Option<crate::i18n::Lang>,
 }
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// Demande la fiche d'un appid à la boutique (une requête, sans redirection).
+/// Demande la fiche d'un appid à la boutique (une requête, sans redirection), dans la langue de
+/// Ludex. Toujours `Some` en cas de réponse : configuration vide si la boutique n'en a pas, marquée
+/// de la langue de la requête pour `ReqCache::record`.
 pub fn request(appid: u32) -> Result<Option<Html>, String> {
+    let lang = crate::i18n::current();
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(10))
         .redirects(0)
@@ -1046,27 +1057,35 @@ pub fn request(appid: u32) -> Result<Option<Html>, String> {
     let response = agent
         .get(APPDETAILS)
         .query("appids", &appid.to_string())
-        .query("l", "french")
+        .query("l", lang.steam())
         .query("filters", "basic")
         .call()
         .map_err(|e| e.to_string())?;
     if response.status() != 200 {
-        return Err(format!("réponse {}", response.status()));
+        let status = response.status();
+        return Err(tr!("réponse {status}", "response {status}"));
     }
     let mut body = String::new();
     std::io::Read::read_to_string(&mut std::io::Read::take(response.into_reader(), MAX_BODY), &mut body).map_err(|e| e.to_string())?;
-    parse_response(&body, appid)
+    let html = parse_response(&body, appid)?.unwrap_or_default();
+    Ok(Some(Html { lang: Some(lang), ..html }))
 }
 
 impl ReqCache {
+    /// Cache de la langue actuelle de Ludex.
     pub fn load(dir: &Path) -> Self {
-        let path = dir.join("requirements-cache.json");
+        Self::load_for(dir, crate::i18n::current())
+    }
+
+    fn load_for(dir: &Path, lang: crate::i18n::Lang) -> Self {
+        let path = crate::metadata::language_file(dir, "requirements-cache", lang);
         let mut cache: ReqCache = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         if cache.version != CACHE_VERSION {
             cache.apps.clear();
             cache.version = CACHE_VERSION;
         }
         cache.path = path;
+        cache.lang = Some(lang);
         cache
     }
 
@@ -1084,8 +1103,14 @@ impl ReqCache {
         self.apps.get(&appid).is_none_or(|e| now().saturating_sub(e.checked) > REFRESH_AFTER)
     }
 
-    /// Note la réponse. Une réponse vide n'efface pas une configuration connue.
+    /// Note la réponse. Une réponse vide n'efface pas une configuration connue. Une réponse lue
+    /// dans une autre langue que celle du cache (langue changée pendant la requête) est jetée :
+    /// l'appid reste à demander dans la langue du cache.
     pub fn record(&mut self, appid: u32, html: Option<Html>) {
+        if html.as_ref().and_then(|h| h.lang).is_some_and(|l| self.lang.is_some_and(|mine| mine != l)) {
+            return;
+        }
+        let html = html.map(|h| Html { lang: None, ..h }).filter(|h| !h.is_empty());
         let html = html.or_else(|| self.apps.get(&appid).and_then(|e| e.html.clone()));
         self.apps.insert(appid, Entry { checked: now(), html });
     }
@@ -1376,7 +1401,7 @@ mod tests {
         assert_eq!(verdict(Kind::Directx, "Version 12", &dx11, None), Verdict::Unknown);
 
         // Configuration vide : rien.
-        assert!(build(&Html { minimum: Some("<strong>Minimum:</strong>".into()), recommended: None }, &hw, None).is_none());
+        assert!(build(&Html { minimum: Some("<strong>Minimum:</strong>".into()), recommended: None, lang: None }, &hw, None).is_none());
 
         // Toutes les réponses enregistrées se lisent sans perte : chaque ligne a un texte.
         for (name, id) in [("terraria", 105600), ("cs2", 730), ("sims4", 1222670), ("rocket-league", 252950), ("wallpaper-engine", 431960), ("gtav", 271590)] {
@@ -1415,6 +1440,38 @@ mod tests {
         reloaded.version = CACHE_VERSION + 1;
         reloaded.save().unwrap();
         assert!(ReqCache::load(&dir).apps.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn one_cache_per_language() {
+        use crate::i18n::{with, Lang};
+        let dir = std::env::temp_dir().join(format!("ludex-req-lang-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let tagged = |lang: Lang| Some(Html { lang: Some(lang), ..html("cyberpunk", 1091500) });
+
+        let mut french = ReqCache::load(&dir);
+        french.record(1091500, tagged(Lang::Fr));
+        // Réponse anglaise arrivée après un changement de langue : jetée.
+        french.record(10, tagged(Lang::En));
+        assert!(!french.stale(1091500) && french.stale(10));
+        french.save().unwrap();
+        assert!(dir.join("requirements-cache.json").is_file());
+
+        with(Lang::En, || {
+            let mut english = ReqCache::load(&dir);
+            assert!(english.stale(1091500), "le cache anglais ne reprend pas le français");
+            english.record(1091500, tagged(Lang::En));
+            english.record(10, tagged(Lang::Fr));
+            // Réponse sans configuration : rien de connu, mais la date est notée.
+            english.record(20, Some(Html { lang: Some(Lang::En), ..Html::default() }));
+            assert!(english.stale(10) && !english.stale(20));
+            assert!(english.requirements(20, &pc(), None).is_none());
+            english.save().unwrap();
+        });
+        assert!(dir.join("requirements-cache.en.json").is_file());
+        assert_eq!(ReqCache::load(&dir).apps.len(), 1);
+        assert_eq!(ReqCache::load_for(&dir, Lang::En).apps.len(), 2);
         let _ = fs::remove_dir_all(&dir);
     }
 

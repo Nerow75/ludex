@@ -2,18 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gamesCount } from "../lib/a11y";
 import { launchGame, PLATFORM_LABEL, type Game } from "../lib/api";
 import { cleanTitle, installBadge, relativeTime } from "../lib/format";
+import { t, useLang } from "../lib/i18n";
 import { hideQuick, onLibraryChanged, onQuickShow, quickGames, quickResults } from "../lib/quick";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { LudexMark } from "./Icons";
 
-const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Erreur inconnue");
+const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : t.extras.quick.unknownError);
 
 /**
  * Recherche rapide, ouverte par le raccourci global (`quick.rs`) : quelques lettres, ↑ ↓ pour
  * choisir, Entrée lance le jeu, Échap ferme. Le focus reste toujours dans le champ.
  */
 export function QuickLauncher() {
+  // Racine de la fenêtre de recherche rapide : tout se redessine au changement de langue.
+  useLang();
   const [games, setGames] = useState<Game[] | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -28,7 +31,7 @@ export function QuickLauncher() {
   const load = useCallback(() => {
     quickGames()
       .then(setGames)
-      .catch((e) => setError({ title: "Bibliothèque illisible", detail: errorText(e) }));
+      .catch((e) => setError({ title: t.extras.quick.libraryError, detail: errorText(e) }));
   }, []);
 
   useEffect(() => {
@@ -71,7 +74,7 @@ export function QuickLauncher() {
       // Rust cache la fenêtre et prévient la fenêtre principale.
       await launchGame(game.id);
     } catch (e) {
-      setError({ title: `Impossible de lancer ${cleanTitle(game.title)}`, detail: errorText(e) });
+      setError({ title: t.extras.quick.cantLaunch(cleanTitle(game.title)), detail: errorText(e) });
     } finally {
       setLaunching(null);
     }
@@ -107,13 +110,15 @@ export function QuickLauncher() {
     e.preventDefault();
   };
 
+  const text = t.extras.quick;
+  const keys = t.extras.keys;
   const empty =
     games === null
       ? null
       : games.length === 0
-        ? "Bibliothèque pas encore lue : ouvre Ludex le temps d'un scan."
+        ? text.notScanned
         : results.length === 0
-          ? `Aucun jeu pour « ${query.trim()} ».`
+          ? text.noMatch(query.trim())
           : null;
 
   return (
@@ -130,8 +135,8 @@ export function QuickLauncher() {
             setError(null);
           }}
           onKeyDown={onKey}
-          placeholder="Lancer un jeu…"
-          aria-label="Rechercher un jeu à lancer"
+          placeholder={text.placeholder}
+          aria-label={text.inputLabel}
           role="combobox"
           aria-expanded={results.length > 0}
           aria-controls="quick-list"
@@ -147,7 +152,7 @@ export function QuickLauncher() {
         </p>
       )}
       <p className="sr-only" aria-live="polite">{query.trim() ? (results.length ? gamesCount(results.length) : empty) : ""}</p>
-      <div className="quick__list" id="quick-list" role="listbox" aria-label={query.trim() ? "Résultats" : "Derniers jeux joués"} ref={list}>
+      <div className="quick__list" id="quick-list" role="listbox" aria-label={query.trim() ? text.results : text.recent} ref={list}>
         {empty && <p className="quick__empty">{empty}</p>}
         {results.map((g, i) => {
           const badge = installBadge(g.installState);
@@ -172,20 +177,20 @@ export function QuickLauncher() {
                 </span>
               </span>
               {/* « Entrée » est une aide visuelle : hors du nom de l'option ; « Lancement… » reste lu. */}
-              <kbd className="quick__enter" aria-hidden={launching !== g.id}>{launching === g.id ? "Lancement…" : "Entrée"}</kbd>
+              <kbd className="quick__enter" aria-hidden={launching !== g.id}>{launching === g.id ? text.launching : keys.enter}</kbd>
             </div>
           );
         })}
       </div>
       <div className="quick__keys" aria-hidden>
         <span>
-          <kbd>↑</kbd> <kbd>↓</kbd> choisir
+          <kbd>↑</kbd> <kbd>↓</kbd> {text.choose}
         </span>
         <span>
-          <kbd>Entrée</kbd> jouer
+          <kbd>{keys.enter}</kbd> {text.play}
         </span>
         <span>
-          <kbd>Échap</kbd> fermer
+          <kbd>{keys.esc}</kbd> {text.close}
         </span>
       </div>
     </div>

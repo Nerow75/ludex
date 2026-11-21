@@ -17,15 +17,23 @@
 use crate::history::PastSession;
 use crate::library::Achievement;
 use crate::recap::{local_day, pieces, to_date, to_day, unique, Zone};
-use crate::screenshots::{Shot, OTHER_TITLE};
+use crate::screenshots::{Shot, other_title};
+#[cfg(test)]
+use crate::screenshots::OTHER_TITLE;
 use chrono::{Datelike, NaiveDate};
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
 
 /// Jours actifs par page.
 pub const PAGE_DAYS: usize = 30;
-/// Titre d'un jeu de l'historique qui n'est plus dans la bibliothèque (désinstallé).
+/// Titre d'un jeu de l'historique qui n'est plus dans la bibliothèque (désinstallé), en français.
+#[cfg(test)]
 pub const MISSING_TITLE: &str = "Jeu absent de la bibliothèque";
+
+/// Titre d'un jeu de l'historique qui n'est plus dans la bibliothèque, dans la langue de Ludex.
+pub fn missing_title() -> String {
+    tr!("Jeu absent de la bibliothèque", "Game no longer in the library")
+}
 
 /// Morceau d'une session dans un jour.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -101,7 +109,7 @@ fn instant(utc: u64) -> i64 {
 fn slot_of<'a>(days: &'a mut HashMap<(i64, Option<String>), DayGame>, title: &impl Fn(&str) -> Option<String>, day: i64, id: Option<&str>) -> &'a mut DayGame {
     days.entry((day, id.map(str::to_string))).or_insert_with(|| DayGame {
         game_id: id.map(str::to_string),
-        title: id.map_or_else(|| OTHER_TITLE.to_string(), |id| title(id).unwrap_or_else(|| MISSING_TITLE.to_string())),
+        title: id.map_or_else(other_title, |id| title(id).unwrap_or_else(missing_title)),
         secs: 0,
         sessions: Vec::new(),
         unlocked: 0,

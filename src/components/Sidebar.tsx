@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { MAX_COLLECTION_NAME, recentPlaytime, type Game, type RecentPlaytime } from "../lib/api";
 import { formatPlaytime, relativeTime } from "../lib/format";
-import { groupOpen, MINE_GROUP, OPEN_GROUPS_DEFAULT, sideGroups, type Section } from "../lib/sections";
+import { t } from "../lib/i18n";
+import { ACTIVITY_GROUP, groupOpen, MEMORIES_GROUP, MINE_GROUP, OPEN_GROUPS_DEFAULT, sideGroups, STEAM_GROUP, TOOLS_GROUP, type Section } from "../lib/sections";
 import { ChevronRightIcon, PlusIcon, SidebarIcon, SlidersIcon, TvIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 
@@ -27,7 +28,23 @@ interface Props {
 }
 
 /** « 12,5 h », « 40 min », « Aucune partie ». */
-const recentText = (r: RecentPlaytime | null) => (!r ? "…" : r.secs < 60 ? "Aucune partie" : formatPlaytime(r.secs / 60));
+const recentText = (r: RecentPlaytime | null) => (!r ? "…" : r.secs < 60 ? t.library.sidebar.noSession : formatPlaytime(r.secs / 60));
+
+/**
+ * Nom affiché d'une catégorie : le nom de `sections.tsx` sert d'identifiant (retenu dans
+ * `ludex.sideGroups`), traduit ici ; une catégorie inconnue garde son nom.
+ */
+function groupLabel(group: string): string {
+  const names = t.library.sidebar.groups;
+  const known: Record<string, string> = {
+    [ACTIVITY_GROUP]: names.activity,
+    [MEMORIES_GROUP]: names.memories,
+    [TOOLS_GROUP]: names.tools,
+    [MINE_GROUP]: names.mine,
+    [STEAM_GROUP]: names.steam,
+  };
+  return Object.prototype.hasOwnProperty.call(known, group) ? known[group] : group;
+}
 
 const GROUPS_KEY = "ludex.sideGroups";
 
@@ -77,9 +94,8 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
   };
 
   const days = recent?.days ?? 14;
-  const recentTitle = recent
-    ? `${days} derniers jours : ${recentText(recent)}${recent.sessions ? `, ${recent.sessions} session${recent.sessions > 1 ? "s" : ""}` : ""}. Parties lancées depuis Ludex.`
-    : undefined;
+  const side = t.library.sidebar;
+  const recentTitle = recent ? side.recentTitle(days, recentText(recent), recent.sessions) : undefined;
 
   const item = (s: Section) => {
     const i = sections.indexOf(s);
@@ -103,7 +119,7 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
   const fixed = sections.filter((s) => !s.group);
 
   return (
-    <nav className="side" aria-label="Sections">
+    <nav className="side" aria-label={side.nav}>
       {/* Haut de la barre : fait partie de la barre de titre (déplace la fenêtre). Pas toute la
           barre : un clic sur sa barre de défilement déplacerait la fenêtre au lieu de défiler. */}
       <div className="side__top" data-tauri-drag-region>
@@ -112,8 +128,8 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
           className="side__toggle"
           onClick={onToggle}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-          title={`${collapsed ? "Déplier" : "Replier"} la barre (Ctrl+B)`}
+          aria-label={collapsed ? side.expand : side.collapse}
+          title={collapsed ? side.expandHint : side.collapseHint}
         >
           <SidebarIcon />
         </button>
@@ -124,7 +140,7 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
         const open = collapsed || groupOpen(group, opened, sections, active);
         const members = sections.filter((s) => s.group === group);
         return (
-          <div key={group} className="side__group" role="group" aria-label={group}>
+          <div key={group} className="side__group" role="group" aria-label={groupLabel(group)}>
             {!collapsed && (
               <div className="side__head">
                 {/* Titre de la catégorie : un `.side__item` de plus pour haut et bas, Entrée l'ouvre ou la ferme. */}
@@ -136,15 +152,15 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
                   onClick={() => toggleGroup(group)}
                 >
                   <ChevronRightIcon />
-                  <span>{group}</span>
+                  <span>{groupLabel(group)}</span>
                   {!open && members.length > 0 && <em>{members.length}</em>}
                 </button>
                 {group === MINE_GROUP && (
                   <button
                     type="button"
                     className="side__add"
-                    aria-label="Nouvelle collection"
-                    title="Nouvelle collection"
+                    aria-label={side.newCollection}
+                    title={side.newCollection}
                     // Sans ceci, le clic ferme d'abord le champ (perte du focus) puis le rouvre.
                     onMouseDown={(e) => creating && e.preventDefault()}
                     onClick={() => {
@@ -165,8 +181,8 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
                     <InlineInput
                       className="side__new"
                       maxLength={MAX_COLLECTION_NAME}
-                      label="Nom de la nouvelle collection"
-                      placeholder="Nom de la collection"
+                      label={side.newCollectionLabel}
+                      placeholder={side.newCollectionPlaceholder}
                       onSubmit={onCreateCollection}
                       onDone={() => setCreating(false)}
                     />
@@ -178,17 +194,17 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
         );
       })}
       <div className="side__foot">
-        <button type="button" className="side__couch" onClick={onCouch} aria-label="Mode canapé" title="Mode canapé, pour la TV (F11)">
+        <button type="button" className="side__couch" onClick={onCouch} aria-label={side.couch} title={side.couchHint}>
           <TvIcon />
-          <span>Mode canapé</span>
+          <span>{side.couch}</span>
         </button>
         {/* Petites stats : temps des derniers jours, sessions et jeux, puis le dernier jeu lancé en une ligne. */}
         <div className="side__stats" title={recentTitle}>
-          <small>{days} derniers jours</small>
+          <small>{side.lastDays(days)}</small>
           <b>{recentText(recent)}</b>
           {recent && recent.sessions > 0 && (
             <span>
-              {recent.sessions} session{recent.sessions > 1 ? "s" : ""} · {recent.games} jeu{recent.games > 1 ? "x" : ""}
+              {side.sessions(recent.sessions)} · {t.library.gameCount(recent.games)}
             </span>
           )}
         </div>
@@ -197,10 +213,10 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
             type="button"
             className="side__last"
             onClick={() => onOpenGame(lastGame)}
-            aria-label={`Dernier jeu lancé : ${lastGame.title}, ouvrir sa fiche`}
+            aria-label={side.lastLaunchedLabel(lastGame.title)}
             title={`${lastGame.title}, ${relativeTime(lastGame.lastPlayed)}`}
           >
-            <small>Dernier lancé</small>
+            <small>{side.lastLaunched}</small>
             <b>{lastGame.title}</b>
           </button>
         )}
@@ -210,12 +226,12 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
           className="side__item"
           data-section="settings"
           aria-current={settingsActive ? "page" : undefined}
-          aria-label="Paramètres"
-          title="Paramètres (Ctrl+,)"
+          aria-label={side.settings}
+          title={side.settingsHint}
           onClick={onSettings}
         >
           <SlidersIcon />
-          <span>Paramètres</span>
+          <span>{side.settings}</span>
         </button>
       </div>
     </nav>

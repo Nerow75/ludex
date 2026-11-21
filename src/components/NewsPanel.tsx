@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { gameNews, openNews, type Game, type News, type NewsBlock, type NewsSpan } from "../lib/api";
 import { formatDateTime, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { isNewNews } from "../lib/news";
 import { ChevronRightIcon, ExternalIcon } from "./Icons";
 
@@ -31,7 +32,7 @@ function Spans({ spans, open }: { spans: NewsSpan[]; open: (link: number) => voi
         if (s.link === undefined) return <span key={i} className={cls}>{s.text}</span>;
         const link = s.link;
         return (
-          <button key={i} type="button" className={`news__link${cls ? ` ${cls}` : ""}`} data-nav title="Ouvrir sur Steam" onClick={() => open(link)}>
+          <button key={i} type="button" className={`news__link${cls ? ` ${cls}` : ""}`} data-nav title={t.fiche.news.openOnSteam} onClick={() => open(link)}>
             {s.text}
           </button>
         );
@@ -80,8 +81,8 @@ function NewsItem({ game, news, open, onToggle }: { game: Game; news: News; open
           <span className="news__title">{news.title}</span>
           <span className="news__meta">
             <span title={formatDateTime(news.date)}>{relativeTime(news.date)}</span>
-            {news.update && <span>Notes de mise à jour</span>}
-            {fresh && <span className="news__new">Nouveau</span>}
+            {news.update && <span>{t.fiche.news.patchNotes}</span>}
+            {fresh && <span className="news__new">{t.fiche.news.fresh}</span>}
           </span>
           {!open && news.excerpt && <span className="news__excerpt">{news.excerpt}</span>}
         </span>
@@ -93,7 +94,7 @@ function NewsItem({ game, news, open, onToggle }: { game: Game; news: News; open
           <div className="news__foot">
             {news.author && <span className="news__author">{news.author}</span>}
             <button type="button" className="btn-ghost news__steam" data-nav onClick={() => go(null)}>
-              <ExternalIcon /> Lire sur Steam
+              <ExternalIcon /> {t.fiche.news.readOnSteam}
             </button>
           </div>
           {error && <p className="news__error" role="alert">{error}</p>}
@@ -120,12 +121,12 @@ export function NewsTab({ game, news }: { game: Game; news: News[] | null }) {
       alive = false;
     };
   }, [game.id]);
-  if (!list) return <p className="fiche__note">Lecture des actualités…</p>;
-  if (list.length === 0) return <p className="fiche__note">Aucune annonce du studio pour l'instant</p>;
+  if (!list) return <p className="fiche__note">{t.fiche.news.loading}</p>;
+  if (list.length === 0) return <p className="fiche__note">{t.fiche.news.empty}</p>;
   return (
     <>
-      <p className="fiche__note">Annonces officielles publiées sur Steam, dans la langue du studio</p>
-      <ol className="news" aria-label={`Actualités de ${game.title}`}>
+      <p className="fiche__note">{t.fiche.news.intro}</p>
+      <ol className="news" aria-label={t.fiche.news.label(game.title)}>
         {list.map((n) => (
           <NewsItem key={n.gid} game={game} news={n} open={open === n.gid} onToggle={() => setOpen((o) => (o === n.gid ? null : n.gid))} />
         ))}

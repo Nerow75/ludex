@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { WishItem, WishPrice, WishSale } from "./api";
+import { setLang } from "./i18n";
 import { addedText, checkedText, formatPrice, hitPrice, lowestText, priceView, saleToast, wishLabel, wishSummary } from "./wishlist";
 import { espaces, JOUR, maintenant } from "../test/jeu";
 
@@ -8,6 +9,7 @@ beforeAll(() => {
   vi.setSystemTime(new Date("2026-11-21T12:00:00+01:00"));
 });
 afterAll(() => vi.useRealTimers());
+afterEach(() => setLang("fr"));
 
 const prix = (initial: number, final: number, discount: number, currency = "EUR"): WishPrice => ({ currency, initial, final, discount });
 
@@ -108,5 +110,55 @@ describe("saleToast", () => {
     expect(t.title).toBe("5 jeux de ta liste en promo");
     expect(t.detail).toBe("A -10 %, B -20 %, C -30 % et 2 autres.");
     expect(saleToast([])).toBeNull();
+  });
+});
+
+describe("en anglais", () => {
+  it("écrit les montants à l'anglaise, monnaie de Rust gardée", () => {
+    setLang("en");
+    expect(formatPrice(799, "EUR")).toBe("€7.99");
+    expect(formatPrice(123456, "EUR")).toBe("€1,234.56");
+    expect(formatPrice(799, "USD")).toBe("$7.99");
+    expect(formatPrice(123456, "€€€")).toBe("1,234.56 €€€");
+  });
+
+  it("prix, remise et notes", () => {
+    setLang("en");
+    const v = priceView(souhait());
+    expect([v.now, v.discount, v.was]).toEqual(["€7.99", "-80%", "€39.99"]);
+    expect(priceView(souhait({ offer: "noPrice", price: null })).note).toBe("Free or not on sale yet");
+    expect(priceView(souhait({ offer: "unavailable", price: null })).note).toBe("Not sold in France");
+    expect(priceView(souhait({ offer: "unknown", price: null })).note).toBe("Price not checked yet");
+    expect(hitPrice({ price: prix(3999, 799, 80) })).toBe("€7.99 (-80%)");
+    expect(hitPrice({ price: null })).toBe("Free or no price");
+    expect(lowestText(souhait({ lowest: prix(3999, 599, 85) }))).toBe("Lowest seen: €5.99");
+  });
+
+  it("date d'ajout, résumé et relecture", () => {
+    setLang("en");
+    expect(addedText(souhait({ added: 0 }))).toBe("Added at €39.99");
+    expect(addedText(souhait({ added: 0, addedPrice: null }))).toBe("Added");
+    expect(addedText(souhait())).toMatch(/^Added .+ at €39\.99$/);
+    expect(wishSummary([souhait()])).toBe("1 game, 1 on sale");
+    expect(wishSummary([souhait({ price: null }), souhait({ price: prix(100, 100, 0) })])).toBe("2 games");
+    expect(wishSummary([])).toBe("0 games");
+    expect(checkedText(null)).toBe("Prices are checked once a day, on the first scan of the day.");
+    expect(checkedText(maintenant() - 7200)).toMatch(/^Prices checked .+, once a day\.$/);
+  });
+
+  it("nom complet pour les lecteurs d'écran", () => {
+    setLang("en");
+    expect(wishLabel(souhait({ owned: "steam:1426210", lowest: prix(3999, 599, 85) }))).toBe(
+      "It Takes Two, €7.99, -80%, was €39.99, Lowest seen: €5.99, already yours",
+    );
+  });
+
+  it("toast des promos", () => {
+    setLang("en");
+    const promo = (title: string, discount: number): WishSale => ({ appid: 1, title, price: prix(3999, 799, discount) });
+    expect(saleToast([promo("It Takes Two", 80)])).toEqual({ title: "It Takes Two on sale: -80%", detail: "€7.99 instead of €39.99." });
+    const t = saleToast([promo("A", 10), promo("B", 20), promo("C", 30), promo("D", 40)])!;
+    expect(t.title).toBe("4 wishlist games on sale");
+    expect(t.detail).toBe("A -10%, B -20%, C -30% and 1 more.");
   });
 });

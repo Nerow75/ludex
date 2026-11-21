@@ -52,7 +52,7 @@ pub fn clean_name(raw: &str) -> Option<String> {
 
 /// Refuse un texte trop long avant même de le nettoyer.
 pub fn check_input(raw: &str) -> Result<(), String> {
-    if raw.len() > MAX_INPUT { Err("Texte trop long.".into()) } else { Ok(()) }
+    if raw.len() > MAX_INPUT { Err(tr!("Texte trop long.", "Text too long.")) } else { Ok(()) }
 }
 
 /// Nouvel id de collection, `c-<base 36>`, jamais déjà pris (ni réutilisé tant qu'il existe).

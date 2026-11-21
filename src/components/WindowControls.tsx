@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../lib/api";
+import { t } from "../lib/i18n";
 
 /* Glyphes des boutons de légende : dessinés comme ceux de Windows 11 (10 px, trait de 1 px),
    seule exception à la règle des icônes de 18 px, pour se fondre avec les autres fenêtres. */
@@ -52,22 +53,23 @@ export function WindowControls() {
     };
   }, []);
 
+  const text = t.extras.window;
   // Portail : au-dessus des autres portails (bienvenue, visionneuse), hors du contexte isolé de `.app`.
   return createPortal(
-    <div className={`caption ${focused ? "" : "is-inactive"}`} role="group" aria-label="Fenêtre">
-      <button type="button" tabIndex={-1} aria-label="Réduire" title="Réduire" onClick={() => minimizeWindow().catch(report)}>
+    <div className={`caption ${focused ? "" : "is-inactive"}`} role="group" aria-label={text.group}>
+      <button type="button" tabIndex={-1} aria-label={text.minimize} title={text.minimize} onClick={() => minimizeWindow().catch(report)}>
         <MinimizeGlyph />
       </button>
       <button
         type="button"
         tabIndex={-1}
-        aria-label={maximized ? "Restaurer" : "Agrandir"}
-        title={maximized ? "Restaurer" : "Agrandir"}
+        aria-label={maximized ? text.restore : text.maximize}
+        title={maximized ? text.restore : text.maximize}
         onClick={() => toggleMaximizeWindow().catch(report)}
       >
         {maximized ? <RestoreGlyph /> : <MaximizeGlyph />}
       </button>
-      <button type="button" tabIndex={-1} className="caption__close" aria-label="Fermer" title="Fermer" onClick={() => closeWindow().catch(report)}>
+      <button type="button" tabIndex={-1} className="caption__close" aria-label={text.close} title={text.close} onClick={() => closeWindow().catch(report)}>
         <CloseGlyph />
       </button>
     </div>,

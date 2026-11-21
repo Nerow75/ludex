@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { chooseSavesDir, onSavesBackup, savesOverview, setAutoSaves, type SavesOverview } from "../lib/api";
 import { formatBytes, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { SavesPanel } from "./SavesPanel";
 import { EmptyState } from "./States";
 
-const copies = (n: number) => (n === 0 ? "Aucune copie" : `${n} copie${n > 1 ? "s" : ""}`);
+const copies = (n: number) => t.fiche.saves.count(n);
 
 /**
  * Page « Sauvegardes » autonome : jeux de la bibliothèque dont des sauvegardes sont trouvées sur ce
@@ -52,29 +53,29 @@ export function SavesPage() {
   };
 
   return (
-    <section className="saves-page" aria-label="Sauvegardes">
+    <section className="saves-page" aria-label={t.fiche.saves.page}>
       <div className="bar">
-        <h2>Sauvegardes{overview && <span><span className="sr-only">, </span>{overview.games.length}</span>}</h2>
-        <button type="button" className="btn-ghost" onClick={chooseDir}>Changer le dossier</button>
+        <h2>{t.fiche.saves.page}{overview && <span><span className="sr-only">, </span>{overview.games.length}</span>}</h2>
+        <button type="button" className="btn-ghost" onClick={chooseDir}>{t.fiche.saves.changeDir}</button>
       </div>
       {overview && (
         <div className="saves-page__settings">
           <p className="saves__note">
-            Copies dans <span className="path" title={overview.dir}>{overview.dir}</span>, 5 gardées par jeu.
+            {t.fiche.saves.copiesIn} <span className="path" title={overview.dir}>{overview.dir}</span>{t.fiche.saves.kept}
           </p>
           <label className="saves-page__auto">
             <input type="checkbox" checked={overview.auto} onChange={(e) => toggleAuto(e.target.checked)} />
-            Copier à la fin de chaque partie lancée depuis Ludex
+            {t.fiche.saves.auto}
           </label>
-          {overview.status === "loading" && <p className="saves__note">Base des sauvegardes en cours de téléchargement.</p>}
-          {overview.status === "unavailable" && <p className="saves__note">Base des sauvegardes indisponible : vérifie la connexion.</p>}
+          {overview.status === "loading" && <p className="saves__note">{t.fiche.saves.loading}</p>}
+          {overview.status === "unavailable" && <p className="saves__note">{t.fiche.saves.unavailable}</p>}
         </div>
       )}
       {error && <p className="saves__msg is-error" role="status">{error}</p>}
-      {!overview && !error && <p className="saves__note">Recherche des sauvegardes…</p>}
+      {!overview && !error && <p className="saves__note">{t.fiche.saves.searching}</p>}
       {overview && overview.games.length === 0 && (
-        <EmptyState title="Aucune sauvegarde trouvée">
-          Ludex cherche les sauvegardes de tes jeux grâce à la base communautaire Ludusavi.
+        <EmptyState title={t.fiche.saves.emptyTitle}>
+          {t.fiche.saves.emptyText}
         </EmptyState>
       )}
       {overview && overview.games.length > 0 && (
@@ -84,10 +85,10 @@ export function SavesPage() {
               <button type="button" className="saves-page__row" aria-expanded={open === g.id} onClick={() => setOpen(open === g.id ? null : g.id)}>
                 <span className="saves-page__title">{g.title}</span>
                 <span className="saves__meta">
-                  {g.locations > 0 ? formatBytes(g.size) : "Rien sur ce PC"}
+                  {g.locations > 0 ? formatBytes(g.size) : t.fiche.saves.nothingHere}
                   {" · "}
                   {copies(g.copies)}
-                  {g.lastCopy ? `, la dernière ${relativeTime(g.lastCopy)}` : ""}
+                  {g.lastCopy ? t.fiche.saves.last(relativeTime(g.lastCopy)) : ""}
                 </span>
               </button>
               {open === g.id && <SavesPanel gameId={g.id} />}

@@ -398,7 +398,7 @@ impl ArtCache {
                             match store_search(&agent, title) {
                                 Ok(store) => store,
                                 Err(e) => {
-                                    crate::diagnostic::failed(crate::diagnostic::Service::Art, format!("Microsoft Store : {e}"));
+                                    crate::diagnostic::failed(crate::diagnostic::Service::Art, tr!("Microsoft Store : {e}", "Microsoft Store: {e}"));
                                     eprintln!("Recherche de jaquettes interrompue (Microsoft Store) : {e}");
                                     return;
                                 }

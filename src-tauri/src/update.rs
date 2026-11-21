@@ -86,9 +86,9 @@ pub fn available_update(state: State<'_, PendingUpdate>) -> Option<UpdateInfo> {
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
     if cfg!(debug_assertions) {
-        return Err("La recherche de mises à jour est coupée en développement.".into());
+        return Err(tr!("La recherche de mises à jour est coupée en développement.", "Update checks are off in development."));
     }
-    let found = check(&app).await.map_err(|e| format!("Recherche impossible : {e}"))?;
+    let found = check(&app).await.map_err(|e| tr!("Recherche impossible : {e}", "Couldn't check for updates: {e}"))?;
     if let Some(info) = &found {
         let _ = app.emit(UPDATE_EVENT, info.clone());
     }
@@ -102,17 +102,17 @@ pub async fn install_update(app: AppHandle, state: State<'_, PendingUpdate>) -> 
     let update = state
         .update
         .lock()
-        .map_err(|_| "État interne indisponible".to_string())?
+        .map_err(|_| tr!("État interne indisponible", "Internal state unavailable"))?
         .clone()
-        .ok_or("Aucune mise à jour à installer.")?;
+        .ok_or(tr_str!("Aucune mise à jour à installer.", "No update to install."))?;
     if state.installing.swap(true, Ordering::SeqCst) {
-        return Err("La mise à jour est déjà en cours.".into());
+        return Err(tr!("La mise à jour est déjà en cours.", "The update is already in progress."));
     }
     let result = update.download_and_install(|_, _| {}, || {}).await;
     state.installing.store(false, Ordering::SeqCst);
     match result {
         // Atteint seulement hors Windows : il faut relancer soi-même.
         Ok(()) => app.restart(),
-        Err(e) => Err(format!("La mise à jour a échoué : {e}")),
+        Err(e) => Err(tr!("La mise à jour a échoué : {e}", "The update failed: {e}")),
     }
 }

@@ -2,6 +2,7 @@
 // Steam, ce PC à côté, une pastille par ligne. Lue à l'ouverture de l'onglet ; cachée sans données.
 import { useEffect, useState } from "react";
 import { gameRequirements, type RequirementLine, type Requirements } from "../lib/api";
+import { t } from "../lib/i18n";
 import { REQUIREMENT_LABEL, VERDICT_LABEL, requirementRows, requirementSummary } from "../lib/requirements";
 
 function Cell({ line, column }: { line: RequirementLine | null; column: string }) {
@@ -33,27 +34,27 @@ export function RequirementsPanel({ gameId }: { gameId: string }) {
   const hasRec = req.recommended.length > 0;
   const summary = requirementSummary(req);
   return (
-    <section className="reqs" aria-label="Configuration requise">
-      <p className="fiche__label" role="heading" aria-level={3}>Configuration</p>
+    <section className="reqs" aria-label={t.fiche.reqs.label}>
+      <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.reqs.title}</p>
       {summary && <p className="reqs__summary">{summary}</p>}
-      <div className={`reqs__table ${hasRec ? "" : "is-single"}`} role="table" aria-label="Configuration requise et ce PC">
+      <div className={`reqs__table ${hasRec ? "" : "is-single"}`} role="table" aria-label={t.fiche.reqs.table}>
         <div role="row" className="reqs__row reqs__head">
-          <span role="columnheader"><span className="reqs__sr">Élément</span></span>
-          <span role="columnheader">Minimale</span>
-          {hasRec && <span role="columnheader">Recommandée</span>}
-          <span role="columnheader">Ce PC</span>
+          <span role="columnheader"><span className="reqs__sr">{t.fiche.reqs.item}</span></span>
+          <span role="columnheader">{t.fiche.reqs.min}</span>
+          {hasRec && <span role="columnheader">{t.fiche.reqs.rec}</span>}
+          <span role="columnheader">{t.fiche.reqs.thisPc}</span>
         </div>
         {rows.map((r) => (
           <div key={r.kind} role="row" className="reqs__row" data-nav tabIndex={-1}>
             <span role="rowheader" className="reqs__kind">{REQUIREMENT_LABEL[r.kind]}</span>
-            <Cell line={r.minimum} column="Minimale" />
-            {hasRec && <Cell line={r.recommended} column="Recommandée" />}
-            <span role="cell" className={`reqs__cell reqs__pc ${r.pc ? "" : "is-empty"}`} data-label="Ce PC">{r.pc ?? "·"}</span>
+            <Cell line={r.minimum} column={t.fiche.reqs.min} />
+            {hasRec && <Cell line={r.recommended} column={t.fiche.reqs.rec} />}
+            <span role="cell" className={`reqs__cell reqs__pc ${r.pc ? "" : "is-empty"}`} data-label={t.fiche.reqs.thisPc}>{r.pc ?? "·"}</span>
           </div>
         ))}
       </div>
       <p className="fiche__note">
-        Configurations de la boutique Steam. Processeur et carte graphique ne sont comparés que si la correspondance est sûre.
+        {t.fiche.reqs.note}
       </p>
     </section>
   );

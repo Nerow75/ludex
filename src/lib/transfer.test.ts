@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { previewOrigin, summaryParts, summaryText } from "./transfer";
+import { setLang } from "./i18n";
 import type { TransferSummary } from "./api";
 
 const vide: TransferSummary = {
@@ -63,5 +64,35 @@ describe("previewOrigin", () => {
 
   it("version ou date inconnues", () => {
     expect(previewOrigin({ ...base, ludexVersion: "", created: 0 })).toBe("Export de Ludex");
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("éléments au singulier ou au pluriel, milliers à l'anglaise", () => {
+    setLang("en");
+    expect(summaryParts({ ...vide, favorites: 1, covers: 2, manualGames: 1 })).toEqual(["1 favorite", "1 game added manually", "2 custom images"]);
+    expect(summaryParts({ ...vide, sessions: 1234 })[0]).toBe("1,234 sessions");
+  });
+
+  it("phrase du contenu", () => {
+    setLang("en");
+    expect(summaryText(vide)).toBe("settings only");
+    expect(summaryText({ ...vide, favorites: 3, collections: 1 })).toBe("3 favorites and 1 collection");
+    expect(summaryText({ ...vide, favorites: 3, collections: 2, statuses: 4, notes: 1, sessions: 9 })).toBe(
+      "3 favorites, 2 collections, 4 statuses, 1 note and 1 other",
+    );
+    expect(summaryText({ ...vide, favorites: 3, collections: 2, statuses: 4, notes: 1, sessions: 9, covers: 1 })).toBe(
+      "3 favorites, 2 collections, 4 statuses, 1 note and 2 others",
+    );
+  });
+
+  it("origine de l'export", () => {
+    setLang("en");
+    const base = { file: "ludex-export-2026-11-19.zip", summary: vide };
+    expect(previewOrigin({ ...base, ludexVersion: "", created: 0 })).toBe("Ludex export");
+    expect(previewOrigin({ ...base, ludexVersion: "0.2.0", created: 0 })).toBe("Ludex 0.2.0 export");
+    expect(previewOrigin({ ...base, ludexVersion: "0.2.0", created: Date.UTC(2026, 10, 19, 11) / 1000 })).toMatch(/^Ludex 0\.2\.0 export from \S/);
   });
 });

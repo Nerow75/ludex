@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { InstallEvent } from "./api";
 import { downloadDetail, installPatch, progressBar } from "./install";
 import { espaces } from "../test/jeu";
@@ -62,5 +63,16 @@ describe("downloadDetail", () => {
     expect(downloadDetail(undefined)).toBeNull();
     expect(downloadDetail({ speed: null, remaining: null })).toBeNull();
     expect(downloadDetail({ speed: 0, remaining: null })).toBeNull();
+  });
+});
+
+describe("downloadDetail en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("débit et temps restant", () => {
+    setLang("en");
+    expect(downloadDetail({ speed: 12_400_000, remaining: 180 })).toBe("12.4 MB/s · 3 min left");
+    expect(downloadDetail({ speed: 850_000, remaining: 4_800 })).toBe("850 KB/s · 1h 20m left");
+    expect(downloadDetail({ speed: null, remaining: 30 })).toBe("less than a minute");
   });
 });

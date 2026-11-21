@@ -63,20 +63,20 @@ fn is_pe(file: &mut (impl Read + Seek)) -> std::io::Result<bool> {
 /// en-tête d'exécutable Windows.
 pub fn check_exe(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
-        return Err("Chemin invalide.".into());
+        return Err(tr!("Chemin invalide.", "Invalid path."));
     }
     let is_exe = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("exe"));
     if !is_exe {
-        return Err("Choisis un fichier .exe.".into());
+        return Err(tr!("Choisis un fichier .exe.", "Pick an .exe file."));
     }
     if !path.is_file() {
-        return Err(format!("Fichier introuvable : {}", path.display()));
+        return Err(tr!("Fichier introuvable : {}", "File not found: {}", path.display()));
     }
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     match File::open(path).and_then(|mut f| is_pe(&mut f)) {
         Ok(true) => Ok(path.to_path_buf()),
-        Ok(false) => Err(format!("{name} n'est pas un exécutable Windows.")),
-        Err(e) => Err(format!("Lecture de {name} impossible : {e}")),
+        Ok(false) => Err(tr!("{name} n'est pas un exécutable Windows.", "{name} isn't a Windows executable.")),
+        Err(e) => Err(tr!("Lecture de {name} impossible : {e}", "Couldn't read {name}: {e}")),
     }
 }
 
@@ -103,7 +103,7 @@ pub fn guess_title(exe: &Path) -> String {
     let dir = game_dir(exe);
     let folder = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let title = local::product_name(exe).unwrap_or_else(|| local::fallback_title(folder, exe));
-    clean_title(&title).unwrap_or_else(|| "Jeu".into())
+    clean_title(&title).unwrap_or_else(|| tr!("Jeu", "Game"))
 }
 
 /// Caractères invisibles (largeur nulle, sens d'écriture) : jamais gardés dans un titre.

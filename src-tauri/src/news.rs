@@ -720,8 +720,8 @@ struct Item {
 
 /// Lit la réponse de `GetNewsForApp` : annonces officielles de cet appid, la plus récente d'abord.
 pub fn parse_response(body: &str, appid: u32) -> Result<Vec<Raw>, String> {
-    let response: Response = serde_json::from_str(body).map_err(|e| format!("réponse illisible : {e}"))?;
-    let Some(news) = response.appnews else { return Err("réponse sans annonces".into()) };
+    let response: Response = serde_json::from_str(body).map_err(|e| tr!("réponse illisible : {e}", "unreadable response: {e}"))?;
+    let Some(news) = response.appnews else { return Err(tr!("réponse sans annonces", "response without announcements")) };
     let mut items: Vec<Raw> = news
         .newsitems
         .into_iter()

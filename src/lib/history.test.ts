@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLang } from "./i18n";
 import { historyGroups } from "./history";
 import { jeu, JOUR, maintenant } from "../test/jeu";
 
@@ -37,5 +38,22 @@ describe("historyGroups", () => {
   it("garde l'ordre reçu dans une période", () => {
     const games = [jeu({ title: "A", lastPlayed: ilYa(8 * JOUR) }), jeu({ title: "B", lastPlayed: ilYa(20 * JOUR) })];
     expect(resume(games)).toEqual([["30 derniers jours", ["A", "B"]]]);
+  });
+});
+
+describe("historyGroups en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("libellés des périodes", () => {
+    setLang("en");
+    const games = [
+      jeu({ title: "A", lastPlayed: ilYa(3600) }),
+      jeu({ title: "B", lastPlayed: ilYa(JOUR) }),
+      jeu({ title: "C", lastPlayed: ilYa(3 * JOUR) }),
+      jeu({ title: "D", lastPlayed: ilYa(20 * JOUR) }),
+      jeu({ title: "E", lastPlayed: ilYa(90 * JOUR) }),
+      jeu({ title: "F", lastPlayed: ilYa(730 * JOUR) }),
+    ];
+    expect(resume(games).map(([label]) => label)).toEqual(["Today", "Yesterday", "Last 7 days", "Last 30 days", "Last 12 months", "Older"]);
   });
 });

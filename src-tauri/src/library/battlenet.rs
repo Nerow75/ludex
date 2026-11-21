@@ -74,7 +74,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         .filter(|g| {
             let first = seen.insert(g.platform_id.clone());
             if !first {
-                super::skip(&g.title, "Même jeu déjà vu dans un autre dossier");
+                super::skip(&g.title, tr_str!("Même jeu déjà vu dans un autre dossier", "Same game already found in another folder"));
             }
             first
         })

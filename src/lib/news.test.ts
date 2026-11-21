@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { NewsAlert } from "./api";
 import { isNewNews, newNewsCount, newsToast } from "./news";
 
@@ -47,5 +48,19 @@ describe("newsToast", () => {
     const quatre = ["A", "B", "C", "D"].map((game, i) => alerte({ id: String(i), game }));
     expect(newsToast(quatre)).toEqual({ title: "Actualités de 4 jeux en cours", detail: "A, B et 2 autres" });
     expect(newsToast(quatre.slice(0, 3))?.detail).toBe("A, B et 1 autre");
+  });
+});
+
+describe("newsToast en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("une mise à jour, une annonce, plusieurs jeux", () => {
+    setLang("en");
+    expect(newsToast([alerte({})])?.title).toBe("Rocket League update");
+    expect(newsToast([alerte({ update: false })])?.title).toBe("New announcement for Rocket League");
+    const quatre = ["A", "B", "C", "D"].map((game, i) => alerte({ id: String(i), game }));
+    expect(newsToast(quatre)).toEqual({ title: "News for 4 games you're playing", detail: "A, B and 2 others" });
+    expect(newsToast(quatre.slice(0, 3))?.detail).toBe("A, B and 1 other");
+    expect(newsToast(quatre.slice(0, 2))?.detail).toBe("A and B");
   });
 });

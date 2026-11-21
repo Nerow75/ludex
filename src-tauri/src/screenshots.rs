@@ -70,7 +70,14 @@ pub struct Group {
     pub shots: Vec<Shot>,
 }
 
+/// Titre français du groupe des captures sans jeu (tests).
+#[cfg(test)]
 pub const OTHER_TITLE: &str = "Autres captures";
+
+/// Titre du groupe des captures sans jeu, dans la langue de Ludex (`OTHER_TITLE` en français).
+pub fn other_title() -> String {
+    tr!("Autres captures", "Other screenshots")
+}
 
 /// Dossiers de captures de ce PC.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -361,7 +368,7 @@ pub fn group(shots: Vec<Shot>, games: &[Game]) -> Vec<Group> {
                 .game_id
                 .as_deref()
                 .and_then(|id| games.iter().find(|g| g.id == id))
-                .map_or_else(|| OTHER_TITLE.to_string(), |g| g.title.clone());
+                .map_or_else(other_title, |g| g.title.clone());
             groups.push(Group { game_id: s.game_id.clone(), title, shots: Vec::new() });
             groups.len() - 1
         });

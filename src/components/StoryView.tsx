@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { recapRarest, saveStoryImage, type Game, type RareUnlock, type Recap } from "../lib/api";
 import { titleColor } from "../lib/color";
+import { t, useLang } from "../lib/i18n";
 import { rarityText, STORY_PAGE_MS, stepPage, storyAction, storyPages, type StoryPage } from "../lib/story";
 import { Logo } from "./Art";
 import { Cover } from "./Cover";
@@ -73,7 +74,7 @@ function Rare({ rare, byId }: { rare: RareUnlock; byId: Map<string, Game> }) {
     <div className="story__rare">
       {rare.icon && !failed ? <img src={rare.icon} alt="" draggable={false} onError={() => setFailed(true)} /> : <span className="story__rare-icon" />}
       <span>
-        <small>Le plus rare</small>
+        <small>{t.activity.story.rarest}</small>
         <b>{rare.name}</b>
         <span>{rarityText(rare.percent)}</span>
         {byId.get(rare.gameId) && <span>{byId.get(rare.gameId)!.title}</span>}
@@ -91,15 +92,17 @@ export function StoryView({ recap, byId, onClose }: Props) {
   const [failedArt, setFailedArt] = useState<Set<string>>(() => new Set());
   const reduced = useMemo(reducedMotion, []);
   const root = useRef<HTMLDivElement>(null);
+  // Pages refaites au changement de langue.
+  const language = useLang();
 
   const pages = useMemo(
     () =>
       storyPages(recap, {
-        title: (id) => byId.get(id)?.title ?? "Jeu retiré de la bibliothèque",
+        title: (id) => byId.get(id)?.title ?? t.activity.removedGame,
         known: (id) => byId.has(id),
         rarest,
       }),
-    [recap, byId, rarest],
+    [recap, byId, rarest, language],
   );
   const count = pages.length;
   const current = pages[Math.min(index, count - 1)];
@@ -137,9 +140,9 @@ export function StoryView({ recap, byId, onClose }: Props) {
     try {
       const png = await drawStoryPage(current, byId);
       const file = await saveStoryImage(png);
-      if (file) setMessage(`Image enregistrée : ${file}`);
+      if (file) setMessage(t.activity.story.saved(file));
     } catch (e) {
-      setMessage(`Enregistrement impossible : ${String(e)}`);
+      setMessage(t.activity.story.saveFailed(String(e)));
     } finally {
       setSaving(false);
     }
@@ -189,6 +192,7 @@ export function StoryView({ recap, byId, onClose }: Props) {
   // Avance seule sauf mouvement réduit, pause, enregistrement en cours ou dernière page.
   const running = !reduced && !paused && !saving && index < count - 1;
   const tint = titleColor(game?.title ?? recap.start);
+  const ts = t.activity.story;
 
   return createPortal(
     <div
@@ -196,7 +200,7 @@ export function StoryView({ recap, byId, onClose }: Props) {
       className={`story${reduced ? " is-reduced" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Story du récap"
+      aria-label={ts.dialog}
       tabIndex={-1}
       style={{ ["--art-tint" as string]: tint, ["--story-ms" as string]: `${STORY_PAGE_MS}ms` }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -211,7 +215,7 @@ export function StoryView({ recap, byId, onClose }: Props) {
         {showArt && <img key={art.url} src={art.url!} alt="" draggable={false} />}
       </div>
 
-      <button type="button" className="story__side story__side--prev" aria-label="Page précédente" disabled={index === 0} onClick={() => move("prev")}>
+      <button type="button" className="story__side story__side--prev" aria-label={ts.prevPage} disabled={index === 0} onClick={() => move("prev")}>
         <ChevronLeftIcon />
       </button>
 
@@ -239,14 +243,14 @@ export function StoryView({ recap, byId, onClose }: Props) {
         <div className="story__brand" aria-hidden>
           <LudexMark size={28} />
           <span>Ludex</span>
-          <small>Récap</small>
+          <small>{ts.brand}</small>
         </div>
-        <div className="story__page" key={index} aria-live="polite" aria-label={`Page ${index + 1} sur ${count}`}>
+        <div className="story__page" key={index} aria-live="polite" aria-label={ts.pageOf(index + 1, count)}>
           <PageBody page={current} byId={byId} />
         </div>
       </div>
 
-      <button type="button" className="story__side story__side--next" aria-label={index === count - 1 ? "Fermer la story" : "Page suivante"} onClick={() => move("next")}>
+      <button type="button" className="story__side story__side--next" aria-label={index === count - 1 ? ts.close : ts.nextPage} onClick={() => move("next")}>
         <ChevronRightIcon />
       </button>
 
@@ -256,18 +260,18 @@ export function StoryView({ recap, byId, onClose }: Props) {
         </span>
         {!reduced && (
           <button type="button" onClick={() => setPaused((p) => !p)} aria-pressed={paused}>
-            {paused ? "Reprendre" : "Pause"}
+            {paused ? ts.resume : ts.pause}
           </button>
         )}
         <button type="button" onClick={save} disabled={saving}>
-          {saving ? "Enregistrement…" : "Enregistrer en image"}
+          {saving ? ts.saving : ts.save}
         </button>
         <button type="button" onClick={onClose}>
-          Fermer
+          {ts.closeButton}
         </button>
       </div>
       <p className="story__message" role="status">
-        {message ?? (reduced ? "Flèches ou clic pour changer de page, Échap pour fermer" : "Espace : pause · flèches : pages · Échap : fermer")}
+        {message ?? (reduced ? ts.hintReduced : ts.hint)}
       </p>
     </div>,
     document.body,

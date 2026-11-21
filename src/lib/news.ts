@@ -1,4 +1,5 @@
 import type { News, NewsAlert } from "./api";
+import { t } from "./i18n";
 
 /** Annonce publiée depuis la dernière partie : « Nouveau ». Jamais joué : rien n'est marqué. */
 export function isNewNews(news: Pick<News, "date">, lastPlayed: number | null): boolean {
@@ -12,18 +13,19 @@ export function newNewsCount(list: readonly Pick<News, "date">[], lastPlayed: nu
 
 /** « Rocket League et Terraria », « Rocket League, Terraria et 2 autres ». */
 function gameList(names: string[]): string {
-  if (names.length <= 2) return names.join(" et ");
-  const rest = names.length - 2;
-  return `${names.slice(0, 2).join(", ")} et ${rest} autre${rest > 1 ? "s" : ""}`;
+  const and = ` ${t.fiche.news.and} `;
+  if (names.length <= 2) return names.join(and);
+  return `${names.slice(0, 2).join(", ")}${and}${t.fiche.news.others(names.length - 2)}`;
 }
 
 /** Texte du toast d'annonces récentes des jeux « En cours » ; `null` sans annonce. */
 export function newsToast(alerts: readonly NewsAlert[]): { title: string; detail: string } | null {
   if (alerts.length === 0) return null;
+  const n = t.fiche.news;
   if (alerts.length === 1) {
     const a = alerts[0];
-    return { title: a.update ? `Mise à jour de ${a.game}` : `Nouvelle annonce pour ${a.game}`, detail: a.title };
+    return { title: a.update ? n.toastUpdate(a.game) : n.toastNews(a.game), detail: a.title };
   }
   const games = [...new Set(alerts.map((a) => a.game))];
-  return { title: `Actualités de ${alerts.length} jeux en cours`, detail: gameList(games) };
+  return { title: n.toastMany(alerts.length), detail: gameList(games) };
 }

@@ -1,6 +1,7 @@
 // Menu contextuel d'un jeu : entrées et position, en fonctions pures (sans React ni DOM),
 // pour qu'elles restent simples à relire et à vérifier.
 import { STATUSES, STATUS_LABEL, type Collection, type Game, type Status } from "./api";
+import { t } from "./i18n";
 
 /** Action d'une entrée, traduite en appel par `App` (aucune ne prend de chemin). */
 export type MenuAction =
@@ -27,10 +28,11 @@ export type MenuEntry =
  * collections perso (cochées si le jeu y est) puis « Nouvelle collection… ».
  */
 export function gameMenu(game: Game, collections: readonly Collection[]): MenuEntry[] {
+  const text = t.extras.menu;
   const statuses: MenuEntry[] = [...STATUSES, null].map((s) => ({
     kind: "item",
     key: `status-${s ?? "none"}`,
-    label: s ? STATUS_LABEL[s] : "Aucun",
+    label: s ? STATUS_LABEL[s] : text.noStatus,
     action: { kind: "status", status: s },
     role: "radio",
     checked: game.status === s,
@@ -40,22 +42,22 @@ export function gameMenu(game: Game, collections: readonly Collection[]): MenuEn
     return { kind: "item", key: `col-${c.id}`, label: c.name, action: { kind: "collection", id: c.id, value: !inside }, role: "checkbox", checked: inside };
   });
   if (cols.length) cols.push({ kind: "separator", key: "col-sep" });
-  cols.push({ kind: "item", key: "col-new", label: "Nouvelle collection…", action: { kind: "newCollection" } });
+  cols.push({ kind: "item", key: "col-new", label: text.newCollection, action: { kind: "newCollection" } });
 
   const entries: MenuEntry[] = [
-    { kind: "item", key: "play", label: "Jouer", action: { kind: "play" } },
-    { kind: "item", key: "open", label: "Ouvrir la fiche", action: { kind: "open" } },
+    { kind: "item", key: "play", label: text.play, action: { kind: "play" } },
+    { kind: "item", key: "open", label: text.open, action: { kind: "open" } },
     { kind: "separator", key: "sep-1" },
-    { kind: "item", key: "favorite", label: game.favorite ? "Retirer des favoris" : "Ajouter aux favoris", action: { kind: "favorite" } },
-    { kind: "submenu", key: "status", label: "Statut", children: statuses },
-    { kind: "submenu", key: "collections", label: "Ajouter à une collection", children: cols },
+    { kind: "item", key: "favorite", label: game.favorite ? text.removeFavorite : text.addFavorite, action: { kind: "favorite" } },
+    { kind: "submenu", key: "status", label: text.status, children: statuses },
+    { kind: "submenu", key: "collections", label: text.addToCollection, children: cols },
     { kind: "separator", key: "sep-2" },
   ];
-  if (game.installDir) entries.push({ kind: "item", key: "folder", label: "Ouvrir le dossier", action: { kind: "folder" } });
+  if (game.installDir) entries.push({ kind: "item", key: "folder", label: text.openFolder, action: { kind: "folder" } });
   entries.push(
-    { kind: "item", key: "shortcut", label: "Créer un raccourci sur le Bureau", action: { kind: "shortcut" } },
-    { kind: "item", key: "rename", label: "Renommer", action: { kind: "rename" } },
-    { kind: "item", key: "hide", label: game.hidden ? "Afficher" : "Masquer", action: { kind: "hide" } },
+    { kind: "item", key: "shortcut", label: text.shortcut, action: { kind: "shortcut" } },
+    { kind: "item", key: "rename", label: text.rename, action: { kind: "rename" } },
+    { kind: "item", key: "hide", label: game.hidden ? text.unhide : text.hide, action: { kind: "hide" } },
   );
   return entries;
 }

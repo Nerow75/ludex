@@ -16,8 +16,10 @@ use std::sync::mpsc::{channel, Sender};
 
 /// AppUserModelID de Ludex : `identifier` de `tauri.conf.json`, repris par l'installeur.
 pub const APP_ID: &str = "com.ludex.app";
-/// Titre de la catégorie de la Jump List.
-pub const CATEGORY: &str = "Jeux récents";
+/// Titre de la catégorie de la Jump List, dans la langue actuelle.
+pub fn category() -> String {
+    tr!("Jeux récents", "Recent games")
+}
 /// Au-delà, le titre est coupé : la Jump List a une largeur fixe.
 const MAX_TITLE: usize = 60;
 
@@ -64,37 +66,45 @@ pub fn set_process_app_id() {
     }
 }
 
+/// Liste demandée : titre de la catégorie (langue du moment) et entrées. Comparée entière, pour
+/// que la liste soit reposée après un changement de langue même si les jeux n'ont pas changé.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Request {
+    category: String,
+    items: Vec<JumpItem>,
+}
+
 /// Fil qui pose la Jump List (COM) : la dernière liste demandée seulement, jamais deux fois la même.
 pub struct JumpList {
     exe: Option<PathBuf>,
-    tx: Mutex<Option<Sender<Vec<JumpItem>>>>,
+    tx: Mutex<Option<Sender<Request>>>,
 }
 
 impl JumpList {
     /// `exe` : exécutable de Ludex ; absent, la Jump List n'est jamais posée.
     pub fn spawn(exe: Option<PathBuf>) -> Self {
         let tx = exe.as_ref().and_then(|_| {
-            let (tx, rx) = channel::<Vec<JumpItem>>();
+            let (tx, rx) = channel::<Request>();
             let spawned = std::thread::Builder::new().name("jump-list".into()).spawn(move || {
                 #[cfg(windows)]
                 let _com = com::Apartment::enter();
-                let mut last: Option<Vec<JumpItem>> = None;
-                while let Ok(mut items) = rx.recv() {
+                let mut last: Option<Request> = None;
+                while let Ok(mut request) = rx.recv() {
                     // Plusieurs demandes en attente : seule la dernière compte.
                     while let Ok(newer) = rx.try_recv() {
-                        items = newer;
+                        request = newer;
                     }
-                    if last.as_ref() == Some(&items) {
+                    if last.as_ref() == Some(&request) {
                         continue;
                     }
                     #[cfg(windows)]
-                    match com::apply(&items) {
-                        Ok(()) => last = Some(items),
+                    match com::apply(&request.category, &request.items) {
+                        Ok(()) => last = Some(request),
                         Err(e) => eprintln!("Jump List non mise à jour : {e}"),
                     }
                     #[cfg(not(windows))]
                     {
-                        last = Some(items);
+                        last = Some(request);
                     }
                 }
             });
@@ -106,18 +116,18 @@ impl JumpList {
     /// Demande la Jump List des jeux récents, sans attendre.
     pub fn set(&self, recent: &[&Game]) {
         let Some(exe) = &self.exe else { return };
-        let items = items(recent, exe);
+        let request = Request { category: category(), items: items(recent, exe) };
         if let Ok(tx) = self.tx.lock()
             && let Some(tx) = tx.as_ref()
         {
-            let _ = tx.send(items);
+            let _ = tx.send(request);
         }
     }
 }
 
 #[cfg(windows)]
 mod com {
-    use super::{JumpItem, APP_ID, CATEGORY};
+    use super::{JumpItem, APP_ID};
     #[cfg(test)]
     use windows::Win32::UI::Shell::{ApplicationDestinations, IApplicationDestinations};
     use windows::core::{Interface, Result, HSTRING, PWSTR};
@@ -203,13 +213,13 @@ mod com {
         out
     }
 
-    /// Remplace la Jump List : catégorie « Jeux récents » (absente sans jeu récent).
-    pub fn apply(items: &[JumpItem]) -> Result<()> {
-        apply_for(APP_ID, items)
+    /// Remplace la Jump List : catégorie « Jeux récents » (`category`, absente sans jeu récent).
+    pub fn apply(category: &str, items: &[JumpItem]) -> Result<()> {
+        apply_for(APP_ID, category, items)
     }
 
     /// Jump List de l'application `app_id` (Ludex, ou un identifiant d'essai dans les tests).
-    pub fn apply_for(app_id: &str, items: &[JumpItem]) -> Result<()> {
+    pub fn apply_for(app_id: &str, category: &str, items: &[JumpItem]) -> Result<()> {
         let exe = match std::env::current_exe() {
             Ok(p) => HSTRING::from(p.as_path()),
             Err(_) => return Ok(()),
@@ -231,7 +241,7 @@ mod com {
                 }
                 if count > 0 {
                     let array: IObjectArray = collection.cast()?;
-                    list.AppendCategory(&HSTRING::from(CATEGORY), &array)?;
+                    list.AppendCategory(&HSTRING::from(category), &array)?;
                 }
                 list.CommitList()
             })();
@@ -287,6 +297,17 @@ mod tests {
         assert!(items(&[], ludex).is_empty());
     }
 
+    #[test]
+    fn category_follows_the_language() {
+        use crate::i18n::{Lang, with};
+        assert_eq!(with(Lang::Fr, category), "Jeux récents");
+        assert_eq!(with(Lang::En, category), "Recent games");
+        // Mêmes jeux, autre langue : la demande diffère, la liste sera reposée.
+        let fr = Request { category: with(Lang::Fr, category), items: Vec::new() };
+        let en = Request { category: with(Lang::En, category), items: Vec::new() };
+        assert_ne!(fr, en);
+    }
+
     /// Pose une vraie Jump List sous un identifiant d'essai (jamais celui de Ludex), puis l'efface :
     /// vérifie les appels COM (lien, arguments, icône, titre) sur ce PC.
     /// `cargo test jump_list_this_pc -- --ignored --nocapture`
@@ -303,9 +324,9 @@ mod tests {
         ];
         let list = items(&games.iter().collect::<Vec<_>>(), &exe);
         let start = std::time::Instant::now();
-        com::apply_for(TEST_ID, &list).expect("Jump List posée");
+        com::apply_for(TEST_ID, &category(), &list).expect("Jump List posée");
         println!("Jump List de {} entrées posée en {:?}", list.len(), start.elapsed());
-        com::apply_for(TEST_ID, &[]).expect("Jump List vidée");
+        com::apply_for(TEST_ID, &category(), &[]).expect("Jump List vidée");
         com::clear_for(TEST_ID).expect("Jump List effacée");
         println!("Effacée.");
     }

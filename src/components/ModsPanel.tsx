@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openModPage, openModsDir, refreshMods, type WorkshopMod, type WorkshopMods } from "../lib/api";
+import { t } from "../lib/i18n";
 import { modDetail, modsSummary, modTitle } from "../lib/workshop";
 
 interface Props {
@@ -47,15 +48,15 @@ export function ModsPanel({ gameId, initial }: Props) {
       <div className="mods__head">
         <p className="mods__summary">{modsSummary(list)}</p>
         <button type="button" className="btn-ghost" data-nav disabled={!list.folder} onClick={() => run(openModsDir(gameId))}>
-          Ouvrir le dossier
+          {t.fiche.mods.openFolder}
         </button>
       </div>
-      {loading && <p className="fiche__note">Lecture des titres sur Steam…</p>}
+      {loading && <p className="fiche__note">{t.fiche.mods.loading}</p>}
       {!loading && list.stale && untitled > 0 && (
-        <p className="fiche__note">Titres indisponibles pour l'instant : Steam n'a pas répondu.</p>
+        <p className="fiche__note">{t.fiche.mods.noTitles}</p>
       )}
       {error && <p className="mods__msg" role="status">{error}</p>}
-      <ul className="mods__list" aria-label="Mods Steam Workshop installés">
+      <ul className="mods__list" aria-label={t.fiche.mods.listLabel}>
         {list.mods.map((m) => (
           <li key={m.id} className="mods__row">
             <ModThumb mod={m} />
@@ -63,17 +64,17 @@ export function ModsPanel({ gameId, initial }: Props) {
               <span className="mods__title" title={m.title ? `${m.title} (${m.id})` : undefined}>{modTitle(m)}</span>
               <span className="mods__meta">
                 {modDetail(m)}
-                {m.pending && <span className="mods__pending"> · Mise à jour en attente</span>}
+                {m.pending && <span className="mods__pending"> · {t.fiche.mods.pendingBadge}</span>}
               </span>
             </div>
             <button
               type="button"
               className="btn-ghost"
               data-nav
-              aria-label={`Voir « ${modTitle(m)} » sur Steam`}
+              aria-label={t.fiche.mods.viewLabel(modTitle(m))}
               onClick={() => run(openModPage(gameId, m.id))}
             >
-              Voir sur Steam
+              {t.fiche.mods.view}
             </button>
           </li>
         ))}

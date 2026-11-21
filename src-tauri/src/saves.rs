@@ -54,11 +54,11 @@ fn unix_now() -> u64 {
 /// Écrit dans un fichier temporaire puis le renomme : jamais de fichier à moitié écrit.
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).map_err(|e| format!("Dossier inaccessible : {e}"))?;
+        fs::create_dir_all(dir).map_err(|e| tr!("Dossier inaccessible : {e}", "Folder not accessible: {e}"))?;
     }
     let tmp = path.with_extension("tmp");
-    fs::write(&tmp, bytes).map_err(|e| format!("Enregistrement impossible : {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+    fs::write(&tmp, bytes).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ impl<'de> Deserialize<'de> for Parsed {
         impl<'de> Visitor<'de> for Games {
             type Value = Parsed;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("la liste des jeux du manifeste")
+                f.write_str(tr_str!("la liste des jeux du manifeste", "the list of games in the manifest"))
             }
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Parsed, A::Error> {
                 let mut out = Parsed { games: Vec::new(), aliases: Vec::new() };
@@ -214,7 +214,7 @@ impl<'de> Deserialize<'de> for Parsed {
 
 /// Lit le manifeste YAML et n'en garde que l'index compact.
 pub fn parse_manifest(yaml: &[u8]) -> Result<Manifest, String> {
-    let parsed: Parsed = serde_yaml_ng::from_slice(yaml).map_err(|e| format!("Base des sauvegardes illisible : {e}"))?;
+    let parsed: Parsed = serde_yaml_ng::from_slice(yaml).map_err(|e| tr!("Base des sauvegardes illisible : {e}", "Unreadable save database: {e}"))?;
     Ok(Manifest { version: INDEX_VERSION, etag: None, checked: 0, games: parsed.games, aliases: parsed.aliases })
 }
 
@@ -256,7 +256,7 @@ pub fn refresh_manifest(data_dir: &Path) -> Result<Manifest, String> {
         }
         // Inchangé depuis la dernière fois : seule la date de vérification avance.
         Ok(None) => {
-            let mut m = current.ok_or("Base des sauvegardes absente")?;
+            let mut m = current.ok_or_else(|| tr!("Base des sauvegardes absente", "Save database missing"))?;
             m.checked = now;
             save_manifest(data_dir, &m)?;
             Ok(m)
@@ -266,7 +266,7 @@ pub fn refresh_manifest(data_dir: &Path) -> Result<Manifest, String> {
                 eprintln!("Base des sauvegardes non vérifiée : {e}");
                 Ok(m)
             }
-            None => Err(format!("Base des sauvegardes non téléchargée : {e}")),
+            None => Err(tr!("Base des sauvegardes non téléchargée : {e}", "Save database not downloaded: {e}")),
         },
     }
 }
@@ -298,9 +298,9 @@ fn download(etag: Option<&str>) -> Result<Option<Downloaded>, String> {
         .into_reader()
         .take(MAX_MANIFEST + 1)
         .read_to_end(&mut bytes)
-        .map_err(|e| format!("Téléchargement interrompu : {e}"))?;
+        .map_err(|e| tr!("Téléchargement interrompu : {e}", "Download interrupted: {e}"))?;
     if bytes.len() as u64 > MAX_MANIFEST {
-        return Err("Base des sauvegardes trop volumineuse".into());
+        return Err(tr!("Base des sauvegardes trop volumineuse", "Save database too large"));
     }
     Ok(Some(Downloaded { yaml: bytes, etag }))
 }
@@ -482,14 +482,14 @@ pub fn default_dir() -> PathBuf {
 /// réel (pas un lien), où Ludex peut écrire.
 pub fn check_dir(dir: &Path) -> Result<PathBuf, String> {
     if !dir.is_absolute() {
-        return Err("Choisis un dossier complet.".into());
+        return Err(tr!("Choisis un dossier complet.", "Pick a full folder path."));
     }
     match fs::symlink_metadata(dir) {
         Ok(m) if m.is_dir() && !m.file_type().is_symlink() => {}
-        _ => return Err(format!("{} n'est pas un dossier utilisable.", dir.display())),
+        _ => return Err(tr!("{} n'est pas un dossier utilisable.", "{} can't be used as a folder.", dir.display())),
     }
     let probe = dir.join(".ludex-essai");
-    fs::write(&probe, b"").map_err(|e| format!("Ludex ne peut pas écrire dans {} : {e}", dir.display()))?;
+    fs::write(&probe, b"").map_err(|e| tr!("Ludex ne peut pas écrire dans {} : {e}", "Ludex can't write to {}: {e}", dir.display()))?;
     let _ = fs::remove_file(probe);
     Ok(dir.to_path_buf())
 }
@@ -863,7 +863,10 @@ fn walk(roots: &[PathBuf], exclude: Option<&Path>, limits: bool) -> Result<Vec<F
             let modified = meta.modified().ok().and_then(|m| m.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
             files.push(FileItem { path: clean(&path), size: meta.len(), modified });
             if limits && (files.len() > MAX_FILES || total > MAX_BYTES) {
-                return Err("Sauvegardes trop volumineuses pour une copie (plus de 1 Go ou de 20 000 fichiers).".into());
+                return Err(tr!(
+                    "Sauvegardes trop volumineuses pour une copie (plus de 1 Go ou de 20 000 fichiers).",
+                    "Saves too large to copy (more than 1 GB or 20,000 files)."
+                ));
             }
         }
     }
@@ -921,7 +924,33 @@ pub struct Outcome {
     pub unchanged: bool,
 }
 
-pub const NOTHING_FOUND: &str = "Aucune sauvegarde trouvée sur ce PC pour ce jeu.";
+/// Erreur « aucune sauvegarde trouvée » : renvoyée dans la langue de Ludex et reconnue dans les deux
+/// (`e == NOTHING_FOUND`), puisque les appelants la comparent au texte reçu.
+pub const NOTHING_FOUND: NothingFound = NothingFound;
+
+#[derive(Clone, Copy, Debug)]
+pub struct NothingFound;
+
+impl NothingFound {
+    const FR: &'static str = "Aucune sauvegarde trouvée sur ce PC pour ce jeu.";
+    const EN: &'static str = "No saves found on this PC for this game.";
+
+    fn matches(text: &str) -> bool {
+        text == Self::FR || text == Self::EN
+    }
+}
+
+impl From<NothingFound> for String {
+    fn from(_: NothingFound) -> String {
+        (if crate::i18n::english() { NothingFound::EN } else { NothingFound::FR }).to_string()
+    }
+}
+
+impl PartialEq<NothingFound> for String {
+    fn eq(&self, _: &NothingFound) -> bool {
+        NothingFound::matches(self)
+    }
+}
 
 /// Copie les sauvegardes trouvées dans `<root>/<jeu>/<date>/`.
 pub fn backup(root: &Path, game_id: &str, title: &str, found: &[PathBuf], reason: Reason, stamp: &Stamp) -> Result<Outcome, String> {
@@ -937,7 +966,7 @@ pub fn backup(root: &Path, game_id: &str, title: &str, found: &[PathBuf], reason
     }
     // Les copies d'un jeu restent ensemble, même renommé depuis.
     let folder = existing.first().and_then(|c| c.dir.parent().map(Path::to_path_buf)).unwrap_or_else(|| root.join(safe_name(title)));
-    fs::create_dir_all(&folder).map_err(|e| format!("Dossier des sauvegardes inaccessible ({}) : {e}", folder.display()))?;
+    fs::create_dir_all(&folder).map_err(|e| tr!("Dossier des sauvegardes inaccessible ({}) : {e}", "Save folder not accessible ({}): {e}", folder.display()))?;
     // Copie interrompue (Ludex fermé, disque plein) : jamais listée, retirée ici.
     for leftover in real_dirs(&folder).filter(|d| d.extension().is_some_and(|e| e == "tmp")) {
         let _ = fs::remove_dir_all(leftover);
@@ -950,7 +979,7 @@ pub fn backup(root: &Path, game_id: &str, title: &str, found: &[PathBuf], reason
     }
     let tmp = folder.join(format!("{id}.tmp"));
     let written = write_copy(&tmp, game_id, title, &files, reason, stamp.unix);
-    let info = match written.and_then(|info| fs::rename(&tmp, folder.join(&id)).map(|_| info).map_err(|e| format!("Copie non finalisée : {e}"))) {
+    let info = match written.and_then(|info| fs::rename(&tmp, folder.join(&id)).map(|_| info).map_err(|e| tr!("Copie non finalisée : {e}", "Copy not finished: {e}"))) {
         Ok(info) => info,
         Err(e) => {
             let _ = fs::remove_dir_all(&tmp);
@@ -964,12 +993,12 @@ pub fn backup(root: &Path, game_id: &str, title: &str, found: &[PathBuf], reason
 fn write_copy(tmp: &Path, game_id: &str, title: &str, files: &[FileItem], reason: Reason, created: u64) -> Result<CopyInfo, String> {
     let mut copied = Vec::with_capacity(files.len());
     for f in files {
-        let stored = stored_path(&f.path).ok_or_else(|| format!("Emplacement non pris en charge : {}", f.path.display()))?;
+        let stored = stored_path(&f.path).ok_or_else(|| tr!("Emplacement non pris en charge : {}", "Unsupported location: {}", f.path.display()))?;
         let dest = tmp.join(stored.replace('/', "\\"));
         if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Copie impossible : {e}"))?;
+            fs::create_dir_all(parent).map_err(|e| tr!("Copie impossible : {e}", "Couldn't copy: {e}"))?;
         }
-        let size = fs::copy(&f.path, &dest).map_err(|e| format!("Copie de {} impossible : {e}", f.path.display()))?;
+        let size = fs::copy(&f.path, &dest).map_err(|e| tr!("Copie de {} impossible : {e}", "Couldn't copy {}: {e}", f.path.display()))?;
         copied.push(CopiedFile { path: f.path.clone(), stored, size, modified: f.modified });
     }
     let info = CopyInfo {
@@ -982,7 +1011,7 @@ fn write_copy(tmp: &Path, game_id: &str, title: &str, files: &[FileItem], reason
         files: copied,
     };
     let bytes = serde_json::to_vec_pretty(&info).map_err(|e| e.to_string())?;
-    fs::write(tmp.join(INFO_FILE), bytes).map_err(|e| format!("Copie non finalisée : {e}"))?;
+    fs::write(tmp.join(INFO_FILE), bytes).map_err(|e| tr!("Copie non finalisée : {e}", "Copy not finished: {e}"))?;
     Ok(info)
 }
 
@@ -1004,21 +1033,21 @@ pub fn rotate(root: &Path, game_id: &str, keep: usize, protect: &[&str]) -> usiz
 /// Destination d'un fichier restauré : chemin absolu sur un lecteur local, sans `..`, reconnu par
 /// une règle du manifeste de ce jeu, sans lien symbolique ni jonction sur le chemin.
 fn checked_target(path: &Path, scope: &Scope) -> Result<PathBuf, String> {
-    let refused = |why: &str| Err(format!("Restauration refusée ({}) : {why}", path.display()));
+    let refused = |why: String| Err(tr!("Restauration refusée ({}) : {why}", "Restore refused ({}): {why}", path.display()));
     let mut parts = path.components();
     if !matches!(parts.next(), Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::Disk(_))) || parts.next() != Some(Component::RootDir) {
-        return refused("chemin non absolu");
+        return refused(tr!("chemin non absolu", "not an absolute path"));
     }
     if !parts.all(|c| matches!(c, Component::Normal(_))) {
-        return refused("chemin relatif");
+        return refused(tr!("chemin relatif", "relative path"));
     }
     if scope.anchor(path).is_none() {
-        return refused("emplacement inconnu du manifeste pour ce jeu");
+        return refused(tr!("emplacement inconnu du manifeste pour ce jeu", "location unknown to the save database for this game"));
     }
     for (i, a) in path.ancestors().enumerate() {
         match fs::symlink_metadata(a) {
-            Ok(m) if m.file_type().is_symlink() => return refused("lien symbolique ou jonction"),
-            Ok(m) if i == 0 && !m.is_file() => return refused("un dossier porte ce nom"),
+            Ok(m) if m.file_type().is_symlink() => return refused(tr!("lien symbolique ou jonction", "symbolic link or junction")),
+            Ok(m) if i == 0 && !m.is_file() => return refused(tr!("un dossier porte ce nom", "a folder has this name")),
             _ => {}
         }
     }
@@ -1027,7 +1056,7 @@ fn checked_target(path: &Path, scope: &Scope) -> Result<PathBuf, String> {
 
 /// Fichier de la copie : sous `fichiers/`, sans `..`, fichier ordinaire.
 fn checked_source(copy_dir: &Path, stored: &str) -> Result<PathBuf, String> {
-    let refused = || Err(format!("Copie altérée : {stored}"));
+    let refused = || Err(tr!("Copie altérée : {stored}", "Damaged copy: {stored}"));
     let rel = Path::new(stored);
     let mut parts = rel.components();
     if parts.next() != Some(Component::Normal(FILES_DIR.as_ref())) || !parts.all(|c| matches!(c, Component::Normal(_))) {
@@ -1042,15 +1071,15 @@ fn checked_source(copy_dir: &Path, stored: &str) -> Result<PathBuf, String> {
 
 /// Copie `source` sur `target` : fichier temporaire à côté, puis renommage.
 fn write_file(source: &Path, target: &Path) -> Result<(), String> {
-    let parent = target.parent().ok_or("Destination invalide")?;
-    fs::create_dir_all(parent).map_err(|e| format!("Dossier {} inaccessible : {e}", parent.display()))?;
-    let mut name = target.file_name().ok_or("Destination invalide")?.to_os_string();
+    let parent = target.parent().ok_or_else(|| tr!("Destination invalide", "Invalid destination"))?;
+    fs::create_dir_all(parent).map_err(|e| tr!("Dossier {} inaccessible : {e}", "Folder {} not accessible: {e}", parent.display()))?;
+    let mut name = target.file_name().ok_or_else(|| tr!("Destination invalide", "Invalid destination"))?.to_os_string();
     name.push(".ludex-tmp");
     let tmp = target.with_file_name(name);
     let result = fs::copy(source, &tmp).and_then(|_| fs::rename(&tmp, target));
     if let Err(e) = result {
         let _ = fs::remove_file(&tmp);
-        return Err(format!("Restauration de {} impossible : {e}", target.display()));
+        return Err(tr!("Restauration de {} impossible : {e}", "Couldn't restore {}: {e}", target.display()));
     }
     Ok(())
 }
@@ -1068,9 +1097,9 @@ pub struct Restored {
 /// Le jeu doit être fermé (vérifié par l'appelant).
 pub fn restore(root: &Path, game_id: &str, title: &str, copy_id: &str, scope: &Scope, stamp: &Stamp) -> Result<Restored, String> {
     if !valid_copy_id(copy_id) {
-        return Err("Copie inconnue.".into());
+        return Err(tr!("Copie inconnue.", "Unknown copy."));
     }
-    let copy = copies_of(root, game_id).into_iter().find(|c| c.id == copy_id).ok_or("Cette copie n'existe plus.")?;
+    let copy = copies_of(root, game_id).into_iter().find(|c| c.id == copy_id).ok_or_else(|| tr!("Cette copie n'existe plus.", "This copy no longer exists."))?;
     let plan = copy
         .info
         .files
@@ -1078,12 +1107,12 @@ pub fn restore(root: &Path, game_id: &str, title: &str, copy_id: &str, scope: &S
         .map(|f| Ok((checked_source(&copy.dir, &f.stored)?, checked_target(&f.path, scope)?)))
         .collect::<Result<Vec<_>, String>>()?;
     if plan.is_empty() {
-        return Err("Cette copie est vide.".into());
+        return Err(tr!("Cette copie est vide.", "This copy is empty."));
     }
     let safety = match backup(root, game_id, title, &scope.locate(Some(root)), Reason::BeforeRestore, stamp) {
         Ok(o) => (!o.unchanged).then_some(o.copy),
         Err(e) if e == NOTHING_FOUND => None,
-        Err(e) => return Err(format!("Copie de sécurité impossible, rien n'a été restauré : {e}")),
+        Err(e) => return Err(tr!("Copie de sécurité impossible, rien n'a été restauré : {e}", "Couldn't make a safety copy, nothing was restored: {e}")),
     };
     for (source, target) in &plan {
         write_file(source, target)?;
@@ -1346,6 +1375,27 @@ Vide: null
         // Rien à copier : erreur explicite.
         let empty = Scope::new(&Entry::default(), &game, &env_in(&dir));
         assert_eq!(backup(&root, &game.id, &game.title, &empty.locate(None), Reason::Manual, &stamp(4)).unwrap_err(), NOTHING_FOUND);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn restore_messages_in_english() {
+        let (dir, env, game, scope, _) = setup("english");
+        let root = dir.join("Copies");
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            let empty = Scope::new(&Entry::default(), &game, &env);
+            let err = backup(&root, &game.id, &game.title, &empty.locate(None), Reason::Manual, &stamp(1)).unwrap_err();
+            // Reconnue dans les deux langues par les appelants.
+            assert_eq!(err, "No saves found on this PC for this game.");
+            assert_eq!(err, NOTHING_FOUND);
+            assert_eq!(restore(&root, &game.id, &game.title, "../x", &scope, &stamp(2)).unwrap_err(), "Unknown copy.");
+            assert_eq!(
+                restore(&root, &game.id, &game.title, "2026-01-01_10-00-00", &scope, &stamp(2)).unwrap_err(),
+                "This copy no longer exists."
+            );
+            assert_eq!(checked_target(Path::new("relatif.sav"), &scope).unwrap_err(), "Restore refused (relatif.sav): not an absolute path");
+        });
+        assert_eq!(String::from("Aucune sauvegarde trouvée sur ce PC pour ce jeu."), NOTHING_FOUND);
         let _ = fs::remove_dir_all(dir);
     }
 

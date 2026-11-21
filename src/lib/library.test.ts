@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setLang } from "./i18n";
 import {
   countGames,
   achievementPercent,
@@ -19,6 +20,8 @@ import {
   selectGames,
   sortMeta,
   SORTS,
+  SORT_LABEL,
+  STATUS_FILTER_LABEL,
 } from "./library";
 import { fiche, jeu, jeuAmbiance } from "../test/jeu";
 
@@ -306,5 +309,39 @@ describe("préférences retenues", () => {
     data.set("ludex.mood", "joyeux");
     data.set("ludex.tag", "Tag disparu");
     expect(rememberedFacets()).toEqual({ tag: "Tag disparu", mood: null, genre: null });
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("texte sous la jaquette selon le tri", () => {
+    setLang("en");
+    const g = jeu({
+      sizeOnDisk: 2.5e9,
+      playtimeMinutes: 90,
+      achievements: { unlocked: 3, total: 10, lastUnlocked: null },
+      hltb: { name: "x", main: 600, plus: null, full: null },
+      details: fiche({ releaseDate: Date.UTC(2020, 5, 1) / 1000 }),
+    });
+    expect(sortMeta(g, "size")).toBe("2.5 GB");
+    expect(sortMeta(g, "playtime")).toBe("1.5 h");
+    expect(sortMeta(g, "year")).toBe("2020");
+    expect(sortMeta(g, "achievements")).toBe("3 / 10 achievements");
+    expect(sortMeta(g, "lifespan")).toBe("Main story: 10 h");
+    expect(sortMeta(g, "recent")).toBe("Never launched");
+    const vide = jeu();
+    expect(sortMeta(vide, "year")).toBe("Unknown year");
+    expect(sortMeta(vide, "achievements")).toBe("No achievements");
+    expect(sortMeta(vide, "lifespan")).toBe("Unknown length");
+  });
+  it("libellés des tris et des statuts relus dans la langue actuelle", () => {
+    expect(SORT_LABEL.recent).toBe("Récents");
+    expect(STATUS_FILTER_LABEL.any).toBe("Tous les statuts");
+    setLang("en");
+    expect(SORTS.map((s) => SORT_LABEL[s])).toEqual(["Recent", "Most played", "A → Z", "Size", "Release year", "Achievement progress", "Time to beat"]);
+    expect(STATUS_FILTER_LABEL.any).toBe("All statuses");
+    expect(STATUS_FILTER_LABEL.none).toBe("No status");
+    expect(STATUS_FILTER_LABEL.todo).toBe("Backlog");
   });
 });

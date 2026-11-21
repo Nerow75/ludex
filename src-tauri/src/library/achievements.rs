@@ -59,8 +59,8 @@ fn icon_url(appid: &str, file: &str) -> Option<String> {
     (safe && numeric).then(|| format!("{ICON_BASE}/{appid}/{file}"))
 }
 
-/// Texte d'une langue de `display > name` ou `desc` : français, sinon anglais, sinon la première
-/// langue renseignée. Certains vieux schémas y mettent directement une chaîne.
+/// Texte d'une langue de `display > name` ou `desc` : langue de Ludex (français, sinon anglais ; en
+/// anglais : anglais, sinon français), sinon la première langue renseignée. Certains vieux schémas y mettent directement une chaîne.
 fn localized(node: &Kv) -> Option<String> {
     let clean = |s: &str| Some(s.trim().to_string()).filter(|s| !s.is_empty());
     if let Kv::Str(s) = node {
@@ -70,7 +70,8 @@ fn localized(node: &Kv) -> Option<String> {
         Some(Kv::Str(s)) => clean(s),
         _ => None,
     };
-    lang("french").or_else(|| lang("english")).or_else(|| {
+    let (first, second) = if crate::i18n::english() { ("english", "french") } else { ("french", "english") };
+    lang(first).or_else(|| lang(second)).or_else(|| {
         node.entries().iter().find_map(|(k, v)| match v {
             Kv::Str(s) if !k.eq_ignore_ascii_case("token") => clean(s),
             _ => None,
@@ -357,6 +358,28 @@ mod tests {
         assert!(!all[3].unlocked && all[3].unlocked_at.is_none());
         // Même total que la lecture du scan.
         assert_eq!(super::schema_bits(&kvbin::parse(&schema).unwrap(), "440")[0].1.len(), all.len());
+    }
+
+    #[test]
+    fn names_follow_the_language() {
+        let bytes = Bytes::default()
+            .open("name")
+            .str("french", "Premier")
+            .str("english", "First")
+            .close()
+            .open("desc")
+            .str("french", "Seulement en français")
+            .close()
+            .close()
+            .0;
+        let root = kvbin::parse(&bytes).unwrap();
+        let (name, desc) = (root.get("name").unwrap(), root.get("desc").unwrap());
+        assert_eq!(super::localized(name).as_deref(), Some("Premier"));
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(super::localized(name).as_deref(), Some("First"));
+            // Pas d'anglais : le français à défaut.
+            assert_eq!(super::localized(desc).as_deref(), Some("Seulement en français"));
+        });
     }
 
     #[test]

@@ -2,14 +2,15 @@
 // annonces des changements de la bibliothèque. Fonctions pures, testées par Vitest.
 import { PLATFORM_LABEL, type Game } from "./api";
 import { formatAchievements, formatPlaytime, installBadge, relativeTime } from "./format";
+import { t } from "./i18n";
 import { achievementPercent } from "./library";
 
-/** « 1 jeu », « 12 jeux ». */
-export const gamesCount = (n: number) => `${n} jeu${n > 1 ? "x" : ""}`;
+/** « 1 jeu », « 12 jeux » (« 1 game », « 12 games »). */
+export const gamesCount = (n: number) => t.common.a11y.games(n);
 
 /** État court du jeu : « en jeu », sinon la mention d'installation en minuscules, sinon rien. */
 function stateOf(game: Game, playing: boolean): string | null {
-  if (playing) return "en jeu";
+  if (playing) return t.common.a11y.inGame;
   const badge = installBadge(game.installState);
   return badge ? badge.toLowerCase() : null;
 }
@@ -20,13 +21,14 @@ function stateOf(game: Game, playing: boolean): string | null {
  * « Hades, Steam, favori, il y a 2 jours, succès 80 % ».
  */
 export function cardLabel(game: Game, playing: boolean, meta: string): string {
+  const a11y = t.common.a11y;
   const parts = [game.title, PLATFORM_LABEL[game.platform]];
-  if (game.favorite) parts.push("favori");
+  if (game.favorite) parts.push(a11y.favorite);
   const state = stateOf(game, playing);
   if (state) parts.push(state);
   else if (meta.trim()) parts.push(meta.trim());
   const percent = achievementPercent(game);
-  if (percent !== null) parts.push(`succès ${percent} %`);
+  if (percent !== null) parts.push(a11y.achievementsPercent(percent));
   return parts.join(", ");
 }
 
@@ -36,15 +38,16 @@ export function cardLabel(game: Game, playing: boolean, meta: string): string {
  * « Hades, favori, Steam, temps de jeu 12 h, joué il y a 2 jours, succès 40 / 49 ».
  */
 export function rowLabel(game: Game, playing: boolean): string {
+  const a11y = t.common.a11y;
   const parts = [game.title];
-  if (game.favorite) parts.push("favori");
+  if (game.favorite) parts.push(a11y.favorite);
   const state = stateOf(game, playing);
   if (state) parts.push(state);
   parts.push(PLATFORM_LABEL[game.platform]);
-  if (game.playtimeMinutes !== null && game.playtimeMinutes >= 1) parts.push(`temps de jeu ${formatPlaytime(game.playtimeMinutes)}`);
-  parts.push(game.lastPlayed ? `joué ${relativeTime(game.lastPlayed)}` : "jamais lancé");
+  if (game.playtimeMinutes !== null && game.playtimeMinutes >= 1) parts.push(a11y.playtime(formatPlaytime(game.playtimeMinutes)));
+  parts.push(game.lastPlayed ? a11y.played(relativeTime(game.lastPlayed)) : a11y.neverLaunched);
   const ach = game.achievements;
-  if (ach && ach.total > 0) parts.push(`succès ${formatAchievements(ach.unlocked, ach.total)}`);
+  if (ach && ach.total > 0) parts.push(a11y.achievements(formatAchievements(ach.unlocked, ach.total)));
   return parts.join(", ");
 }
 
@@ -54,15 +57,17 @@ export function rowLabel(game: Game, playing: boolean): string {
  * filtre Steam : 69 jeux », « Aucun jeu ne correspond à « zzz » ».
  */
 export function libraryAnnouncement(o: { section: string; count: number; query: string; filter: string | null; extra?: readonly string[] }): string {
+  const a11y = t.common.a11y;
   const q = o.query.trim();
-  if (q) return o.count === 0 ? `Aucun jeu ne correspond à « ${q} »` : `${gamesCount(o.count)} pour « ${q} »`;
-  const filters = [o.filter ? `filtre ${o.filter}` : null, ...(o.extra ?? [])].filter(Boolean);
+  if (q) return o.count === 0 ? a11y.noMatch(q) : a11y.forQuery(gamesCount(o.count), q);
+  const filters = [o.filter ? a11y.filter(o.filter) : null, ...(o.extra ?? [])].filter(Boolean);
   const head = filters.length ? `${o.section}, ${filters.join(", ")}` : o.section;
-  return `${head} : ${o.count === 0 ? "aucun jeu" : gamesCount(o.count)}`;
+  // « Tous les jeux : 12 jeux » ; en anglais, deux-points collés (« All games: 12 games »).
+  return a11y.listed(head, o.count === 0 ? a11y.noGames : gamesCount(o.count));
 }
 
-/** Position dans une suite (visionneuse) : « Capture 3 sur 128 ». */
-export const positionText = (what: string, index: number, count: number) => `${what} ${index + 1} sur ${count}`;
+/** Position dans une suite (visionneuse) : « Capture 3 sur 128 » (« Screenshot 3 of 128 »). `what` est déjà traduit. */
+export const positionText = (what: string, index: number, count: number) => t.common.a11y.position(what, index + 1, count);
 
 /**
  * Élément suivant pour Tab ou Maj+Tab dans un piège à focus (dialogue modal) : boucle d'un bout à

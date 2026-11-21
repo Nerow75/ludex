@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { diagnostic as getDiagnostic, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
 import { problems, serviceState, sourceDetail, sourceState, sourceTone } from "../lib/diagnostic";
 import { relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { ChevronRightIcon } from "./Icons";
 
 interface Props {
@@ -18,6 +19,7 @@ function SourceRow({ source, open, onToggle }: { source: DiagSource; open: boole
   const tone = sourceTone(source);
   const detail = sourceDetail(source);
   const body = `diag-${source.id}`;
+  const d = t.settings.diagnostic;
   return (
     <li className={`diag__src is-${tone}`}>
       <button type="button" className="diag__head" data-nav aria-expanded={open} aria-controls={body} onClick={onToggle}>
@@ -33,11 +35,11 @@ function SourceRow({ source, open, onToggle }: { source: DiagSource; open: boole
         <div className="diag__body" id={body}>
           {source.locations.length > 0 && (
             <>
-              <h4>Emplacements lus</h4>
+              <h4>{d.locations}</h4>
               <ul className="diag__list">
                 {source.locations.map((l) => (
                   <li key={`${l.label}-${l.path}`}>
-                    <span className={`diag__found ${l.found ? "is-found" : ""}`}>{l.found ? "Trouvé" : "Absent"}</span>
+                    <span className={`diag__found ${l.found ? "is-found" : ""}`}>{l.found ? d.found : d.notFound}</span>
                     <span className="diag__label">{l.label}</span>
                     <span className="path" title={l.path}>{l.path}</span>
                   </li>
@@ -47,7 +49,7 @@ function SourceRow({ source, open, onToggle }: { source: DiagSource; open: boole
           )}
           {source.skipped.length > 0 && (
             <>
-              <h4>{source.id === "manual" ? "Exécutables introuvables" : "Jeux écartés"}</h4>
+              <h4>{source.id === "manual" ? d.missingExesTitle : d.skippedTitle}</h4>
               <ul className="diag__list">
                 {source.skipped.map((k, i) => (
                   <li key={`${k.title}-${i}`}>
@@ -60,12 +62,12 @@ function SourceRow({ source, open, onToggle }: { source: DiagSource; open: boole
           )}
           {source.tools.length > 0 && (
             <>
-              <h4>Masqués d'office (applis)</h4>
+              <h4>{d.toolsTitle}</h4>
               <p className="diag__why">{source.tools.join(", ")}</p>
             </>
           )}
           {source.error && <p className="diag__why is-error">{source.error}</p>}
-          {!source.locations.length && !source.skipped.length && !source.tools.length && !source.error && <p className="diag__why">Rien à signaler.</p>}
+          {!source.locations.length && !source.skipped.length && !source.tools.length && !source.error && <p className="diag__why">{d.nothing}</p>}
         </div>
       )}
     </li>
@@ -105,11 +107,11 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
     if (!diag) return;
     navigator.clipboard
       .writeText(diag.report)
-      .then(() => setCopied({ text: "Rapport copié. Nom d'utilisateur et compte Steam remplacés, aucun titre perso.", error: false }))
+      .then(() => setCopied({ text: t.settings.diagnostic.copied, error: false }))
       .catch(() => {
         // Presse-papiers refusé : le texte reste sélectionnable à la main.
         setShowText(true);
-        setCopied({ text: "Copie impossible : sélectionne le texte ci-dessous.", error: true });
+        setCopied({ text: t.settings.diagnostic.copyFailed, error: true });
       });
   };
 
@@ -121,8 +123,9 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
       return next;
     });
 
+  const d = t.settings.diagnostic;
   if (!diag) {
-    return error ? <p className="set__msg is-error" role="alert">{error}</p> : <p className="set__note">Lecture du diagnostic…</p>;
+    return error ? <p className="set__msg is-error" role="alert">{error}</p> : <p className="set__note">{d.loading}</p>;
   }
   const count = problems(diag);
 
@@ -130,31 +133,31 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
     <div className="diag">
       <div className="set__row">
         <span className="set__text">
-          <span>{count ? `${count} problème${count > 1 ? "s" : ""} à regarder` : "Aucune erreur"}</span>
+          <span>{count ? d.problems(count) : d.noError}</span>
           <small>
-            Ludex {diag.version} · {diag.windows} · WebView2 {diag.webview ?? "version inconnue"}
-            {diag.scannedAt ? ` · dernier scan ${relativeTime(diag.scannedAt)}` : " · pas encore de scan"}
+            Ludex {diag.version} · {diag.windows} · WebView2 {diag.webview ?? d.unknownWebview}
+            {` · ${diag.scannedAt ? d.lastScan(relativeTime(diag.scannedAt)) : d.noScan}`}
           </small>
         </span>
         <div className="set__acts">
           <button type="button" className="btn-ghost set__small" data-nav disabled={rereading} onClick={reread}>
-            {rereading ? "Lecture…" : "Relire"}
+            {rereading ? d.reading : d.reread}
           </button>
-          <button type="button" className="btn-ghost set__small is-primary" data-nav onClick={copy}>Copier le rapport</button>
+          <button type="button" className="btn-ghost set__small is-primary" data-nav onClick={copy}>{d.copy}</button>
         </div>
       </div>
       {error && <p className="set__msg is-error" role="alert">{error}</p>}
       {copied && <p className={`set__msg ${copied.error ? "is-error" : ""}`} role="status">{copied.text}</p>}
-      {showText && <textarea className="diag__text" readOnly value={diag.report} aria-label="Rapport de diagnostic" onFocus={(e) => e.currentTarget.select()} />}
+      {showText && <textarea className="diag__text" readOnly value={diag.report} aria-label={d.report} onFocus={(e) => e.currentTarget.select()} />}
 
-      <ul className="diag__srcs" aria-label="Launchers">
+      <ul className="diag__srcs" aria-label={d.launchers}>
         {diag.sources.map((s) => (
           <SourceRow key={s.id} source={s} open={open.has(s.id)} onToggle={() => toggle(s.id)} />
         ))}
       </ul>
 
-      <h4 className="diag__title">Services en ligne</h4>
-      <ul className="diag__srcs" aria-label="Services en ligne">
+      <h4 className="diag__title">{d.services}</h4>
+      <ul className="diag__srcs" aria-label={d.services}>
         {diag.services.map((s) => {
           const st = serviceState(s);
           return (
@@ -172,7 +175,7 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
         })}
       </ul>
       <p className="set__note">
-        Données : <span className="path" title={diag.dataDir}>{diag.dataDir}</span>
+        {d.data} <span className="path" title={diag.dataDir}>{diag.dataDir}</span>
       </p>
     </div>
   );

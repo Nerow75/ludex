@@ -126,15 +126,15 @@ const NOT_GAMES: &[&str] = &["soundtrack", "assets", "comic", "book", "physical_
 /// Jeu tiré d'une ligne, ou la raison de l'écarter (page de diagnostic).
 fn build(cave: &Cave) -> Result<Game, &'static str> {
     if cave.game_id <= 0 {
-        return Err("Identifiant itch.io illisible");
+        return Err(tr_str!("Identifiant itch.io illisible", "Unreadable itch.io ID"));
     }
     if NOT_GAMES.contains(&cave.classification.as_str()) {
-        return Err("Pas un jeu (bande-son, ressources, livre…)");
+        return Err(tr_str!("Pas un jeu (bande-son, ressources, livre…)", "Not a game (soundtrack, assets, book…)"));
     }
     let verdict: Verdict = serde_json::from_str(&cave.verdict).unwrap_or_default();
-    let dir = install_dir(cave, &verdict).ok_or("Dossier d'installation introuvable")?;
+    let dir = install_dir(cave, &verdict).ok_or(tr_str!("Dossier d'installation introuvable", "Install folder not found"))?;
     let title = if cave.title.is_empty() {
-        dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| format!("Jeu itch.io {}", cave.game_id))
+        dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| tr!("Jeu itch.io {}", "itch.io game {}", cave.game_id))
     } else {
         cave.title.clone()
     };
@@ -166,12 +166,12 @@ fn scan_in(root: &Path) -> Result<Option<Vec<Game>>, String> {
     if !db.is_file() {
         return Ok(Some(Vec::new()));
     }
-    let caves = read(&db).map_err(|e| format!("Base de l'appli itch illisible : {e}"))?;
+    let caves = read(&db).map_err(|e| tr!("Base de l'appli itch illisible : {e}", "Can't read the itch app database: {e}"))?;
     let mut games: Vec<Game> = Vec::new();
     for cave in &caves {
-        let title = || if cave.title.is_empty() { format!("Jeu itch.io {}", cave.game_id) } else { cave.title.clone() };
+        let title = || if cave.title.is_empty() { tr!("Jeu itch.io {}", "itch.io game {}", cave.game_id) } else { cave.title.clone() };
         match build(cave) {
-            Ok(game) if games.iter().any(|g| g.id == game.id) => super::skip(&title(), "Même jeu installé deux fois (autre version)"),
+            Ok(game) if games.iter().any(|g| g.id == game.id) => super::skip(&title(), tr_str!("Même jeu installé deux fois (autre version)", "Same game installed twice (other version)")),
             Ok(game) => games.push(game),
             Err(reason) => super::skip(&title(), reason),
         }

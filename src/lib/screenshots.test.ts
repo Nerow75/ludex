@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Screenshot, ScreenshotGroup } from "./api";
-import { allShots, arrangeFolders, byMonth, kindCounts, shotCount, shotFolders } from "./screenshots";
+import { allShots, arrangeFolders, byMonth, kindCounts, SHOT_KINDS, SHOT_SORTS, shotCount, shotFolders } from "./screenshots";
+import { setLang } from "./i18n";
+
+afterEach(() => setLang("fr"));
 
 let n = 0;
 const capture = (fields: Partial<Screenshot> = {}): Screenshot => {
@@ -136,5 +139,33 @@ describe("kindCounts et shotCount", () => {
     expect(shotCount(128)).toBe("128 captures");
     expect(shotCount(2, "videos")).toBe("2 vidéos");
     expect(shotCount(1, "images")).toBe("1 image");
+  });
+});
+
+describe("page Captures en anglais", () => {
+  it("dossiers sans jeu, mois, nombres et libellés en anglais", () => {
+    setLang("en");
+    const folders = shotFolders([
+      { gameId: null, title: "Autres captures", shots: [capture({ steamAppid: 218, taken: 9 }), capture({ source: "gamebar", taken: 7 })] },
+    ]);
+    expect(folders.map((f) => [f.title, f.note])).toEqual([
+      ["Steam game 218", "Uninstalled"],
+      ["Other screenshots", null],
+    ]);
+    expect(byMonth([capture({ taken: NOV })]).map((m) => m.label)).toEqual(["November 2026"]);
+    expect(shotCount(1)).toBe("1 screenshot");
+    expect(shotCount(1240)).toBe("1,240 screenshots");
+    expect(shotCount(0, "videos")).toBe("0 videos");
+    expect(shotCount(1, "images")).toBe("1 image");
+    expect(SHOT_SORTS.map((s) => s.label)).toEqual(["Recent", "A → Z", "Count"]);
+    expect(SHOT_KINDS.map((k) => k.label)).toEqual(["All", "Images", "Videos"]);
+  });
+
+  it("libellés relus à chaque accès : retour au français", () => {
+    setLang("en");
+    expect(SHOT_SORTS[0].label).toBe("Recent");
+    setLang("fr");
+    expect(SHOT_SORTS[0].label).toBe("Récentes");
+    expect(SHOT_KINDS.map((k) => k.id)).toEqual(["all", "images", "videos"]);
   });
 });

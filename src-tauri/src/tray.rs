@@ -91,19 +91,22 @@ pub fn entries(recent: &[&Game], autostart: bool, keep_in_tray: bool) -> Vec<Ent
         .map(|g| Entry::Item { id: format!("{GAME_PREFIX}{}", g.id), label: game_label(&g.title), enabled: true })
         .collect();
     if list.is_empty() {
-        list.push(Entry::Item { id: NO_RECENT.to_string(), label: "Aucune partie récente".to_string(), enabled: false });
+        list.push(Entry::Item { id: NO_RECENT.to_string(), label: tr!("Aucune partie récente", "No recent games"), enabled: false });
     }
     list.extend([
         Entry::Separator,
-        item(OPEN, "Ouvrir Ludex"),
-        Entry::Check { id: AUTOSTART.to_string(), label: "Lancer avec Windows".to_string(), checked: autostart },
+        item(OPEN, tr_str!("Ouvrir Ludex", "Open Ludex")),
+        Entry::Check { id: AUTOSTART.to_string(), label: tr!("Lancer avec Windows", "Start with Windows"), checked: autostart },
         Entry::Check {
             id: KEEP_IN_TRAY.to_string(),
-            label: "Garder Ludex dans la zone de notification à la fermeture".to_string(),
+            label: tr!(
+                "Garder Ludex dans la zone de notification à la fermeture",
+                "Keep Ludex in the system tray when closed"
+            ),
             checked: keep_in_tray,
         },
         Entry::Separator,
-        item(QUIT, "Quitter"),
+        item(QUIT, tr_str!("Quitter", "Quit")),
     ]);
     list
 }
@@ -198,6 +201,19 @@ mod tests {
         let list = entries(&[], false, true);
         assert!(matches!(&list[0], Entry::Item { enabled: false, .. }));
         assert_eq!(list.len(), 7);
+    }
+
+    #[test]
+    fn menu_speaks_english() {
+        use crate::i18n::{Lang, with};
+        let list = with(Lang::En, || entries(&[], true, true));
+        assert_eq!(list[0], Entry::Item { id: NO_RECENT.into(), label: "No recent games".into(), enabled: false });
+        assert_eq!(list[2], item(OPEN, "Open Ludex"));
+        assert!(matches!(&list[3], Entry::Check { label, .. } if label == "Start with Windows"));
+        assert!(matches!(&list[4], Entry::Check { label, .. } if label == "Keep Ludex in the system tray when closed"));
+        assert_eq!(list[6], item(QUIT, "Quit"));
+        // Le même menu en français : un changement de langue le fait reconstruire.
+        assert_ne!(list, with(Lang::Fr, || entries(&[], true, true)));
     }
 
     #[test]

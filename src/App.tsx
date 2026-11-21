@@ -119,13 +119,16 @@ import { gamesCount, libraryAnnouncement } from "./lib/a11y";
 import CouchMode from "./components/CouchMode";
 import { LaunchScreen } from "./components/LaunchScreen";
 import { WindowControls } from "./components/WindowControls";
+import { formatNumber, t, useLang } from "./lib/i18n";
+import { genreLabel } from "./lib/format";
 
 interface Toast {
   title: string;
   detail?: string;
   error?: boolean;
   spin?: boolean;
-  action?: { label: string; run: () => void };
+  /** `undo` : « Annuler » d'une action réversible (Ctrl+Z le déclenche). */
+  action?: { label: string; run: () => void; undo?: boolean };
 }
 
 /** Durée du « Annuler » des actions réversibles (masquer, favori, statut, collection). */
@@ -158,9 +161,13 @@ const focusTarget = (holder: HTMLElement) => holder.querySelector<HTMLElement>("
 const SETTINGS_ID = "settings";
 
 const FILTERS: readonly Filter[] = ["all", "favorites", ...PLATFORMS, "hidden"];
-const FILTER_LABEL: Record<Filter, string> = { all: "Tous", favorites: "Favoris", hidden: "Masqués", ...PLATFORM_LABEL };
+/** Libellé d'un filtre, lu dans la langue actuelle. */
+const filterLabel = (f: Filter): string =>
+  f === "all" || f === "favorites" || f === "hidden" ? t.app.filter[f] : PLATFORM_LABEL[f];
 
 export default function App() {
+  // Toute l'interface se redessine au changement de langue.
+  useLang();
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -225,7 +232,7 @@ export default function App() {
   // Rendu appelé plus bas, une fois l'état (mise à jour, écran d'accueil) déclaré.
   const settingsSection: Section = {
     id: SETTINGS_ID,
-    label: "Paramètres",
+    label: t.app.settings,
     icon: SlidersIcon,
     render: () => (
       <SettingsView
@@ -237,7 +244,7 @@ export default function App() {
         onShown={(ids) => {
           const shown = new Set(ids);
           setScan((s) => s && { ...s, games: s.games.map((g) => (shown.has(g.id) ? { ...g, hidden: false } : g)) });
-          if (ids.length) showToast({ title: ids.length > 1 ? `${ids.length} jeux sont de retour dans la bibliothèque` : "1 jeu est de retour dans la bibliothèque" });
+          if (ids.length) showToast({ title: t.app.toast.gamesBack(ids.length) });
         }}
         onWelcome={setWelcomeInfo}
         update={update}
@@ -267,9 +274,9 @@ export default function App() {
     (query ? results[0] : results.find((g) => g.id === recent[0]?.id) ?? results[0]) ??
     null;
 
-  const showToast = useCallback((t: Toast, ms = 3600) => {
-    setToast(t);
-    toastLive.current = { toast: t, ms };
+  const showToast = useCallback((next: Toast, ms = 3600) => {
+    setToast(next);
+    toastLive.current = { toast: next, ms };
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
   }, []);
@@ -287,7 +294,7 @@ export default function App() {
    * « Annuler » pendant 5 s rejoue l'action en sens inverse, qui propose à son tour « Annuler ».
    */
   const showUndo = useCallback((title: string, undo: () => void) => {
-    showToast({ title, action: { label: "Annuler", run: undo } }, UNDO_MS);
+    showToast({ title, action: { label: t.app.toast.undo, run: undo, undo: true } }, UNDO_MS);
   }, [showToast]);
 
   const goTo = useCallback((id: string) => {
@@ -362,7 +369,7 @@ export default function App() {
       setScan((current) => nextScan(current, result));
       if (manual) {
         const n = result.games.filter((g) => !g.hidden).length;
-        showToast({ title: "Bibliothèque à jour", detail: `${n} jeu${n > 1 ? "x" : ""} détecté${n > 1 ? "s" : ""}` });
+        showToast({ title: t.app.toast.libraryUpToDate, detail: t.app.toast.detected(n) });
       }
     } catch (e) {
       setScanError(String(e));
@@ -444,8 +451,8 @@ export default function App() {
       setScan(e.scan);
       setScanError(null);
       loadCollections();
-      const t = libraryToast(e);
-      if (t) showToast(t, 5000);
+      const toast = libraryToast(e);
+      if (toast) showToast(toast, 5000);
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [showToast, loadCollections]);
@@ -455,10 +462,10 @@ export default function App() {
   useEffect(() => {
     const launched = onTrayLaunch(({ id, title, lastPlayed, error }) => {
       if (lastPlayed !== null) patchGame(id, { lastPlayed });
-      if (error) showToast({ title: `Impossible de lancer ${title}`, detail: error, error: true }, 6000);
+      if (error) showToast({ title: t.app.toast.cannotLaunch(title), detail: error, error: true }, 6000);
     });
     const hint = onTrayHint(() =>
-      showToast({ title: "Ludex reste ouvert dans la zone de notification", detail: "Le temps de jeu continue d'être mesuré. Clic droit sur l'icône, puis Quitter, pour le fermer." }, 3600),
+      showToast({ title: t.app.toast.trayTitle, detail: t.app.toast.trayDetail }, 3600),
     );
     return () => {
       launched.then((stop) => stop()).catch(() => {});
@@ -495,11 +502,11 @@ export default function App() {
   const [updating, setUpdating] = useState(false);
   const runUpdate = useCallback(async (info: UpdateInfo) => {
     setUpdating(true);
-    showToast({ spin: true, title: `Mise à jour vers Ludex ${info.version}`, detail: "Téléchargement, puis Ludex se relance" }, 10 * 60_000);
+    showToast({ spin: true, title: t.app.toast.updating(info.version), detail: t.app.toast.updatingDetail }, 10 * 60_000);
     try {
       await installUpdate(); // sous Windows, Ludex se ferme ici
     } catch (e) {
-      showToast({ title: "Mise à jour impossible", detail: String(e), error: true }, 6000);
+      showToast({ title: t.app.toast.updateFailed, detail: String(e), error: true }, 6000);
     } finally {
       setUpdating(false);
     }
@@ -510,9 +517,9 @@ export default function App() {
       if (!alive) return;
       setUpdate(info);
       showToast({
-        title: `Ludex ${info.version} est disponible`,
-        detail: `Version actuelle : ${info.currentVersion}`,
-        action: { label: "Installer et relancer", run: () => runUpdate(info) },
+        title: t.app.toast.updateAvailable(info.version),
+        detail: t.app.toast.currentVersion(info.currentVersion),
+        action: { label: t.app.toast.installAndRestart, run: () => runUpdate(info) },
       }, 12_000);
     };
     const unlisten = onUpdateAvailable(announce);
@@ -549,13 +556,13 @@ export default function App() {
     const key = Date.now();
     const screen = launchScreenOn.current;
     if (screen) setLaunching({ id: game.id, key, alreadyPlaying: playingRef.current.has(game.id), error: null });
-    else showToast({ spin: true, title: `Lancement de ${game.title}`, detail: `via ${PLATFORM_LABEL[game.platform]} · ${game.launchLabel}` });
+    else showToast({ spin: true, title: t.app.toast.launching(game.title), detail: t.app.toast.via(PLATFORM_LABEL[game.platform], game.launchLabel) });
     try {
       patchGame(game.id, { lastPlayed: await launchGame(game.id) });
     } catch (e) {
       // Écran encore ouvert pour ce lancement : l'erreur y est affichée ; sinon (fermé entre-temps) un toast.
       if (screen && launchingRef.current?.key === key) setLaunching((l) => (l?.key === key ? { ...l, error: String(e) } : l));
-      else showToast({ title: `Impossible de lancer ${game.title}`, detail: String(e), error: true }, 6000);
+      else showToast({ title: t.app.toast.cannotLaunch(game.title), detail: String(e), error: true }, 6000);
     }
   }, [patchGame, showToast]);
 
@@ -573,10 +580,10 @@ export default function App() {
     patchGame(game.id, { favorite: value });
     try {
       await setFavorite(game.id, value);
-      showUndo(value ? `${game.title} ajouté aux favoris` : `${game.title} retiré des favoris`, () => toggleFavorite({ ...game, favorite: value }));
+      showUndo(value ? t.app.toast.favoriteAdded(game.title) : t.app.toast.favoriteRemoved(game.title), () => toggleFavorite({ ...game, favorite: value }));
     } catch (e) {
       patchGame(game.id, { favorite: !value });
-      showToast({ title: "Favori non enregistré", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.favoriteFailed, detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast, showUndo]);
 
@@ -586,10 +593,10 @@ export default function App() {
     try {
       await setHidden(game.id, value);
       if (value) setOpen(false);
-      showUndo(value ? `${game.title} est masqué` : `${game.title} est de retour dans la bibliothèque`, () => toggleHidden({ ...game, hidden: value }));
+      showUndo(value ? t.app.toast.hidden(game.title) : t.app.toast.unhidden(game.title), () => toggleHidden({ ...game, hidden: value }));
     } catch (e) {
       patchGame(game.id, { hidden: !value });
-      showToast({ title: "Changement non enregistré", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.hiddenFailed, detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast, showUndo]);
 
@@ -600,10 +607,10 @@ export default function App() {
     patchGame(game.id, { status });
     try {
       await setStatus(game.id, status);
-      showUndo(status ? `${game.title} : ${STATUS_LABEL[status]}` : `${game.title} : statut retiré`, () => changeStatus({ ...game, status }, before));
+      showUndo(status ? t.app.toast.status(game.title, STATUS_LABEL[status]) : t.app.toast.statusCleared(game.title), () => changeStatus({ ...game, status }, before));
     } catch (e) {
       patchGame(game.id, { status: before });
-      showToast({ title: "Statut non enregistré", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.statusFailed, detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast, showUndo]);
 
@@ -613,7 +620,7 @@ export default function App() {
       patchGame(game.id, { note: await setNote(game.id, note) });
     } catch (e) {
       patchGame(game.id, { note: game.note });
-      showToast({ title: "Note non enregistrée", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.noteFailed, detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast]);
 
@@ -621,20 +628,20 @@ export default function App() {
   const changeAliases = useCallback(async (game: Game, text: string) => {
     const saved = await setAliases(game.id, text);
     patchGame(game.id, { aliases: saved });
-    showToast({ title: saved.length ? "Alias de recherche enregistrés" : "Alias de recherche effacés", detail: saved.join(", ") || undefined }, 3000);
+    showToast({ title: saved.length ? t.app.toast.aliasesSaved : t.app.toast.aliasesCleared, detail: saved.join(", ") || undefined }, 3000);
   }, [patchGame, showToast]);
 
   const changeGenres = useCallback(async (game: Game, genres: string[]) => {
     try {
       const { details, customGenres } = await setGenres(game.id, genres);
       patchGame(game.id, { details, customGenres });
-      const list = details?.genres.join(", ");
+      const list = details?.genres.map(genreLabel).join(", ");
       showToast(
-        customGenres ? { title: "Genres corrigés", detail: list } : { title: "Genres d'origine rétablis", detail: list || "Aucun genre sur Steam" },
+        customGenres ? { title: t.app.toast.genresFixed, detail: list } : { title: t.app.toast.genresRestored, detail: list || t.app.toast.noSteamGenres },
         3000,
       );
     } catch (e) {
-      showToast({ title: "Genres non enregistrés", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.genresFailed, detail: String(e), error: true }, 5000);
     }
   }, [patchGame, showToast]);
 
@@ -642,7 +649,7 @@ export default function App() {
   const changeLaunchArgs = useCallback(async (game: Game, text: string) => {
     const saved = await setLaunchArgs(game.id, text);
     patchGame(game.id, { launchArgs: saved });
-    showToast({ title: saved ? "Options de lancement enregistrées" : "Options de lancement effacées", detail: saved ?? undefined }, 3000);
+    showToast({ title: saved ? t.app.toast.argsSaved : t.app.toast.argsCleared, detail: saved ?? undefined }, 3000);
   }, [patchGame, showToast]);
 
   const setMine = (mine: Collection[]) => setCollections((c) => ({ steam: c?.steam ?? [], mine }));
@@ -652,11 +659,11 @@ export default function App() {
     try {
       setMine(await setInCollection(collection.id, game.id, value));
       showUndo(
-        value ? `${game.title} ajouté à « ${collection.name} »` : `${game.title} retiré de « ${collection.name} »`,
+        value ? t.app.toast.addedTo(game.title, collection.name) : t.app.toast.removedFrom(game.title, collection.name),
         () => toggleCollection(game, collection, !value),
       );
     } catch (e) {
-      showToast({ title: "Collection non modifiée", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.collectionFailed, detail: String(e), error: true }, 5000);
     }
   }, [showToast, showUndo]);
 
@@ -667,15 +674,15 @@ export default function App() {
       setMine(mine);
       const created = mine.find((c) => c.id === id);
       if (game && created) {
-        showUndo(`${game.title} ajouté à « ${created.name} »`, () => toggleCollection(game, created, false));
+        showUndo(t.app.toast.addedTo(game.title, created.name), () => toggleCollection(game, created, false));
       } else if (game) {
-        showToast({ title: `${game.title} ajouté à « ${name} »` });
+        showToast({ title: t.app.toast.addedTo(game.title, name) });
       } else {
-        showToast({ title: `Collection « ${created?.name ?? name} » créée`, detail: "Ajoute des jeux depuis leur fiche, bouton Collections" });
+        showToast({ title: t.app.toast.collectionCreated(created?.name ?? name), detail: t.app.toast.collectionCreatedDetail });
         goTo(`col:${id}`);
       }
     } catch (e) {
-      showToast({ title: "Collection non créée", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.collectionNotCreated, detail: String(e), error: true }, 5000);
     }
   }, [goTo, showToast, showUndo, toggleCollection]);
 
@@ -690,7 +697,7 @@ export default function App() {
     try {
       setMine(await renameCollection(id, name));
     } catch (e) {
-      showToast({ title: "Collection non renommée", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.collectionNotRenamed, detail: String(e), error: true }, 5000);
     }
   }, [showToast]);
 
@@ -698,9 +705,9 @@ export default function App() {
     try {
       setMine(await deleteCollection(id));
       goTo(SECTIONS[0].id);
-      showToast({ title: `Collection « ${name} » supprimée`, detail: "Ses jeux restent dans la bibliothèque" });
+      showToast({ title: t.app.toast.collectionDeleted(name), detail: t.app.toast.collectionDeletedDetail });
     } catch (e) {
-      showToast({ title: "Collection non supprimée", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.collectionNotDeleted, detail: String(e), error: true }, 5000);
     }
   }, [goTo, showToast]);
 
@@ -708,16 +715,16 @@ export default function App() {
     try {
       await openInstallDir(game.id);
     } catch (e) {
-      showToast({ title: "Dossier introuvable", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.folderNotFound, detail: String(e), error: true }, 5000);
     }
   }, [showToast]);
 
   const makeShortcut = useCallback(async (game: Game) => {
     try {
       const name = await createShortcut(game.id);
-      showToast({ title: "Raccourci créé sur le Bureau", detail: name });
+      showToast({ title: t.app.toast.shortcutCreated, detail: name });
     } catch (e) {
-      showToast({ title: "Raccourci non créé", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.shortcutFailed, detail: String(e), error: true }, 5000);
     }
   }, [showToast]);
 
@@ -744,9 +751,9 @@ export default function App() {
       goTo(SECTIONS[0].id);
       setQuery("");
       setOpen(true);
-      showToast({ title: `${u.title} ajouté`, detail: "Rangé dans « Autres »" });
+      showToast({ title: t.app.toast.gameAdded(u.title), detail: t.app.toast.gameAddedDetail });
     } catch (e) {
-      showToast({ title: "Jeu non ajouté", detail: String(e), error: true }, 6000);
+      showToast({ title: t.app.toast.gameNotAdded, detail: String(e), error: true }, 6000);
     } finally {
       adding.current = false;
     }
@@ -758,9 +765,9 @@ export default function App() {
       if (!u) return;
       applyUpdate(u);
       const label = u.scan.games.find((g) => g.id === u.id)?.launchLabel;
-      showToast({ title: `Exécutable de ${u.title} changé`, detail: label });
+      showToast({ title: t.app.toast.exeChanged(u.title), detail: label });
     } catch (e) {
-      showToast({ title: "Exécutable non changé", detail: String(e), error: true }, 6000);
+      showToast({ title: t.app.toast.exeNotChanged, detail: String(e), error: true }, 6000);
     }
   }, [applyUpdate, showToast]);
 
@@ -770,10 +777,10 @@ export default function App() {
     try {
       const u = await renameGame(game.id, title);
       applyUpdate(u);
-      showToast({ title: `Renommé en ${u.title}` });
+      showToast({ title: t.app.toast.renamed(u.title) });
     } catch (e) {
       patchGame(game.id, { title: game.title });
-      showToast({ title: "Titre non enregistré", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.titleNotSaved, detail: String(e), error: true }, 5000);
     }
   }, [applyUpdate, patchGame, showToast]);
 
@@ -782,14 +789,13 @@ export default function App() {
   const chooseArt = useCallback(async (game: Game, kind: ArtKind) => {
     if (choosingArt.current) return;
     choosingArt.current = true;
-    const what = kind === "cover" ? "Jaquette" : "Image de fond";
     try {
       const e = await chooseCover(game.id, kind);
       if (!e) return; // sélection annulée
       patchGame(e.id, { coverUrl: e.coverUrl, heroUrl: e.heroUrl, logoUrl: e.logoUrl, customArt: e.customArt });
-      showToast({ title: `${what} de ${game.title} changée`, detail: "Copiée dans Ludex : l'image d'origine peut être déplacée" });
+      showToast({ title: kind === "cover" ? t.app.toast.coverChanged(game.title) : t.app.toast.heroChanged(game.title), detail: t.app.toast.artCopied });
     } catch (err) {
-      showToast({ title: `${what} non changée`, detail: String(err), error: true }, 6000);
+      showToast({ title: kind === "cover" ? t.app.toast.coverNotChanged : t.app.toast.heroNotChanged, detail: String(err), error: true }, 6000);
     } finally {
       choosingArt.current = false;
     }
@@ -801,9 +807,9 @@ export default function App() {
         const e = await resetCover(game.id, kind);
         patchGame(e.id, { coverUrl: e.coverUrl, heroUrl: e.heroUrl, logoUrl: e.logoUrl, customArt: e.customArt });
       }
-      showToast({ title: `Images d'origine de ${game.title} rétablies` });
+      showToast({ title: t.app.toast.artRestored(game.title) });
     } catch (err) {
-      showToast({ title: "Images d'origine non rétablies", detail: String(err), error: true }, 5000);
+      showToast({ title: t.app.toast.artNotRestored, detail: String(err), error: true }, 5000);
     }
   }, [patchGame, showToast]);
 
@@ -811,9 +817,9 @@ export default function App() {
     try {
       setScan(await removeGame(game.id));
       setOpen(false);
-      showToast({ title: `${game.title} retiré`, detail: "Ajouté de nouveau, il retrouvera son temps de jeu" });
+      showToast({ title: t.app.toast.removed(game.title), detail: t.app.toast.removedDetail });
     } catch (e) {
-      showToast({ title: "Jeu non retiré", detail: String(e), error: true }, 5000);
+      showToast({ title: t.app.toast.notRemoved, detail: String(e), error: true }, 5000);
     }
   }, [showToast]);
 
@@ -832,8 +838,8 @@ export default function App() {
   // ouvre sa fiche sur l'onglet Actualités.
   useEffect(() => {
     const unlisten = onGameNews((alerts) => {
-      const t = newsToast(alerts);
-      if (!t) return;
+      const news = newsToast(alerts);
+      if (!news) return;
       const first = alerts[0];
       const show = () => {
         const game = live.current.games.find((g) => g.id === first.id);
@@ -841,7 +847,7 @@ export default function App() {
         remember("ficheTab", "news");
         openGame(game);
       };
-      showToast({ ...t, action: { label: "Voir", run: show } }, 8000);
+      showToast({ ...news, action: { label: t.app.toast.see, run: show } }, 8000);
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [openGame, showToast]);
@@ -849,8 +855,8 @@ export default function App() {
   // Promos nouvelles de la liste de souhaits, quand aucune notification Windows n'est partie.
   useEffect(() => {
     const unlisten = onWishlistSale((sales) => {
-      const t = saleToast(sales);
-      if (t) showToast({ ...t, action: { label: "Voir", run: () => live.current.goTo("wishlist") } }, 8000);
+      const sale = saleToast(sales);
+      if (sale) showToast({ ...sale, action: { label: t.app.toast.see, run: () => live.current.goTo("wishlist") } }, 8000);
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [showToast]);
@@ -858,15 +864,15 @@ export default function App() {
   // Clic sur une notification Windows (fenêtre déjà affichée côté Rust) : fiche du jeu, sur
   // l'onglet voulu, ou section Stockage.
   useEffect(() => {
-    const unlisten = onNotificationOpen((t) => {
-      if (t.target === "storage") {
+    const unlisten = onNotificationOpen((n) => {
+      if (n.target === "storage") {
         live.current.goTo("storage");
-      } else if (t.target === "wishlist") {
+      } else if (n.target === "wishlist") {
         live.current.goTo("wishlist");
-      } else if (t.target === "game") {
-        const game = live.current.games.find((g) => g.id === t.id);
+      } else if (n.target === "game") {
+        const game = live.current.games.find((g) => g.id === n.id);
         if (!game) return;
-        if (t.tab) remember("ficheTab", t.tab);
+        if (n.tab) remember("ficheTab", n.tab);
         openGame(game);
       }
     });
@@ -1114,7 +1120,7 @@ export default function App() {
       } else if (ctrl && key === ",") {
         e.preventDefault();
         s.goTo(SETTINGS_ID);
-      } else if (ctrl && !e.shiftKey && key.toLowerCase() === "z" && !inInput && toastLive.current.toast?.action?.label === "Annuler") {
+      } else if (ctrl && !e.shiftKey && key.toLowerCase() === "z" && !inInput && toastLive.current.toast?.action?.undo) {
         // Ctrl+Z = « Annuler » du toast affiché, sans aller le chercher à la souris (hors champ de texte).
         e.preventDefault();
         const run = toastLive.current.toast.action!.run;
@@ -1175,23 +1181,23 @@ export default function App() {
   const announceText = !scan || emptyLibrary
     ? ""
     : custom
-      ? scan.partial ? "" : `Bibliothèque chargée : ${gamesCount(games.filter((g) => !g.hidden && !g.isTool).length)}`
+      ? scan.partial ? "" : t.app.announce.loaded(gamesCount(games.filter((g) => !g.hidden && !g.isTool).length))
       : libraryAnnouncement({
           section: view.label,
           count: results.length,
           query,
-          filter: activeFilter === "all" ? null : FILTER_LABEL[activeFilter],
+          filter: activeFilter === "all" ? null : filterLabel(activeFilter),
           extra: [
-            facets.mood && `ambiance ${MOOD_LABEL[facets.mood]}`,
-            facets.tag && `tag ${facets.tag}`,
-            facets.genre && `genre ${facets.genre}`,
-            statusFilter !== "any" && `statut ${STATUS_FILTER_LABEL[statusFilter]}`,
+            facets.mood && t.app.announce.mood(MOOD_LABEL[facets.mood]),
+            facets.tag && t.app.announce.tag(facets.tag),
+            facets.genre && t.app.announce.genre(genreLabel(facets.genre)),
+            statusFilter !== "any" && t.app.announce.status(STATUS_FILTER_LABEL[statusFilter]),
           ].filter((x): x is string => !!x),
-        }) + (query.trim() && selected ? `. Entrée lance ${selected.title}` : "");
+        }) + (query.trim() && selected ? t.app.announce.enterLaunches(selected.title) : "");
   const [announce, setAnnounce] = useState("");
   useEffect(() => {
-    const t = window.setTimeout(() => setAnnounce(announceText), 500);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setAnnounce(announceText), 500);
+    return () => window.clearTimeout(timer);
   }, [announceText]);
   const meta = useCallback((g: Game) => sortMeta(g, sort), [sort]);
   // Comptes des pastilles mémorisés : refaits à chaque rendu (chaque flèche), ils coûtaient ~250 ms avec 3 000 jeux.
@@ -1367,7 +1373,7 @@ export default function App() {
   /** Écran de premier lancement fermé : il ne reviendra plus, puis `then` (section à ouvrir). */
   const closeWelcome = (then: () => void) => {
     setWelcomeInfo(null);
-    welcomeDone().catch((e) => showToast({ title: "Premier lancement non enregistré", detail: String(e), error: true }, 5000));
+    welcomeDone().catch((e) => showToast({ title: t.app.toast.welcomeNotSaved, detail: String(e), error: true }, 5000));
     then();
     requestAnimationFrame(focusContent);
   };
@@ -1409,33 +1415,33 @@ export default function App() {
               setOpen(false);
             }}
             onKeyDown={onSearchKey}
-            placeholder="Rechercher un jeu, un studio, un tag"
-            aria-label="Rechercher un jeu"
+            placeholder={t.app.top.searchPlaceholder}
+            aria-label={t.app.top.searchLabel}
             spellCheck={false}
             autoComplete="off"
           />
-          {query ? <kbd>Entrée</kbd> : <><kbd>Ctrl</kbd><kbd>K</kbd></>}
+          {query ? <kbd>{t.app.key.enter}</kbd> : <><kbd>Ctrl</kbd><kbd>K</kbd></>}
         </label>
         <div className="top__tools">
           {update && (
             <button
               type="button"
               className="top__update"
-              aria-label={`Installer Ludex ${update.version} et relancer`}
-              title={`Ludex ${update.version} est disponible : installer et relancer`}
+              aria-label={t.app.top.updateLabel(update.version)}
+              title={t.app.top.updateTitle(update.version)}
               onClick={() => runUpdate(update)}
               disabled={updating}
             >
               <DownloadIcon />
             </button>
           )}
-          <button type="button" className="top__add" title="Ajouter un jeu (Ctrl+N)" onClick={addManualGame}>
-            <PlusIcon />Ajouter un jeu
+          <button type="button" className="top__add" title={t.app.top.addTitle} onClick={addManualGame}>
+            <PlusIcon />{t.app.top.add}
           </button>
           <button
             type="button"
-            aria-label="Rescanner la bibliothèque"
-            title="Rescanner la bibliothèque"
+            aria-label={t.app.top.rescan}
+            title={t.app.top.rescan}
             onClick={() => refresh(true)}
             disabled={scanning}
             className={scanning ? "is-spinning" : ""}
@@ -1447,37 +1453,38 @@ export default function App() {
       <p className="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>
       <p className="hint" data-tauri-drag-region="deep">
         {!scan
-          ? "Recherche de tes jeux dans tous tes launchers"
+          ? t.app.hint.scanning
           : query && selected
-            ? <><kbd>Entrée</kbd> lance <b>{selected.title}</b></>
+            ? <><kbd>{t.app.key.enter}</kbd> {t.app.hint.launches} <b>{selected.title}</b></>
             : query
-              ? "Aucun jeu ne correspond"
-              : "Tape n'importe où pour chercher un jeu"}
+              ? t.app.hint.noMatch
+              : t.app.hint.typeAnywhere}
       </p>
 
       <main className="scroll" ref={scrollRef}>
-        {scanError && <p className="notice notice--error">Le scan a échoué : {scanError}</p>}
+        {scanError && <p className="notice notice--error">{t.app.scanFailed(scanError)}</p>}
         {errors.map((s) => (
-          <p key={s.platform} className="notice notice--error">{PLATFORM_LABEL[s.platform]} : {s.error}</p>
+          <p key={s.platform} className="notice notice--error">{t.app.sourceError(PLATFORM_LABEL[s.platform], s.error ?? "")}</p>
         ))}
 
         {awaitingGames(scan) && !scanError && !inSettings && <LibrarySkeleton />}
 
         {scan && emptyLibrary && !scan.partial && !inSettings && (
           <EmptyState
-            title="Aucun jeu trouvé sur ce PC"
+            title={t.app.empty.title}
             action={
               <span className="empty__acts">
-                <button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> Rescanner</button>
-                <button type="button" className="btn-ghost" onClick={addManualGame}><PlusIcon /> Ajouter un jeu</button>
+                <button type="button" className="btn-ghost" onClick={() => refresh(true)}><RefreshIcon /> {t.app.empty.rescan}</button>
+                <button type="button" className="btn-ghost" onClick={addManualGame}><PlusIcon /> {t.app.top.add}</button>
               </span>
             }
           >
-            Ludex lit les jeux installés par Steam, Epic Games, GOG, Ubisoft, EA, Battle.net, Rockstar, Xbox, Riot, Amazon Games et itch.io, ainsi que les dossiers « Jeux » et « Games » de tes disques, sans connexion à tes comptes.
-            Installe un jeu avec l'un d'eux puis relance un scan, ou ajoute un jeu rangé ailleurs en choisissant son exécutable.
+            {t.app.empty.sources}
+            {" "}
+            {t.app.empty.next}
             <span className="empty__sources">
               {scan.sources.map((s) => (
-                <span key={s.platform}>{PLATFORM_LABEL[s.platform]} : {s.disabled ? "désactivé dans les Paramètres" : s.installed ? `${s.count} jeu${s.count > 1 ? "x" : ""}` : "non détecté"}</span>
+                <span key={s.platform}>{t.app.empty.source(PLATFORM_LABEL[s.platform], s.disabled ? t.app.empty.disabled : s.installed ? t.app.empty.count(s.count) : t.app.empty.notDetected)}</span>
               ))}
             </span>
           </EmptyState>
@@ -1493,45 +1500,45 @@ export default function App() {
                   className="bar__rename"
                   initial={mineCollection.name}
                   maxLength={MAX_COLLECTION_NAME}
-                  label={`Nouveau nom de « ${mineCollection.name} »`}
+                  label={t.app.bar.renameLabel(mineCollection.name)}
                   onSubmit={(name) => renameCol(mineCollection.id, name)}
                   onDone={() => setRenamingCollection(false)}
                 />
               ) : (
-                <h2 id="lib-title" title={view.collection?.kind === "steam" ? "Collection lue dans Steam, modifiable seulement dans Steam" : undefined}>
-                  {query ? "Résultats" : view.label}<span><span className="sr-only">, </span>{results.length}</span>
+                <h2 id="lib-title" title={view.collection?.kind === "steam" ? t.app.bar.steamCollection : undefined}>
+                  {query ? t.app.bar.results : view.label}<span><span className="sr-only">, </span>{formatNumber(results.length)}</span>
                 </h2>
               )}
               {mineCollection && !query && (
                 confirmDelete ? (
-                  <span className="bar__confirm" role="group" aria-label="Confirmer la suppression">
-                    Supprimer « {mineCollection.name} » ? Ses jeux restent dans la bibliothèque.
-                    <button type="button" className="btn-ghost btn-ghost--danger" onClick={() => deleteCol(mineCollection.id, mineCollection.name)}>Supprimer</button>
-                    <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Garder</button>
+                  <span className="bar__confirm" role="group" aria-label={t.app.bar.confirmDeleteLabel}>
+                    {t.app.bar.confirmDelete(mineCollection.name)}
+                    <button type="button" className="btn-ghost btn-ghost--danger" onClick={() => deleteCol(mineCollection.id, mineCollection.name)}>{t.app.bar.delete}</button>
+                    <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>{t.app.bar.keep}</button>
                   </span>
                 ) : (
                   <span className="bar__tools">
                     <button
                       type="button"
                       className="btn-icon btn-icon--small"
-                      aria-label="Renommer la collection"
-                      title="Renommer la collection"
+                      aria-label={t.app.bar.renameCollection}
+                      title={t.app.bar.renameCollection}
                       onMouseDown={(e) => renamingCollection && e.preventDefault()}
                       onClick={() => setRenamingCollection((r) => !r)}
                     >
                       <PencilIcon />
                     </button>
-                    <button type="button" className="btn-icon btn-icon--small" aria-label="Supprimer la collection" title="Supprimer la collection" onClick={() => setConfirmDelete(true)}>
+                    <button type="button" className="btn-icon btn-icon--small" aria-label={t.app.bar.deleteCollection} title={t.app.bar.deleteCollection} onClick={() => setConfirmDelete(true)}>
                       <TrashIcon />
                     </button>
                   </span>
                 )
               )}
-              <div className="seg" role="group" aria-label="Filtrer">
+              <div className="seg" role="group" aria-label={t.app.bar.filters}>
                 {filters.map((f) => (
                   <button key={f} type="button" aria-pressed={activeFilter === f} onClick={() => changeFilter(f)}>
                     {f in PLATFORM_LABEL && <LauncherIcon platform={f as Platform} />}
-                    {FILTER_LABEL[f]} <em>{count(f)}</em>
+                    {filterLabel(f)} <em>{formatNumber(count(f))}</em>
                   </button>
                 ))}
               </div>
@@ -1539,44 +1546,44 @@ export default function App() {
               <div className="bar__opts">
                 <select
                   className="pick"
-                  aria-label="Filtrer par ambiance"
+                  aria-label={t.app.bar.moodLabel}
                   value={facets.mood ?? ""}
                   onChange={(e) => changeFacets({ ...facets, mood: (e.target.value || null) as Mood | null })}
                 >
-                  <option value="">Ambiance</option>
+                  <option value="">{t.app.bar.mood}</option>
                   {moodChoices.map(({ mood, count }) => (
-                    <option key={mood} value={mood}>{MOOD_LABEL[mood]} ({count})</option>
+                    <option key={mood} value={mood}>{t.app.bar.choice(MOOD_LABEL[mood], count)}</option>
                   ))}
                 </select>
                 <select
                   className="pick"
-                  aria-label="Filtrer par tag Steam"
+                  aria-label={t.app.bar.tagLabel}
                   value={facets.tag ?? ""}
                   onChange={(e) => changeFacets({ ...facets, tag: e.target.value || null })}
                 >
-                  <option value="">Tag</option>
+                  <option value="">{t.app.bar.tag}</option>
                   {/* Tag retenu absent de la liste (autre section, jeu disparu) : gardé pour rester affiché. */}
-                  {facets.tag && !tagChoices.some((t) => t.name === facets.tag) && <option value={facets.tag}>{facets.tag} (0)</option>}
+                  {facets.tag && !tagChoices.some((c) => c.name === facets.tag) && <option value={facets.tag}>{t.app.bar.choice(facets.tag, 0)}</option>}
                   {tagChoices.map(({ name, count }) => (
-                    <option key={name} value={name}>{name} ({count})</option>
+                    <option key={name} value={name}>{t.app.bar.choice(name, count)}</option>
                   ))}
                 </select>
                 <select
                   className="pick"
-                  aria-label="Filtrer par genre"
+                  aria-label={t.app.bar.genreLabel}
                   value={facets.genre ?? ""}
                   onChange={(e) => changeFacets({ ...facets, genre: e.target.value || null })}
                 >
-                  <option value="">Genre</option>
-                  {facets.genre && !genreChoices.some((t) => t.name === facets.genre) && <option value={facets.genre}>{facets.genre} (0)</option>}
+                  <option value="">{t.app.bar.genre}</option>
+                  {facets.genre && !genreChoices.some((c) => c.name === facets.genre) && <option value={facets.genre}>{t.app.bar.choice(genreLabel(facets.genre), 0)}</option>}
                   {genreChoices.map(({ name, count }) => (
-                    <option key={name} value={name}>{name} ({count})</option>
+                    <option key={name} value={name}>{t.app.bar.choice(genreLabel(name), count)}</option>
                   ))}
                 </select>
                 <select
                   className="bar__select"
                   value={statusFilter}
-                  aria-label="Filtrer par statut"
+                  aria-label={t.app.bar.statusLabel}
                   onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
                   onKeyDown={(e) => e.stopPropagation()} // les flèches et lettres restent au menu
                 >
@@ -1587,7 +1594,7 @@ export default function App() {
                 <select
                   className="bar__select"
                   value={sort}
-                  aria-label="Trier"
+                  aria-label={t.app.bar.sortLabel}
                   onChange={(e) => changeSort(e.target.value as Sort)}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
@@ -1595,30 +1602,30 @@ export default function App() {
                     <option key={s} value={s}>{SORT_LABEL[s]}</option>
                   ))}
                 </select>
-                <div className="seg seg--icons" role="group" aria-label="Affichage">
-                  <button type="button" aria-pressed={layout === "grid"} aria-label="Grille" title="Grille" onClick={() => changeLayout("grid")}><GridIcon /></button>
-                  <button type="button" aria-pressed={layout === "list"} aria-label="Liste" title="Liste" onClick={() => changeLayout("list")}><ListIcon /></button>
+                <div className="seg seg--icons" role="group" aria-label={t.app.bar.layout}>
+                  <button type="button" aria-pressed={layout === "grid"} aria-label={t.app.bar.grid} title={t.app.bar.grid} onClick={() => changeLayout("grid")}><GridIcon /></button>
+                  <button type="button" aria-pressed={layout === "list"} aria-label={t.app.bar.list} title={t.app.bar.list} onClick={() => changeLayout("list")}><ListIcon /></button>
                 </div>
               </div>
             </div>
             {hasFacets(facets) && (
-              <ul className="pills" aria-label="Filtres actifs">
+              <ul className="pills" aria-label={t.app.pills.label}>
                 {facets.mood && (
                   <li className="pill">
-                    Ambiance : {MOOD_LABEL[facets.mood]}
-                    <button type="button" aria-label={`Retirer le filtre ${MOOD_LABEL[facets.mood]}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, mood: null })}>×</button>
+                    {t.app.pills.mood(MOOD_LABEL[facets.mood])}
+                    <button type="button" aria-label={t.app.pills.remove(MOOD_LABEL[facets.mood])} title={t.app.pills.removeTitle} onClick={() => changeFacets({ ...facets, mood: null })}>×</button>
                   </li>
                 )}
                 {facets.tag && (
                   <li className="pill">
-                    Tag : {facets.tag}
-                    <button type="button" aria-label={`Retirer le filtre ${facets.tag}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, tag: null })}>×</button>
+                    {t.app.pills.tag(facets.tag)}
+                    <button type="button" aria-label={t.app.pills.remove(facets.tag)} title={t.app.pills.removeTitle} onClick={() => changeFacets({ ...facets, tag: null })}>×</button>
                   </li>
                 )}
                 {facets.genre && (
                   <li className="pill">
-                    Genre : {facets.genre}
-                    <button type="button" aria-label={`Retirer le filtre ${facets.genre}`} title="Retirer ce filtre" onClick={() => changeFacets({ ...facets, genre: null })}>×</button>
+                    {t.app.pills.genre(genreLabel(facets.genre))}
+                    <button type="button" aria-label={t.app.pills.remove(genreLabel(facets.genre))} title={t.app.pills.removeTitle} onClick={() => changeFacets({ ...facets, genre: null })}>×</button>
                   </li>
                 )}
               </ul>
@@ -1667,27 +1674,27 @@ export default function App() {
 
       {showPadHints ? (
         <footer className="keys keys--pad" aria-hidden>
-          <span><kbd>Croix</kbd> naviguer</span>
-          <span><kbd className="pad">A</kbd> jouer</span>
-          <span><kbd className="pad">X</kbd> fiche</span>
-          <span><kbd className="pad">Y</kbd> favori</span>
-          <span><kbd>LB</kbd><kbd>RB</kbd> section</span>
-          <span><kbd>LT</kbd><kbd>RT</kbd> filtre</span>
-          <span><kbd>Vue</kbd> tri</span>
-          <span><kbd>Menu</kbd> actions</span>
-          <span><kbd className="pad">B</kbd> fermer</span>
+          <span><kbd>{t.app.key.dpad}</kbd> {t.app.keys.navigate}</span>
+          <span><kbd className="pad">A</kbd> {t.app.keys.play}</span>
+          <span><kbd className="pad">X</kbd> {t.app.keys.details}</span>
+          <span><kbd className="pad">Y</kbd> {t.app.keys.favorite}</span>
+          <span><kbd>LB</kbd><kbd>RB</kbd> {t.app.keys.section}</span>
+          <span><kbd>LT</kbd><kbd>RT</kbd> {t.app.keys.filter}</span>
+          <span><kbd>{t.app.key.view}</kbd> {t.app.keys.sort}</span>
+          <span><kbd>{t.app.key.menu}</kbd> {t.app.keys.actions}</span>
+          <span><kbd className="pad">B</kbd> {t.app.keys.close}</span>
         </footer>
       ) : (
         <footer className="keys" aria-hidden>
-          <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> naviguer</span>
-          <span><kbd>Entrée</kbd> jouer</span>
-          <span><kbd>Espace</kbd> fiche</span>
-          <span><kbd>Ctrl</kbd><kbd>D</kbd> favori</span>
-          <span><kbd>Maj</kbd><kbd>F10</kbd> actions</span>
-          <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, sections.length)}</kbd> section</span>
-          <span><kbd>Ctrl</kbd><kbd>N</kbd> ajouter</span>
-          <span><kbd>F5</kbd> rescanner</span>
-          <span><kbd>Échap</kbd> fermer</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> {t.app.keys.navigate}</span>
+          <span><kbd>{t.app.key.enter}</kbd> {t.app.keys.play}</span>
+          <span><kbd>{t.app.key.space}</kbd> {t.app.keys.details}</span>
+          <span><kbd>Ctrl</kbd><kbd>D</kbd> {t.app.keys.favorite}</span>
+          <span><kbd>{t.app.key.shift}</kbd><kbd>F10</kbd> {t.app.keys.actions}</span>
+          <span><kbd>Ctrl</kbd><kbd>1</kbd>…<kbd>{Math.min(9, sections.length)}</kbd> {t.app.keys.section}</span>
+          <span><kbd>Ctrl</kbd><kbd>N</kbd> {t.app.keys.add}</span>
+          <span><kbd>F5</kbd> {t.app.keys.rescan}</span>
+          <span><kbd>{t.app.key.escape}</kbd> {t.app.keys.close}</span>
         </footer>
       )}
 
@@ -1696,7 +1703,7 @@ export default function App() {
           key={`${menu.gameId}-${menu.at.x}-${menu.at.y}`}
           entries={menuEntries}
           at={menu.at}
-          label={`Actions pour ${menuGame.title}`}
+          label={t.app.menuLabel(menuGame.title)}
           keyboard={menu.keyboard}
           onAction={(a) => runMenu(menuGame, a)}
           onClose={closeMenu}
@@ -1765,7 +1772,7 @@ export default function App() {
               <button
                 type="button"
                 className="toast__action"
-                title={toast.action.label === "Annuler" ? "Annuler (Ctrl+Z)" : undefined}
+                title={toast.action.undo ? t.app.toast.undoTitle : undefined}
                 onClick={() => {
                   // Fermé avant l'action : un toast ouvert par l'action reste affiché.
                   const run = toast.action!.run;
@@ -1798,15 +1805,19 @@ interface NoResultsProps {
 
 function NoResults({ filter, status, section, empty, query, facets, onClear, onClearStatus, onClearFacets }: NoResultsProps) {
   if (!query && hasFacets(facets)) {
-    const what = [facets.mood && `l'ambiance « ${MOOD_LABEL[facets.mood]} »`, facets.tag && `le tag « ${facets.tag} »`, facets.genre && `le genre « ${facets.genre} »`]
+    const what = [
+      facets.mood && t.app.noResults.moodWhat(MOOD_LABEL[facets.mood]),
+      facets.tag && t.app.noResults.tagWhat(facets.tag),
+      facets.genre && t.app.noResults.genreWhat(genreLabel(facets.genre)),
+    ]
       .filter(Boolean)
-      .join(" et ");
+      .join(t.app.noResults.and);
     return (
       <EmptyState
-        title={`Aucun jeu avec ${what}`}
-        action={<button type="button" className="btn-ghost" onClick={onClearFacets}>Retirer les filtres</button>}
+        title={t.app.noResults.facets(what)}
+        action={<button type="button" className="btn-ghost" onClick={onClearFacets}>{t.app.noResults.clearFacets}</button>}
       >
-        {filter !== "all" ? `Dans « ${FILTER_LABEL[filter]} ». ` : ""}Les tags et les ambiances viennent de la boutique Steam : les jeux sans fiche Steam n'en ont pas
+        {filter !== "all" ? t.app.noResults.inFilter(filterLabel(filter)) : ""}{t.app.noResults.facetsNote}
       </EmptyState>
     );
   }
@@ -1814,31 +1825,31 @@ function NoResults({ filter, status, section, empty, query, facets, onClear, onC
     return (
       <EmptyState
         icon="search"
-        title={`Aucun jeu ne correspond à « ${query} »`}
-        action={<button type="button" className="btn-ghost" onClick={onClear}>Effacer la recherche</button>}
+        title={t.app.noResults.query(query)}
+        action={<button type="button" className="btn-ghost" onClick={onClear}>{t.app.noResults.clearQuery}</button>}
       >
-        La recherche porte sur le titre, le studio et les tags{section ? ` dans « ${section} »` : ""}{filter !== "all" ? ` dans « ${FILTER_LABEL[filter]} »` : ""}{status !== "any" ? `, statut « ${STATUS_FILTER_LABEL[status]} »` : ""}. Vérifie l'orthographe ou élargis le filtre
+        {t.app.noResults.queryNote(section, filter !== "all" ? filterLabel(filter) : null, status !== "any" ? STATUS_FILTER_LABEL[status] : null)}
       </EmptyState>
     );
   }
   if (status !== "any") {
     return (
       <EmptyState
-        title={`Aucun jeu « ${STATUS_FILTER_LABEL[status]} »${section ? ` dans « ${section} »` : ""}`}
-        action={<button type="button" className="btn-ghost" onClick={onClearStatus}>Tous les statuts</button>}
+        title={t.app.noResults.status(STATUS_FILTER_LABEL[status], section)}
+        action={<button type="button" className="btn-ghost" onClick={onClearStatus}>{t.app.noResults.allStatuses}</button>}
       >
-        Le statut se choisit dans la fiche d'un jeu : À faire, En cours, Terminé ou Abandonné
+        {t.app.noResults.statusNote}
       </EmptyState>
     );
   }
   if (section && filter === "all") {
-    return <EmptyState title={`Aucun jeu dans « ${section} »`}>{empty}</EmptyState>;
+    return <EmptyState title={t.app.noResults.section(section)}>{empty}</EmptyState>;
   }
   if (filter === "favorites") {
-    return <EmptyState title="Pas encore de favoris">Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné</EmptyState>;
+    return <EmptyState title={t.app.noResults.favorites}>{t.app.noResults.favoritesNote}</EmptyState>;
   }
   if (filter === "hidden") {
-    return <EmptyState title="Aucun jeu masqué">Les applis qui ne sont pas des jeux, et ce que tu masques toi-même, arrivent ici et restent restaurables</EmptyState>;
+    return <EmptyState title={t.app.noResults.hidden}>{t.app.noResults.hiddenNote}</EmptyState>;
   }
-  return <EmptyState title={`Aucun jeu ${FILTER_LABEL[filter]}`}>Aucun jeu installé via ce launcher n'a été trouvé</EmptyState>;
+  return <EmptyState title={t.app.noResults.launcher(filterLabel(filter))}>{t.app.noResults.launcherNote}</EmptyState>;
 }

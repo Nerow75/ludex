@@ -1,5 +1,6 @@
-import { MOODS, STATUS_LABEL, STATUSES, type Game, type Mood, type Platform, type Status } from "./api";
+import { MOODS, STATUSES, type Game, type Mood, type Platform, type Status } from "./api";
 import { cleanTitle, formatAchievements, formatPlaytime, formatSize, relativeTime, releaseYear } from "./format";
+import { live, locale, t } from "./i18n";
 import { prepareQuery, searchRank } from "./search";
 
 export type Filter = "all" | "favorites" | "hidden" | Platform;
@@ -13,25 +14,28 @@ export interface Facets {
 }
 export const NO_FACETS: Facets = { tag: null, mood: null, genre: null };
 
-export const SORT_LABEL: Record<Sort, string> = {
-  recent: "Récents",
-  playtime: "Plus joués",
-  title: "A → Z",
-  size: "Taille",
-  year: "Année de sortie",
-  achievements: "Avancement des succès",
-  lifespan: "Durée de vie",
-};
-export const SORTS = Object.keys(SORT_LABEL) as Sort[];
+/** Libellés des tris, dans la langue actuelle (relus à chaque accès). */
+export const SORT_LABEL: Record<Sort, string> = live(() => t.common.sort);
+export const SORTS: readonly Sort[] = ["recent", "playtime", "title", "size", "year", "achievements", "lifespan"];
 
 /** Bibliothèque en grille de jaquettes ou en liste dense. */
 export type Layout = "grid" | "list";
 export const LAYOUTS: readonly Layout[] = ["grid", "list"];
 
-// Un seul collateur : `localeCompare` avec des options en recrée un à chaque comparaison (des
-// centaines de millisecondes pour trier quelques milliers de jeux). Même ordre.
-const TITLE_ORDER = new Intl.Collator("fr", { sensitivity: "base" });
-const byTitle = (a: Game, b: Game) => TITLE_ORDER.compare(cleanTitle(a.title), cleanTitle(b.title));
+// Un seul collateur par langue : `localeCompare` avec des options en recrée un à chaque comparaison
+// (des centaines de millisecondes pour trier quelques milliers de jeux). Même ordre.
+const collators = new Map<string, Intl.Collator>();
+/** Collateur de la langue actuelle, sans accents ni casse (tri des titres, des tags…). */
+export function titleOrder(): Intl.Collator {
+  const key = locale();
+  let c = collators.get(key);
+  if (!c) {
+    c = new Intl.Collator(key, { sensitivity: "base" });
+    collators.set(key, c);
+  }
+  return c;
+}
+const byTitle = (a: Game, b: Game) => titleOrder().compare(cleanTitle(a.title), cleanTitle(b.title));
 
 /** Compare deux valeurs : celle qui manque (`null`) va toujours en fin de liste. */
 function known(a: number | null, b: number | null, desc: boolean): number {
@@ -74,14 +78,14 @@ export function sortMeta(game: Game, sort: Sort): string {
     case "playtime":
       return formatPlaytime(game.playtimeMinutes);
     case "year":
-      return String(releaseYear(game.details?.releaseDate ?? null) ?? "Année inconnue");
+      return String(releaseYear(game.details?.releaseDate ?? null) ?? t.common.sortMeta.unknownYear);
     case "achievements": {
       const a = game.achievements;
-      return a && a.total > 0 ? `${formatAchievements(a.unlocked, a.total)} succès` : "Sans succès";
+      return a && a.total > 0 ? t.common.sortMeta.achievements(formatAchievements(a.unlocked, a.total)) : t.common.sortMeta.noAchievements;
     }
     case "lifespan": {
       const story = storyMinutes(game);
-      return story === null ? "Durée inconnue" : `Histoire : ${formatPlaytime(story)}`;
+      return story === null ? t.common.sortMeta.unknownLifespan : t.common.sortMeta.story(formatPlaytime(story));
     }
     default:
       return relativeTime(game.lastPlayed);
@@ -91,7 +95,7 @@ export function sortMeta(game: Game, sort: Sort): string {
 /** Filtre par statut de progression, en plus du filtre par launcher. */
 export type StatusFilter = "any" | "none" | Status;
 export const STATUS_FILTERS: readonly StatusFilter[] = ["any", ...STATUSES, "none"];
-export const STATUS_FILTER_LABEL: Record<StatusFilter, string> = { any: "Tous les statuts", none: "Sans statut", ...STATUS_LABEL };
+export const STATUS_FILTER_LABEL: Record<StatusFilter, string> = live(() => ({ ...t.common.statusFilter, ...t.common.status }));
 
 export const matchesStatus = (game: Game, filter: StatusFilter) =>
   filter === "any" || (filter === "none" ? !game.status : game.status === filter);
@@ -151,7 +155,7 @@ function tally(games: Game[], values: (g: Game) => readonly string[]): { name: s
   }
   return [...counts]
     .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
+    .sort((a, b) => b.count - a.count || titleOrder().compare(a.name, b.name));
 }
 
 /** Tous les tags de la bibliothèque et leur nombre de jeux. */

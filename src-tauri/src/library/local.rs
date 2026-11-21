@@ -482,7 +482,11 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             Some(game) => games.push(game),
             None => {
                 let folder = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let reason = if main_exe(dir).is_some() { "Launcher, pas un jeu" } else { "Aucun exécutable de jeu dans le dossier" };
+                let reason = if main_exe(dir).is_some() {
+                    tr_str!("Launcher, pas un jeu", "Launcher, not a game")
+                } else {
+                    tr_str!("Aucun exécutable de jeu dans le dossier", "No game executable in the folder")
+                };
                 super::skip(&folder, reason);
             }
         }
@@ -492,7 +496,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
     games.retain(|g| {
         let first = titles.insert(compact(&g.title));
         if !first {
-            super::skip(&g.title, "Même titre déjà vu dans un autre dossier");
+            super::skip(&g.title, tr_str!("Même titre déjà vu dans un autre dossier", "Same title already found in another folder"));
         }
         first
     });

@@ -35,10 +35,10 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             .filter_map(|(id, key)| {
                 let dir = reg::string(&key, "InstallDir")?;
                 let name = reg::hklm(&format!(r"{uninstall}\Uplay Install {id}")).and_then(|k| reg::string(&k, "DisplayName"));
-                let title = name.clone().unwrap_or_else(|| format!("Jeu Ubisoft {id}"));
+                let title = name.clone().unwrap_or_else(|| tr!("Jeu Ubisoft {id}", "Ubisoft game {id}"));
                 let game = build(&id, &dir, name);
                 if game.is_none() {
-                    super::skip(&title, "Dossier d'installation introuvable (jeu désinstallé)");
+                    super::skip(&title, tr_str!("Dossier d'installation introuvable (jeu désinstallé)", "Install folder not found (game uninstalled)"));
                 }
                 game
             })

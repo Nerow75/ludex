@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import { awaitingGames, libraryToast, nextScan, welcomeReady } from "./scan";
 import type { ScanResult } from "./api";
 import { jeu } from "../test/jeu";
@@ -51,5 +52,17 @@ describe("libraryToast", () => {
   it("aucun toast pour le complément du premier scan", () => {
     expect(libraryToast(changement(["Cyberpunk 2077", "Dofus 3", "FC 24"], [], true))).toBeNull();
     expect(libraryToast(changement([], ["GTA V"], true))).toBeNull();
+  });
+});
+
+describe("libraryToast en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("nouveaux jeux et jeux retirés", () => {
+    setLang("en");
+    expect(libraryToast(changement(["Hades"], []))).toEqual({ title: "New game: Hades", detail: undefined });
+    expect(libraryToast(changement(["Hades", "Celeste", "Portal"], []))).toEqual({ title: "3 new games", detail: "Hades, Celeste, Portal" });
+    expect(libraryToast(changement(["Hades"], ["Portal"]))).toEqual({ title: "New game: Hades", detail: "Game removed: Portal" });
+    expect(libraryToast(changement([], ["Portal", "Celeste"]))).toEqual({ title: "2 games removed", detail: "Portal, Celeste" });
   });
 });

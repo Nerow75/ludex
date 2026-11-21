@@ -26,22 +26,22 @@ pub fn clean(raw: &str) -> Result<Option<String>, String> {
         return Ok(None);
     }
     if text.chars().count() > MAX_LEN {
-        return Err(format!("{MAX_LEN} caractères au plus."));
+        return Err(tr!("{MAX_LEN} caractères au plus.", "{MAX_LEN} characters at most."));
     }
     for c in text.chars() {
         if c == '\n' || c == '\r' {
-            return Err("Les options tiennent sur une seule ligne.".into());
+            return Err(tr!("Les options tiennent sur une seule ligne.", "Options must fit on a single line."));
         }
         if c != '\t' && c.is_control() || crate::library::manual::is_invisible(c) || c == '\u{00AD}' {
-            return Err("Caractère invisible ou de contrôle refusé.".into());
+            return Err(tr!("Caractère invisible ou de contrôle refusé.", "Invisible or control characters aren't allowed."));
         }
         if FORBIDDEN.contains(&c) {
-            return Err(format!("Le caractère « {c} » n'est pas accepté dans les options."));
+            return Err(tr!("Le caractère « {c} » n'est pas accepté dans les options.", "The character \"{c}\" isn't allowed in options."));
         }
     }
     let args = split(text)?;
     if args.len() > MAX_ARGS {
-        return Err(format!("{MAX_ARGS} options au plus."));
+        return Err(tr!("{MAX_ARGS} options au plus.", "{MAX_ARGS} options at most."));
     }
     Ok((!args.is_empty()).then(|| join(&args)))
 }
@@ -84,7 +84,7 @@ pub fn split(text: &str) -> Result<Vec<String>, String> {
         }
     }
     if quoted {
-        return Err("Un guillemet n'est pas fermé.".into());
+        return Err(tr!("Un guillemet n'est pas fermé.", "A quotation mark isn't closed."));
     }
     if !current.is_empty() {
         args.push(current);
@@ -155,23 +155,52 @@ pub fn steam_uri(appid: &str, args: &[String]) -> Option<String> {
 pub fn refusal(game: &Game) -> Option<&'static str> {
     match (game.platform, &game.launch) {
         (Platform::Steam, Launch::Uri(_)) if steam_uri(&game.platform_id, &[]).is_some() => None,
-        (Platform::Steam, _) => Some("Steam ne reconnaît pas ce jeu : options impossibles."),
-        (Platform::Epic, _) => {
-            Some("Epic Games ne transmet pas d'options : règle-les dans le launcher Epic (Paramètres, Arguments de ligne de commande supplémentaires).")
-        }
-        (Platform::Ubisoft, _) => Some("Ubisoft Connect ne transmet pas d'options : règle-les dans les propriétés du jeu chez Ubisoft Connect."),
+        (Platform::Steam, _) => Some(tr_str!(
+            "Steam ne reconnaît pas ce jeu : options impossibles.",
+            "Steam doesn't recognize this game: launch options aren't possible."
+        )),
+        (Platform::Epic, _) => Some(tr_str!(
+            "Epic Games ne transmet pas d'options : règle-les dans le launcher Epic (Paramètres, Arguments de ligne de commande supplémentaires).",
+            "Epic Games doesn't pass options on: set them in the Epic launcher (Settings, Additional command line arguments)."
+        )),
+        (Platform::Ubisoft, _) => Some(tr_str!(
+            "Ubisoft Connect ne transmet pas d'options : règle-les dans les propriétés du jeu chez Ubisoft Connect.",
+            "Ubisoft Connect doesn't pass options on: set them in the game's properties in Ubisoft Connect."
+        )),
         (Platform::Gog, Launch::Exec { .. }) if !game.launcher_tracks_playtime => None,
-        (Platform::Gog, _) => Some("Lancé par GOG Galaxy, qui ne transmet pas d'options : règle-les dans Galaxy."),
-        (Platform::Xbox, _) => Some("Les jeux du Microsoft Store ne reçoivent pas d'options de lancement."),
-        (Platform::Riot, _) => Some("Le client Riot ne transmet pas d'options de lancement."),
-        (Platform::Amazon, _) => Some("L'appli Amazon Games ne transmet pas d'options de lancement."),
-        (Platform::Itch, Launch::Uri(_)) => Some("Lancé par l'appli itch (pas d'exécutable Windows), qui ne transmet pas d'options."),
-        (Platform::Battlenet, Launch::Uri(_)) => {
-            Some("Lancé par Battle.net, qui ne transmet pas d'options : règle-les dans ses paramètres du jeu.")
-        }
-        (_, Launch::Exec { .. }) if game.via_launcher => Some("Ce jeu passe par son propre lanceur, qui ne transmet pas d'options."),
+        (Platform::Gog, _) => Some(tr_str!(
+            "Lancé par GOG Galaxy, qui ne transmet pas d'options : règle-les dans Galaxy.",
+            "Launched by GOG Galaxy, which doesn't pass options on: set them in Galaxy."
+        )),
+        (Platform::Xbox, _) => Some(tr_str!(
+            "Les jeux du Microsoft Store ne reçoivent pas d'options de lancement.",
+            "Microsoft Store games don't accept launch options."
+        )),
+        (Platform::Riot, _) => Some(tr_str!(
+            "Le client Riot ne transmet pas d'options de lancement.",
+            "The Riot client doesn't pass launch options on."
+        )),
+        (Platform::Amazon, _) => Some(tr_str!(
+            "L'appli Amazon Games ne transmet pas d'options de lancement.",
+            "The Amazon Games app doesn't pass launch options on."
+        )),
+        (Platform::Itch, Launch::Uri(_)) => Some(tr_str!(
+            "Lancé par l'appli itch (pas d'exécutable Windows), qui ne transmet pas d'options.",
+            "Launched by the itch app (no Windows executable), which doesn't pass options on."
+        )),
+        (Platform::Battlenet, Launch::Uri(_)) => Some(tr_str!(
+            "Lancé par Battle.net, qui ne transmet pas d'options : règle-les dans ses paramètres du jeu.",
+            "Launched by Battle.net, which doesn't pass options on: set them in its game settings."
+        )),
+        (_, Launch::Exec { .. }) if game.via_launcher => Some(tr_str!(
+            "Ce jeu passe par son propre lanceur, qui ne transmet pas d'options.",
+            "This game goes through its own launcher, which doesn't pass options on."
+        )),
         (Platform::Other | Platform::Ea | Platform::Battlenet | Platform::Rockstar | Platform::Itch, Launch::Exec { .. }) => None,
-        (_, Launch::Uri(_)) => Some("Ce lanceur ne transmet pas d'options de lancement."),
+        (_, Launch::Uri(_)) => Some(tr_str!(
+            "Ce lanceur ne transmet pas d'options de lancement.",
+            "This launcher doesn't pass launch options on."
+        )),
     }
 }
 
@@ -183,11 +212,11 @@ pub fn launch_for(game: &Game) -> Result<Launch, String> {
     if refusal(game).is_some() {
         return Ok(game.launch.clone());
     }
-    let cleaned = clean(text).map_err(|e| format!("Options de lancement invalides : {e} Corrige-les dans la fiche."))?;
+    let cleaned = clean(text).map_err(|e| tr!("Options de lancement invalides : {e} Corrige-les dans la fiche.", "Invalid launch options: {e} Fix them in the game's details."))?;
     let Some(cleaned) = cleaned else { return Ok(game.launch.clone()) };
     let extra = split(&cleaned)?;
     match &game.launch {
-        Launch::Uri(_) => steam_uri(&game.platform_id, &extra).map(Launch::Uri).ok_or_else(|| "Appid Steam invalide.".to_string()),
+        Launch::Uri(_) => steam_uri(&game.platform_id, &extra).map(Launch::Uri).ok_or_else(|| tr!("Appid Steam invalide.", "Invalid Steam appid.")),
         Launch::Exec { path, args } => Ok(Launch::Exec { path: path.clone(), args: args.iter().cloned().chain(extra).collect() }),
     }
 }
@@ -289,6 +318,12 @@ mod tests {
         }
         let odd = Game::new(Platform::Steam, "abc", "Jeu", Launch::Uri("steam://rungameid/abc".into()));
         assert!(refusal(&odd).is_some());
+        let riot = exec(Platform::Riot);
+        assert_eq!(refusal(&riot), Some("Le client Riot ne transmet pas d'options de lancement."));
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(refusal(&riot), Some("The Riot client doesn't pass launch options on."));
+            assert_eq!(clean("-a \"b").unwrap_err(), "A quotation mark isn't closed.");
+        });
     }
 
     #[test]

@@ -219,12 +219,12 @@ impl UserData {
     /// Écrit dans un fichier temporaire puis le renomme : jamais de fichier à moitié écrit.
     pub fn save(&self, path: &Path) -> Result<(), String> {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(|e| format!("Dossier de données inaccessible : {e}"))?;
+            fs::create_dir_all(dir).map_err(|e| tr!("Dossier de données inaccessible : {e}", "Data folder unreachable: {e}"))?;
         }
         let text = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
         let tmp = path.with_extension("json.tmp");
-        fs::write(&tmp, text).map_err(|e| format!("Enregistrement impossible : {e}"))?;
-        fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+        fs::write(&tmp, text).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))?;
+        fs::rename(&tmp, path).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))
     }
 
     /// Ludex a déjà servi : une préférence retenue, ou l'explication de la zone de notification vue.
@@ -374,15 +374,15 @@ impl UserData {
     }
 
     fn collection_mut(&mut self, id: &str) -> Result<&mut Collection, String> {
-        self.collections.iter_mut().find(|c| c.id == id).ok_or_else(|| "Cette collection n'existe plus.".to_string())
+        self.collections.iter_mut().find(|c| c.id == id).ok_or_else(collection_gone)
     }
 
     /// Nom de collection nettoyé, différent de ceux des autres collections (casse ignorée).
     fn collection_name(&self, raw: &str, except: Option<&str>) -> Result<String, String> {
-        let name = collections::clean_name(raw).ok_or("Donne un nom à la collection.")?;
+        let name = collections::clean_name(raw).ok_or(tr_str!("Donne un nom à la collection.", "Give the collection a name."))?;
         let lower = name.to_lowercase();
         match self.collections.iter().find(|c| Some(c.id.as_str()) != except && c.name.to_lowercase() == lower) {
-            Some(c) => Err(format!("La collection « {} » existe déjà.", c.name)),
+            Some(c) => Err(tr!("La collection « {} » existe déjà.", "The collection \"{}\" already exists.", c.name)),
             None => Ok(name),
         }
     }
@@ -390,7 +390,7 @@ impl UserData {
     /// Crée une collection vide et renvoie son id, généré ici (`seed` : heure en millisecondes).
     pub fn create_collection(&mut self, raw_name: &str, seed: u64) -> Result<String, String> {
         if self.collections.len() >= collections::MAX_COLLECTIONS {
-            return Err(format!("{} collections au plus.", collections::MAX_COLLECTIONS));
+            return Err(tr!("{} collections au plus.", "{} collections at most.", collections::MAX_COLLECTIONS));
         }
         let name = self.collection_name(raw_name, None)?;
         let id = collections::new_id(&self.collections, seed);
@@ -405,7 +405,7 @@ impl UserData {
     }
 
     pub fn delete_collection(&mut self, id: &str) -> Result<Collection, String> {
-        let i = self.collections.iter().position(|c| c.id == id).ok_or("Cette collection n'existe plus.")?;
+        let i = self.collections.iter().position(|c| c.id == id).ok_or_else(collection_gone)?;
         Ok(self.collections.remove(i))
     }
 
@@ -463,6 +463,11 @@ impl UserData {
 
 pub fn file_in(dir: PathBuf) -> PathBuf {
     dir.join("user-data.json")
+}
+
+/// Collection supprimée entre-temps (autre fenêtre, import).
+fn collection_gone() -> String {
+    tr!("Cette collection n'existe plus.", "This collection no longer exists.")
 }
 
 #[cfg(test)]

@@ -36,10 +36,10 @@ pub fn file_stem(title: &str) -> String {
         stem.pop();
     }
     if stem.is_empty() {
-        return "Jeu".to_string();
+        return tr!("Jeu", "Game");
     }
     if is_reserved(&stem) {
-        stem.push_str(" (jeu)");
+        stem.push_str(tr_str!(" (jeu)", " (game)"));
     }
     stem
 }
@@ -78,7 +78,7 @@ pub fn contents(url: &str, icon: Option<&Path>) -> String {
 /// Renvoie le nom du fichier créé.
 pub fn write(dir: &Path, stem: &str, contents: &str) -> Result<String, String> {
     if !dir.is_dir() {
-        return Err("Bureau introuvable.".to_string());
+        return Err(tr!("Bureau introuvable.", "Desktop not found."));
     }
     for n in 1..=MAX_COPIES {
         let name = if n == 1 { format!("{stem}.{EXT}") } else { format!("{stem} ({n}).{EXT}") };
@@ -90,15 +90,15 @@ pub fn write(dir: &Path, stem: &str, contents: &str) -> Result<String, String> {
                     Err(e) => {
                         drop(file);
                         let _ = std::fs::remove_file(&path);
-                        Err(format!("Raccourci non écrit : {e}"))
+                        Err(tr!("Raccourci non écrit : {e}", "Shortcut not written: {e}"))
                     }
                 };
             }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(format!("Raccourci non créé sur le Bureau : {e}")),
+            Err(e) => return Err(tr!("Raccourci non créé sur le Bureau : {e}", "Shortcut not created on the desktop: {e}")),
         }
     }
-    Err(format!("Trop de raccourcis « {stem} » sur le Bureau."))
+    Err(tr!("Trop de raccourcis « {stem} » sur le Bureau.", "Too many \"{stem}\" shortcuts on the desktop."))
 }
 
 #[cfg(test)]
@@ -120,6 +120,10 @@ mod tests {
         assert_eq!(file_stem("LPT²"), "LPT² (jeu)");
         assert_eq!(file_stem("Control"), "Control");
         assert_eq!(file_stem("COM10"), "COM10");
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(file_stem("???"), "Game");
+            assert_eq!(file_stem("CON"), "CON (game)");
+        });
         let long = file_stem(&"a".repeat(200));
         assert_eq!(long.chars().count(), MAX_NAME);
     }

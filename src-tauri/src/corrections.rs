@@ -46,17 +46,17 @@ fn known_genre(raw: &str) -> Option<&'static str> {
 /// plus. Liste vide : retour aux genres de Steam.
 pub fn clean_genres(raw: &[String]) -> Result<Vec<String>, String> {
     if raw.len() > MAX_GENRES_INPUT {
-        return Err(format!("{} genres au plus.", metadata::MAX_GENRES));
+        return Err(tr!("{} genres au plus.", "{} genres at most.", metadata::MAX_GENRES));
     }
     let mut out: Vec<String> = Vec::new();
     for g in raw {
-        let name = known_genre(g).ok_or_else(|| format!("Genre inconnu : « {} ».", manual::clean_text(g, 40).unwrap_or_default()))?;
+        let name = known_genre(g).ok_or_else(|| tr!("Genre inconnu : « {} ».", "Unknown genre: \"{}\".", manual::clean_text(g, 40).unwrap_or_default()))?;
         if !out.iter().any(|k| k == name) {
             out.push(name.to_string());
         }
     }
     if out.len() > metadata::MAX_GENRES {
-        return Err(format!("{} genres au plus.", metadata::MAX_GENRES));
+        return Err(tr!("{} genres au plus.", "{} genres at most.", metadata::MAX_GENRES));
     }
     Ok(out)
 }

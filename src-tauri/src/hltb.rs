@@ -184,8 +184,8 @@ fn text(v: Option<&Value>) -> String {
 
 /// Lit la réponse de la recherche. Erreur si ce n'est pas la forme attendue (le site a changé).
 fn parse(body: &str) -> Result<Vec<Item>, String> {
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("réponse illisible : {e}"))?;
-    let data = value.get("data").and_then(Value::as_array).ok_or("réponse sans « data »")?;
+    let value: Value = serde_json::from_str(body).map_err(|e| tr!("réponse illisible : {e}", "unreadable response: {e}"))?;
+    let data = value.get("data").and_then(Value::as_array).ok_or(tr_str!("réponse sans « data »", "response without “data”"))?;
     Ok(data
         .iter()
         .filter_map(|g| {
@@ -286,9 +286,9 @@ struct Token {
 }
 
 fn parse_token(body: &str) -> Result<Token, String> {
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("jeton illisible : {e}"))?;
-    let obj = value.as_object().ok_or("jeton illisible")?;
-    let token = obj.get("token").and_then(Value::as_str).filter(|t| !t.is_empty()).ok_or("réponse sans jeton")?;
+    let value: Value = serde_json::from_str(body).map_err(|e| tr!("jeton illisible : {e}", "unreadable token: {e}"))?;
+    let obj = value.as_object().ok_or(tr_str!("jeton illisible", "unreadable token"))?;
+    let token = obj.get("token").and_then(Value::as_str).filter(|t| !t.is_empty()).ok_or(tr_str!("réponse sans jeton", "response without a token"))?;
     let find = |part: &str| {
         obj.iter()
             .find(|(k, v)| k.as_str() != "token" && k.to_lowercase().contains(part) && v.is_string())
@@ -382,14 +382,14 @@ impl Client {
 
     /// Relit le point d'entrée dans les scripts de la page d'accueil.
     fn discover(&mut self) -> Result<String, String> {
-        let html = self.get("/").map_err(|e| format!("page d'accueil illisible : {e:?}"))?;
+        let html = self.get("/").map_err(|e| tr!("page d'accueil illisible : {e:?}", "unreadable home page: {e:?}"))?;
         for script in scripts_in_page(&html).into_iter().take(MAX_SCRIPTS) {
             let Ok(js) = self.get(&script) else { continue };
             if let Some(found) = endpoint_in_script(&js) {
                 return Ok(found);
             }
         }
-        Err("point d'entrée de la recherche introuvable dans les scripts du site".into())
+        Err(tr!("point d'entrée de la recherche introuvable dans les scripts du site", "search endpoint not found in the site's scripts"))
     }
 
     fn post(&mut self, title: &str) -> Result<Vec<Item>, Failure> {
@@ -444,13 +444,13 @@ impl Client {
                     *moved = true;
                     let found = self.discover()?;
                     if found == self.endpoint {
-                        return Err(format!("{found} ne répond plus"));
+                        return Err(tr!("{found} ne répond plus", "{found} no longer responds"));
                     }
                     self.endpoint = found;
                     self.token = None;
                 }
-                Err(Failure::Token) => return Err("jeton refusé par le site".into()),
-                Err(Failure::Moved) => return Err(format!("{} introuvable (404)", self.endpoint)),
+                Err(Failure::Token) => return Err(tr!("jeton refusé par le site", "token refused by the site")),
+                Err(Failure::Moved) => return Err(tr!("{} introuvable (404)", "{} not found (404)", self.endpoint)),
                 Err(Failure::Stop(e)) => return Err(e),
             }
         }

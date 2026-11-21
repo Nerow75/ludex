@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import {
   ACTIVITY_GROUP,
   collectionSections,
@@ -90,5 +91,42 @@ describe("collectionSections", () => {
     expect(sections.map((s) => s.id)).toEqual(["col:c-1", "steam-col:uc-1", "steam-col:uc-3"]);
     expect(sections[1]).toMatchObject({ group: STEAM_GROUP, collection: { id: "uc-1", kind: "steam" } });
     expect(sideGroups([...SECTIONS, ...sections])).toEqual([ACTIVITY_GROUP, MEMORIES_GROUP, TOOLS_GROUP, MINE_GROUP, STEAM_GROUP]);
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+  const section = (id: string) => SECTIONS.find((s) => s.id === id)!;
+
+  it("libellés relus dans la langue actuelle, ids et catégories inchangés", () => {
+    expect(section("for-you").label).toBe("Pour toi");
+    setLang("en");
+    expect(SECTIONS.map((s) => s.label)).toEqual([
+      "For you",
+      "All games",
+      "Favorites",
+      "Explore",
+      "Progress",
+      "History",
+      "Journal",
+      "Recap",
+      "Stats",
+      "Showcase",
+      "Screenshots",
+      "Saves",
+      "Storage",
+      "Wishlist",
+    ]);
+    expect(section("favorites").empty).toContain("Ctrl+D");
+    expect(section("journal").group).toBe(ACTIVITY_GROUP);
+    expect(ACTIVITY_GROUP).toBe("Activité");
+  });
+  it("textes des collections vides", () => {
+    const info: CollectionsInfo = { mine: [{ id: "c-1", name: "Zen", games: [] }], steam: [] };
+    const [mine] = collectionSections(info, []);
+    expect(mine.empty).toContain("Collections");
+    setLang("en");
+    expect(mine.empty).toBe('Open a game\'s details and pick "Collections" to add it here');
+    expect(mine.label).toBe("Zen");
   });
 });

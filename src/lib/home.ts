@@ -1,5 +1,6 @@
 import { MOODS, type Game, type Mood } from "./api";
 import { cleanTitle } from "./format";
+import { titleOrder } from "./library";
 
 /** Calculs de « Pour toi », à partir des jeux déjà chargés. */
 
@@ -10,7 +11,7 @@ const PLAYING_RECENT_DAYS = 30;
 const FRESH_DAYS = 30;
 
 const now = () => Math.floor(Date.now() / 1000);
-const byTitle = (a: Game, b: Game) => cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr", { sensitivity: "base" });
+const byTitle = (a: Game, b: Game) => titleOrder().compare(cleanTitle(a.title), cleanTitle(b.title));
 const byRecent = (a: Game, b: Game) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || byTitle(a, b);
 
 /** Jeux proposés sur l'accueil : ni masqués ni outils. */

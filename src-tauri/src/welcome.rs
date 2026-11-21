@@ -101,7 +101,7 @@ pub async fn welcome(app: AppHandle) -> Result<Option<WelcomeInfo>, String> {
 #[tauri::command]
 pub async fn welcome_again(app: AppHandle) -> Result<WelcomeInfo, String> {
     app.state::<Welcome>().pending.store(true, Ordering::SeqCst);
-    welcome(app).await?.ok_or_else(|| "Écran de premier lancement indisponible.".to_string())
+    welcome(app).await?.ok_or_else(|| tr!("Écran de premier lancement indisponible.", "Welcome screen unavailable."))
 }
 
 /// « C'est parti » : l'écran ne reviendra plus.
@@ -113,7 +113,7 @@ pub fn welcome_done(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let state = app.state::<AppState>();
-    let mut data = state.data.lock().map_err(|_| "État interne indisponible".to_string())?;
+    let mut data = state.data.lock().map_err(|_| tr!("État interne indisponible", "Internal state unavailable"))?;
     data.settings.welcome_shown = Some(true);
     data.save(&state.data_path)
 }

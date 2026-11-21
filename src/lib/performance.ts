@@ -1,25 +1,22 @@
 // Onglet « Performances » de la fiche : textes, échelles et tracés des courbes (fonctions pures).
 import type { PerfMetric, PerfSeries, PerfStat, SessionPerf } from "./api";
 import { formatDateTime, formatDuration } from "./format";
+import { live, nf, t } from "./i18n";
 
-export const METRIC_LABEL: Record<PerfMetric, string> = {
-  cpu: "Processeur",
-  memory: "Mémoire vive",
-  gpu: "Carte graphique",
-  vram: "Mémoire vidéo",
-};
+export const METRIC_LABEL: Record<PerfMetric, string> = live(() => t.fiche.perf.metric);
 
-const oneDecimal = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
-const integer = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+const oneDecimal = () => nf({ maximumFractionDigits: 1 });
+const integer = () => nf({ maximumFractionDigits: 0 });
 
 /** Mesures en % ; les autres sont en Mo. */
 const isPercent = (metric: PerfMetric) => metric === "cpu" || metric === "gpu";
 
-/** « 34 % », « 4,5 % », « 850 Mo », « 3,5 Go ». */
+/** « 34 % », « 4,5 % », « 850 Mo », « 3,5 Go » (anglais : « 34% », « 850 MB »). */
 export function formatMetric(metric: PerfMetric, value: number): string {
-  if (isPercent(metric)) return `${(value < 10 ? oneDecimal : integer).format(value)} %`;
-  if (value < 1024) return `${integer.format(value)} Mo`;
-  return `${oneDecimal.format(value / 1024)} Go`;
+  const p = t.fiche.perf;
+  if (isPercent(metric)) return p.percent((value < 10 ? oneDecimal() : integer()).format(value));
+  if (value < 1024) return p.mb(integer().format(value));
+  return p.gb(oneDecimal().format(value / 1024));
 }
 
 /** Haut de l'échelle : 100 % ; mémoire installée ; mémoire vidéo arrondie au Go supérieur. */
@@ -88,12 +85,13 @@ export function areaPath(segments: [number, number][][], height: number): string
 
 /** « 34 % en moyenne, 78 % au plus ». */
 export const statText = (metric: PerfMetric, stat: PerfStat) =>
-  `${formatMetric(metric, stat.avg)} en moyenne, ${formatMetric(metric, stat.peak)} au plus`;
+  t.fiche.perf.stat(formatMetric(metric, stat.avg), formatMetric(metric, stat.peak));
 
 /** Résumé d'une courbe pour les lecteurs d'écran. */
 export function seriesSummary(series: PerfSeries, perf: SessionPerf): string {
-  const scale = series.metric === "memory" && perf.totalMemory > 0 ? ` sur ${formatMetric("memory", perf.totalMemory)} installés` : "";
-  return `${METRIC_LABEL[series.metric]} : le jeu ${statText(series.metric, series.game)} ; tout le PC ${statText(series.metric, series.pc)}${scale}.`;
+  const p = t.fiche.perf;
+  const scale = series.metric === "memory" && perf.totalMemory > 0 ? p.installed(formatMetric("memory", perf.totalMemory)) : "";
+  return p.summary(METRIC_LABEL[series.metric], statText(series.metric, series.game), statText(series.metric, series.pc), scale);
 }
 
 /** Libellé d'une session dans la liste : « 21 novembre 2026 à 14:05 », durée à part. */
@@ -102,9 +100,7 @@ export const sessionLength = (perf: SessionPerf) => formatDuration(perf.end - pe
 
 /** Phrase d'en-tête de l'onglet. */
 export function perfHeadline(perfs: SessionPerf[]): string {
-  const n = perfs.length;
-  const what = n > 1 ? `des ${n} dernières parties lancées` : "de la dernière partie lancée";
-  return `Mesures ${what} depuis Ludex, toutes les 5 secondes : le jeu comparé à tout le PC.`;
+  return t.fiche.perf.headline(perfs.length);
 }
 
 /** La carte graphique manque-t-elle à la session (Windows ne donne pas ses compteurs) ? */

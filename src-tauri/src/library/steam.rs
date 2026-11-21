@@ -346,13 +346,13 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
                 continue;
             }
             let Ok(text) = fs::read_to_string(entry.path()) else {
-                super::skip(&name, "Manifeste illisible");
+                super::skip(&name, tr_str!("Manifeste illisible", "Unreadable manifest"));
                 continue;
             };
             let doc = vdf::parse(&text);
             let app = doc.get("AppState");
             let (Some(appid), Some(title)) = (app.and_then(|a| a.str("appid")), app.and_then(|a| a.str("name"))) else {
-                super::skip(&name, "Manifeste incomplet (appid ou nom absent)");
+                super::skip(&name, tr_str!("Manifeste incomplet (appid ou nom absent)", "Incomplete manifest (no appid or name)"));
                 continue;
             };
             let Some(app) = app else { continue };
@@ -360,14 +360,14 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
             let flags: u32 = app.str("StateFlags").and_then(|f| f.parse().ok()).unwrap_or(0);
             let skipped = if !listed(flags, app) {
                 Some(if flags & (flags::UNINSTALLED | flags::UNINSTALLING) != 0 {
-                    "Désinstallé ou en cours de désinstallation"
+                    tr_str!("Désinstallé ou en cours de désinstallation", "Uninstalled or being uninstalled")
                 } else {
-                    "Première installation pas terminée"
+                    tr_str!("Première installation pas terminée", "First install not finished")
                 })
             } else if EXCLUDED_APPIDS.contains(&appid) || EXCLUDED_PREFIXES.iter().any(|p| title.starts_with(p)) {
-                Some("Composant de Steam, pas un jeu")
+                Some(tr_str!("Composant de Steam, pas un jeu", "Steam component, not a game"))
             } else if !seen.insert(appid.to_string()) {
-                Some("Déjà vu dans une autre bibliothèque Steam")
+                Some(tr_str!("Déjà vu dans une autre bibliothèque Steam", "Already found in another Steam library"))
             } else {
                 None
             };

@@ -10,6 +10,7 @@ import {
   type WishItem,
   type Wishlist,
 } from "../lib/api";
+import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { addedText, checkedText, hitPrice, lowestText, priceView, wishLabel, wishSummary } from "../lib/wishlist";
 import { SearchIcon } from "./Icons";
@@ -26,10 +27,11 @@ function Header({ url, small }: { url: string; small?: boolean }) {
 /** Bloc « Déjà à toi » : ouvre la fiche du jeu de la bibliothèque. */
 function Owned({ id, ctx }: { id: string; ctx: SectionContext }) {
   const game = ctx.games.find((g) => g.id === id);
-  if (!game) return <span className="wish__owned">Déjà à toi</span>;
+  const w = t.library.wishlist;
+  if (!game) return <span className="wish__owned">{w.owned}</span>;
   return (
-    <button type="button" className="wish__owned is-link" data-nav onClick={() => ctx.openGame(game)} aria-label={`Déjà à toi : ouvrir la fiche de ${game.title}`}>
-      Déjà à toi
+    <button type="button" className="wish__owned is-link" data-nav onClick={() => ctx.openGame(game)} aria-label={w.ownedOpen(game.title)}>
+      {w.owned}
     </button>
   );
 }
@@ -83,7 +85,7 @@ export function WishlistView(ctx: SectionContext) {
     try {
       setList(await wishlistAdd(hit.appid));
       setError(null);
-      ctx.showUndo(`${hit.title} ajouté à tes souhaits`, () => void remove(hit.appid, hit.title, false));
+      ctx.showUndo(t.library.wishlist.added(hit.title), () => void remove(hit.appid, hit.title, false));
     } catch (err) {
       setError(String(err));
     }
@@ -94,7 +96,7 @@ export function WishlistView(ctx: SectionContext) {
       setList(await wishlistRemove(appid));
       setError(null);
       if (undo) {
-        ctx.showUndo(`${title} retiré de tes souhaits`, () => {
+        ctx.showUndo(t.library.wishlist.removed(title), () => {
           wishlistAdd(appid)
             .then((l) => setList(l))
             .catch((err) => setError(String(err)));
@@ -129,11 +131,12 @@ export function WishlistView(ctx: SectionContext) {
   };
 
   const items = list?.items ?? [];
+  const w = t.library.wishlist;
   return (
-    <section className="wishes" aria-label="Souhaits" ref={root}>
+    <section className="wishes" aria-label={w.title} ref={root}>
       <div className="bar">
         <h2>
-          Souhaits
+          {w.title}
           {list && (
             <span>
               <span className="sr-only">, </span>
@@ -146,20 +149,20 @@ export function WishlistView(ctx: SectionContext) {
       <form className="wishes__search" role="search" onSubmit={search}>
         <label className="search wishes__field">
           <SearchIcon />
-          <span className="sr-only">Chercher un jeu dans la boutique Steam</span>
+          <span className="sr-only">{w.search}</span>
           <input
             ref={field}
             data-nav
             type="search"
             value={query}
             maxLength={100}
-            placeholder="Chercher un jeu dans la boutique Steam"
+            placeholder={w.search}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onFieldKey}
           />
         </label>
         <button type="submit" className="btn-ghost" data-nav disabled={searching || !query.trim()}>
-          {searching ? "Recherche…" : "Chercher"}
+          {searching ? w.searching : w.searchButton}
         </button>
       </form>
 
@@ -167,7 +170,7 @@ export function WishlistView(ctx: SectionContext) {
       {hits && (
         <div className="wishes__hits">
           <p className="wishes__note" role="status">
-            {hits.length === 0 ? "Aucun jeu trouvé dans la boutique Steam." : `${hits.length} résultat${hits.length > 1 ? "s" : ""} dans la boutique Steam`}
+            {hits.length === 0 ? w.noHit : w.hits(hits.length)}
           </p>
           {hits.length > 0 && (
             <ul className="wishes__list">
@@ -181,11 +184,11 @@ export function WishlistView(ctx: SectionContext) {
                       <span className="wish__meta">{hitPrice(h)}</span>
                     </div>
                     {h.owned && <Owned id={h.owned} ctx={ctx} />}
-                    <button type="button" className="btn-ghost" data-nav onClick={() => store(h.appid)} aria-label={`Voir ${h.title} dans Steam`}>
-                      Voir dans Steam
+                    <button type="button" className="btn-ghost" data-nav onClick={() => store(h.appid)} aria-label={w.viewInSteamLabel(h.title)}>
+                      {w.viewInSteam}
                     </button>
-                    <button type="button" className="btn-ghost" data-nav disabled={inList} onClick={() => add(h)} aria-label={inList ? `${h.title} est dans tes souhaits` : `Ajouter ${h.title} à tes souhaits`}>
-                      {inList ? "Dans tes souhaits" : "Ajouter"}
+                    <button type="button" className="btn-ghost" data-nav disabled={inList} onClick={() => add(h)} aria-label={inList ? w.inListLabel(h.title) : w.addLabel(h.title)}>
+                      {inList ? w.inList : w.add}
                     </button>
                   </li>
                 );
@@ -202,12 +205,10 @@ export function WishlistView(ctx: SectionContext) {
         </p>
       )}
       {list && items.length === 0 && !hits && (
-        <EmptyState title="Aucun souhait pour l'instant">
-          Cherche un jeu de la boutique Steam : Ludex suit son prix et te prévient quand il passe en promo. Aucun compte n'est utilisé.
-        </EmptyState>
+        <EmptyState title={w.emptyTitle}>{w.emptyBody}</EmptyState>
       )}
       {items.length > 0 && (
-        <ul className="wishes__list" aria-label="Tes souhaits">
+        <ul className="wishes__list" aria-label={w.yours}>
           {items.map((item) => (
             <WishRow key={item.appid} item={item} ctx={ctx} onStore={store} onRemove={remove} />
           ))}
@@ -220,6 +221,7 @@ export function WishlistView(ctx: SectionContext) {
 function WishRow({ item, ctx, onStore, onRemove }: { item: WishItem; ctx: SectionContext; onStore: (appid: number) => void; onRemove: (appid: number, title: string) => void }) {
   const p = priceView(item);
   const lowest = lowestText(item);
+  const w = t.library.wishlist;
   return (
     <li className={p.discount ? "wish is-sale" : "wish"}>
       <div className="wish__main" role="group" aria-label={wishLabel(item)}>
@@ -244,11 +246,11 @@ function WishRow({ item, ctx, onStore, onRemove }: { item: WishItem; ctx: Sectio
       </div>
       <div className="wish__actions">
         {item.owned && <Owned id={item.owned} ctx={ctx} />}
-        <button type="button" className="btn-ghost" data-nav onClick={() => onStore(item.appid)} aria-label={`Voir ${item.title} dans Steam`}>
-          Voir dans Steam
+        <button type="button" className="btn-ghost" data-nav onClick={() => onStore(item.appid)} aria-label={w.viewInSteamLabel(item.title)}>
+          {w.viewInSteam}
         </button>
-        <button type="button" className="btn-ghost" data-nav onClick={() => onRemove(item.appid, item.title)} aria-label={`Retirer ${item.title} de tes souhaits`}>
-          Retirer
+        <button type="button" className="btn-ghost" data-nav onClick={() => onRemove(item.appid, item.title)} aria-label={w.removeLabel(item.title)}>
+          {w.remove}
         </button>
       </div>
     </li>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { journal, type Achievement, type JournalDay, type JournalGame, type JournalSession } from "../lib/api";
 import { formatClock, formatDay, formatDuration, formatPercent, relativeDay } from "../lib/format";
+import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { AchievementIcon } from "./AchievementList";
 import { Cover } from "./Cover";
@@ -15,24 +16,24 @@ type Load = { state: "loading" } | { state: "error"; message: string } | { state
 
 /** « 14:05, 1 h 20 », « Depuis la veille, 40 min », « Plusieurs sessions, 3 h » (entrée regroupée). */
 function sessionText(s: JournalSession): string {
-  const when = s.start === null ? "Plusieurs sessions" : s.continued ? "Depuis la veille" : formatClock(s.start);
+  const when = s.start === null ? t.activity.journal.severalSessions : s.continued ? t.activity.journal.sinceYesterday : formatClock(s.start);
   return `${when}, ${formatDuration(s.secs)}`;
 }
 
 /** Infobulle d'un succès : nom, description et part des joueurs. */
 function achievementTitle(a: Achievement): string {
-  const percent = a.globalPercent !== null ? `${formatPercent(a.globalPercent)} des joueurs` : null;
-  const when = a.unlockedAt ? `Débloqué à ${formatClock(a.unlockedAt)}` : null;
+  const percent = a.globalPercent !== null ? t.activity.journal.ofPlayers(formatPercent(a.globalPercent)) : null;
+  const when = a.unlockedAt ? t.activity.journal.unlockedAt(formatClock(a.unlockedAt)) : null;
   return [a.name, a.description, [when, percent].filter(Boolean).join(" · ")].filter(Boolean).join("\n");
 }
 
 /** Résumé d'un jeu dans un jour : « 2 sessions · 3 succès · 1 capture » (aussi dans l'onglet Journal de la fiche). */
 export function gameSummary(g: JournalGame): string {
-  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+  const tj = t.activity.journal;
   return [
-    g.sessions.length > 0 && plural(g.sessions.length, "session"),
-    g.unlocked > 0 && `${g.unlocked} succès`,
-    g.shots.length > 0 && plural(g.shots.length, "capture"),
+    g.sessions.length > 0 && tj.sessions(g.sessions.length),
+    g.unlocked > 0 && tj.achievements(g.unlocked),
+    g.shots.length > 0 && tj.shots(g.shots.length),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -94,25 +95,26 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
     return () => observer.disconnect();
   }, [next, more, loadMore]);
 
+  const tj = t.activity.journal;
   const heading = (
     <div className="bar">
-      <h2 id="journal-title">{journalGame ? `Journal de ${journalGame.title}` : "Journal"}</h2>
+      <h2 id="journal-title">{journalGame ? tj.titleOf(journalGame.title) : tj.title}</h2>
       {journalGame && (
         <button type="button" className="btn-ghost journal__all" data-nav onClick={showWholeJournal}>
-          <CloseIcon /> Tout le journal
+          <CloseIcon /> {tj.all}
         </button>
       )}
     </div>
   );
 
   if (load.state === "loading") {
-    return <section aria-labelledby="journal-title">{heading}<p className="journal__note" aria-busy="true">Lecture du journal…</p></section>;
+    return <section aria-labelledby="journal-title">{heading}<p className="journal__note" aria-busy="true">{tj.loading}</p></section>;
   }
   if (load.state === "error") {
     return (
       <section aria-labelledby="journal-title">
         {heading}
-        <EmptyState title="Journal indisponible">{load.message}</EmptyState>
+        <EmptyState title={tj.unavailable}>{load.message}</EmptyState>
       </section>
     );
   }
@@ -120,9 +122,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
     return (
       <section aria-labelledby="journal-title">
         {heading}
-        <EmptyState title="Rien dans le journal pour l'instant">
-          Les parties lancées depuis Ludex, les succès Steam débloqués et les captures d'écran apparaîtront ici, jour par jour
-        </EmptyState>
+        <EmptyState title={tj.emptyTitle}>{tj.emptyBody}</EmptyState>
       </section>
     );
   }
@@ -138,7 +138,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
             <header className="jday__head">
               <h3>{relativeDay(day.date)}</h3>
               <span className="jday__date">{formatDay(day.date)}</span>
-              {day.secs > 0 && <span className="jday__total" title="Temps joué ce jour-là, mesuré par Ludex">{formatDuration(day.secs)}</span>}
+              {day.secs > 0 && <span className="jday__total" title={tj.dayTotal}>{formatDuration(day.secs)}</span>}
             </header>
             <ul className="jday__games">
               {day.games.map((g, gi) => {
@@ -156,7 +156,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
                 return (
                   <li key={g.gameId ?? "autres"} className="jgame">
                     {game ? (
-                      <button type="button" className="jgame__head" data-nav onClick={() => openGame(game)} title={`Ouvrir la fiche de ${g.title}`}>
+                      <button type="button" className="jgame__head" data-nav onClick={() => openGame(game)} title={tj.openGame(g.title)}>
                         {head}
                       </button>
                     ) : (
@@ -166,7 +166,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
                       <p className="jgame__sessions">{g.sessions.map(sessionText).join(" · ")}</p>
                     )}
                     {g.achievements.length > 0 && (
-                      <ul className="jgame__achs" aria-label={`Succès débloqués : ${g.unlocked}`}>
+                      <ul className="jgame__achs" aria-label={tj.unlocked(g.unlocked)}>
                         {g.achievements.map((a) => (
                           <li key={a.apiName} title={achievementTitle(a)}>
                             <AchievementIcon src={a.icon} />
@@ -182,7 +182,7 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
                             key={s.key}
                             shot={s}
                             nav
-                            label={`Capture ${i + 1} de ${g.title}`}
+                            label={tj.shot(i + 1, g.title)}
                             more={i === shown.length - 1 && rest > 0 ? rest : undefined}
                             onOpen={() => setViewing({ day: di, game: gi, index: i })}
                           />
@@ -199,10 +199,10 @@ export function JournalView({ games, playing, openGame, journalGame, showWholeJo
       <div ref={sentinel} className="journal__end">
         {next ? (
           <button type="button" className="btn-ghost" data-nav disabled={more === "loading"} onClick={loadMore}>
-            {more === "loading" ? "Lecture des jours précédents…" : more === "error" ? "Réessayer" : "Jours précédents"}
+            {more === "loading" ? tj.loadingMore : more === "error" ? tj.retry : tj.more}
           </button>
         ) : (
-          <p className="journal__note">Début du journal</p>
+          <p className="journal__note">{tj.start}</p>
         )}
       </div>
       {viewed && viewing && (

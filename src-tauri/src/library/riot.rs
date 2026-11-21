@@ -63,7 +63,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         }
         let settings = entry.path().join(format!("{name}.product_settings.yaml"));
         let Some(dir) = install_path(&settings).filter(|p| p.exists()) else {
-            super::skip(&title_for(product), "Dossier d'installation introuvable");
+            super::skip(&title_for(product), tr_str!("Dossier d'installation introuvable", "Install folder not found"));
             continue;
         };
 

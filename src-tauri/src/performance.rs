@@ -327,14 +327,14 @@ impl Store {
     /// Ajoute une session (une session du même début est remplacée), garde les `KEEP` plus
     /// récentes du jeu, puis enregistre. Écriture refusée : la mémoire garde la session.
     pub fn record(&self, game_id: &str, perf: SessionPerf) -> Result<(), String> {
-        let mut file = self.file.lock().map_err(|_| "Performances indisponibles.".to_string())?;
+        let mut file = self.file.lock().map_err(|_| tr!("Performances indisponibles.", "Performance data unavailable."))?;
         file.version = VERSION;
         let list = file.games.entry(game_id.to_string()).or_default();
         list.retain(|s| s.start != perf.start);
         list.push(perf);
         list.sort_by_key(|s| std::cmp::Reverse(s.start));
         list.truncate(KEEP);
-        let text = serde_json::to_string(&*file).map_err(|e| format!("Performances illisibles : {e}"))?;
+        let text = serde_json::to_string(&*file).map_err(|e| tr!("Performances illisibles : {e}", "Unreadable performance data: {e}"))?;
         write_atomic(&self.path, &text)
     }
 }
@@ -342,11 +342,11 @@ impl Store {
 /// Écrit dans un fichier temporaire puis le renomme : jamais de fichier à moitié écrit.
 fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).map_err(|e| format!("Dossier de données inaccessible : {e}"))?;
+        fs::create_dir_all(dir).map_err(|e| tr!("Dossier de données inaccessible : {e}", "Data folder not accessible: {e}"))?;
     }
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, text).map_err(|e| format!("Enregistrement impossible : {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+    fs::write(&tmp, text).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))
 }
 
 /// Relevé des processus et du PC, gardé d'un relevé à l'autre tant qu'une session est suivie.

@@ -568,7 +568,7 @@ fn refresh_news(state: &AppState, appid: u32) -> Result<(), String> {
         Err(e) => {
             diagnostic::failed(diagnostic::Service::News, &e);
             eprintln!("Actualités de {appid} non relues : {e}");
-            if lock(&state.news)?.known(appid) { Ok(()) } else { Err(format!("Actualités indisponibles : {e}")) }
+            if lock(&state.news)?.known(appid) { Ok(()) } else { Err(tr!("Actualités indisponibles : {e}", "News unavailable: {e}")) }
         }
     }
 }
@@ -596,14 +596,14 @@ async fn game_news(app: AppHandle, id: String, seen: bool) -> Result<Vec<news::N
 #[tauri::command]
 fn open_news(app: AppHandle, state: State<'_, AppState>, id: String, gid: String, link: Option<u32>) -> Result<(), String> {
     if gid.len() > 24 {
-        return Err("Annonce inconnue.".into());
+        return Err(tr!("Annonce inconnue.", "Unknown announcement."));
     }
-    let appid = find_game(&state, &id)?.steam_appid.ok_or("Pas d'actualités pour ce jeu.")?;
+    let appid = find_game(&state, &id)?.steam_appid.ok_or(tr_str!("Pas d'actualités pour ce jeu.", "No news for this game."))?;
     let url = lock(&state.news)?
         .target(appid, &gid, link)
         .and_then(|u| news::safe_link(&u))
-        .ok_or("Lien introuvable : rouvre les actualités du jeu.")?;
-    app.opener().open_url(&url, None::<&str>).map_err(|e| format!("Impossible d'ouvrir le lien : {e}"))
+        .ok_or(tr_str!("Lien introuvable : rouvre les actualités du jeu.", "Link not found: reopen the game's news."))?;
+    app.opener().open_url(&url, None::<&str>).map_err(|e| tr!("Impossible d'ouvrir le lien : {e}", "Couldn't open the link: {e}"))
 }
 
 /// Lit la base des sauvegardes (téléchargée au plus une fois par semaine) et garde les entrées des
@@ -660,9 +660,19 @@ fn saves_entry(state: &AppState, id: &str) -> Result<(saves::Status, Option<save
 fn saves_scope(state: &AppState, game: &Game) -> Result<saves::Scope, String> {
     match saves_entry(state, &game.id)? {
         (_, Some(entry)) => Ok(saves::Scope::new(&entry, game, &saves::Env::system())),
-        (saves::Status::Loading, None) => Err("La base des sauvegardes est en cours de téléchargement : réessaie dans un instant.".into()),
-        (saves::Status::Unavailable, None) => Err("Base des sauvegardes indisponible (hors ligne ?) : emplacements inconnus.".into()),
-        (saves::Status::Ready, None) => Err(format!("{} n'est pas dans la base des sauvegardes : emplacement inconnu.", game.title)),
+        (saves::Status::Loading, None) => Err(tr!(
+            "La base des sauvegardes est en cours de téléchargement : réessaie dans un instant.",
+            "The saves database is still downloading: try again in a moment."
+        )),
+        (saves::Status::Unavailable, None) => Err(tr!(
+            "Base des sauvegardes indisponible (hors ligne ?) : emplacements inconnus.",
+            "Saves database unavailable (offline?): locations unknown."
+        )),
+        (saves::Status::Ready, None) => Err(tr!(
+            "{} n'est pas dans la base des sauvegardes : emplacement inconnu.",
+            "{} isn't in the saves database: location unknown.",
+            game.title
+        )),
     }
 }
 
@@ -766,14 +776,14 @@ async fn open_save_location(app: tauri::AppHandle, id: String, path: String) -> 
             .locate(Some(&root))
             .into_iter()
             .find(|p| p.to_string_lossy() == path)
-            .ok_or("Cet emplacement n'existe plus : rouvre l'onglet Sauvegardes.")?;
+            .ok_or(tr_str!("Cet emplacement n'existe plus : rouvre l'onglet Sauvegardes.", "This location no longer exists: reopen the Saves tab."))?;
         // Un dossier s'ouvre ; un fichier seul est montré sélectionné (jamais ouvert par son appli).
         let opened = if found.is_dir() {
             app.opener().open_path(found.to_string_lossy(), None::<&str>)
         } else {
             app.opener().reveal_item_in_dir(&found)
         };
-        opened.map_err(|e| format!("Impossible d'ouvrir le dossier : {e}"))
+        opened.map_err(|e| tr!("Impossible d'ouvrir le dossier : {e}", "Couldn't open the folder: {e}"))
     })
     .await
 }
@@ -782,15 +792,15 @@ async fn open_save_location(app: tauri::AppHandle, id: String, path: String) -> 
 #[tauri::command]
 async fn open_save_copy(app: tauri::AppHandle, id: String, backup_id: String) -> Result<(), String> {
     if !saves::valid_copy_id(&backup_id) {
-        return Err("Copie inconnue.".into());
+        return Err(tr!("Copie inconnue.", "Unknown backup."));
     }
     blocking(move || {
         let state = app.state::<AppState>();
         find_game(&state, &id)?;
-        let dir = saves::copy_dir(&saves_root(&state), &id, &backup_id).ok_or("Copie introuvable : elle a peut-être été supprimée.")?;
+        let dir = saves::copy_dir(&saves_root(&state), &id, &backup_id).ok_or(tr_str!("Copie introuvable : elle a peut-être été supprimée.", "Backup not found: it may have been deleted."))?;
         app.opener()
             .reveal_item_in_dir(&dir)
-            .map_err(|e| format!("Impossible d'ouvrir le dossier de la copie : {e}"))
+            .map_err(|e| tr!("Impossible d'ouvrir le dossier de la copie : {e}", "Couldn't open the backup folder: {e}"))
     })
     .await
 }
@@ -810,13 +820,13 @@ async fn backup_saves(app: tauri::AppHandle, id: String) -> Result<saves::Outcom
 #[tauri::command]
 async fn restore_saves(app: tauri::AppHandle, id: String, backup_id: String) -> Result<saves::Restored, String> {
     if !saves::valid_copy_id(&backup_id) {
-        return Err("Copie inconnue.".into());
+        return Err(tr!("Copie inconnue.", "Unknown backup."));
     }
     blocking(move || {
         let state = app.state::<AppState>();
         let game = find_game(&state, &id)?;
         if state.tracker.active().iter().any(|(g, _)| *g == id) || session::game_running(&game) {
-            return Err(format!("{} est ouvert : ferme le jeu avant de restaurer ses sauvegardes.", game.title));
+            return Err(tr!("{} est ouvert : ferme le jeu avant de restaurer ses sauvegardes.", "{} is running: close the game before restoring its saves.", game.title));
         }
         let root = saves_root(&state);
         let scope = saves_scope(&state, &game)?;
@@ -833,7 +843,7 @@ async fn choose_saves_dir(app: tauri::AppHandle, window: tauri::WebviewWindow) -
     blocking(move || {
         let state = app.state::<AppState>();
         let current = saves_root(&state);
-        let mut dialog = window.dialog().file().set_title("Dossier des copies de sauvegardes").set_parent(&window);
+        let mut dialog = window.dialog().file().set_title(tr!("Dossier des copies de sauvegardes", "Folder for save backups")).set_parent(&window);
         if let Some(start) = current.ancestors().find(|d| d.is_dir()) {
             dialog = dialog.set_directory(start);
         }
@@ -992,8 +1002,8 @@ async fn storage(app: tauri::AppHandle) -> Result<storage::Storage, String> {
 fn uninstall_game(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
     let game = find_game(&state, &id)?;
     let uri = storage::uninstall_uri(&game)
-        .ok_or_else(|| format!("Ludex ne sait pas ouvrir la désinstallation de {} : ouvre son dossier.", game.title))?;
-    app.opener().open_url(&uri, None::<&str>).map_err(|e| format!("Le launcher n'a pas répondu : {e}"))
+        .ok_or_else(|| tr!("Ludex ne sait pas ouvrir la désinstallation de {} : ouvre son dossier.", "Ludex can't open the uninstaller for {}: open its folder.", game.title))?;
+    app.opener().open_url(&uri, None::<&str>).map_err(|e| tr!("Le launcher n'a pas répondu : {e}", "The launcher didn't respond: {e}"))
 }
 
 /// Emplacements d'un jeu de la bibliothèque pour la vue avancée : sauvegardes de la base (si elle
@@ -1012,7 +1022,7 @@ fn kept_targets(state: &AppState, id: &str) -> Result<footprint::Targets, String
     lock(&state.footprints)?
         .get(id)
         .cloned()
-        .ok_or_else(|| "Emplacements inconnus : rouvre la vue avancée de ce jeu.".to_string())
+        .ok_or_else(|| tr!("Emplacements inconnus : rouvre la vue avancée de ce jeu.", "Locations unknown: reopen the advanced view for this game."))
 }
 
 /// Vue avancée du Stockage : ce que le jeu laisse sur le PC (lecture seule). Jeu encore dans la
@@ -1033,7 +1043,7 @@ async fn game_footprint(app: tauri::AppHandle, id: String, rescan: bool) -> Resu
                 lock(&state.footprints)?.insert(id.clone(), t.clone());
                 t
             }
-            None => kept_targets(&state, &id).map_err(|_| "Ce jeu n'est plus dans la bibliothèque. Relance un scan.".to_string())?,
+            None => kept_targets(&state, &id).map_err(|_| not_in_library())?,
         };
         Ok(footprint::check(&targets, &footprint::System, game.as_ref(), footprint::size_of, |p: &Path| p.is_file()))
     })
@@ -1047,15 +1057,15 @@ async fn open_footprint_item(app: tauri::AppHandle, id: String, item: String) ->
     blocking(move || {
         let state = app.state::<AppState>();
         let targets = kept_targets(&state, &id)?;
-        let folder = targets.folders.iter().find(|f| f.item == item).ok_or("Emplacement inconnu : rouvre la vue avancée.")?;
+        let folder = targets.folders.iter().find(|f| f.item == item).ok_or(tr_str!("Emplacement inconnu : rouvre la vue avancée.", "Unknown location: reopen the advanced view."))?;
         let opened = if folder.path.is_dir() {
             app.opener().open_path(folder.path.to_string_lossy(), None::<&str>)
         } else if folder.path.is_file() {
             app.opener().reveal_item_in_dir(&folder.path)
         } else {
-            return Err(format!("{} n'existe plus.", folder.path.display()));
+            return Err(tr!("{} n'existe plus.", "{} no longer exists.", folder.path.display()));
         };
-        opened.map_err(|e| format!("Impossible d'ouvrir le dossier : {e}"))
+        opened.map_err(|e| tr!("Impossible d'ouvrir le dossier : {e}", "Couldn't open the folder: {e}"))
     })
     .await
 }
@@ -1070,15 +1080,18 @@ async fn run_uninstaller(app: tauri::AppHandle, id: String, item: String) -> Res
         let targets = kept_targets(&state, &id)?;
         let game = find_game(&state, &id)?;
         if state.tracker.active().iter().any(|(g, _)| *g == id) || session::game_running(&game) {
-            return Err(format!("{} est ouvert : ferme le jeu avant de le désinstaller.", game.title));
+            return Err(tr!("{} est ouvert : ferme le jeu avant de le désinstaller.", "{} is running: close the game before uninstalling it.", game.title));
         }
-        let index: usize = item.strip_prefix("uninstall-").and_then(|n| n.parse().ok()).ok_or("Entrée inconnue : rouvre la vue avancée.")?;
-        let (hive, path) = targets.uninstall.get(index).ok_or("Entrée inconnue : rouvre la vue avancée.")?;
-        let entry = footprint::read_entry(&footprint::System, *hive, path).ok_or("Cette entrée a disparu du registre : le jeu semble déjà désinstallé.")?;
-        let text = entry.uninstall_string.ok_or("Cette entrée n'a pas de commande de désinstallation.")?;
+        let index: usize = item.strip_prefix("uninstall-").and_then(|n| n.parse().ok()).ok_or(tr_str!("Entrée inconnue : rouvre la vue avancée.", "Unknown entry: reopen the advanced view."))?;
+        let (hive, path) = targets.uninstall.get(index).ok_or(tr_str!("Entrée inconnue : rouvre la vue avancée.", "Unknown entry: reopen the advanced view."))?;
+        let entry = footprint::read_entry(&footprint::System, *hive, path).ok_or(tr_str!(
+            "Cette entrée a disparu du registre : le jeu semble déjà désinstallé.",
+            "This entry is gone from the registry: the game seems to be uninstalled already."
+        ))?;
+        let text = entry.uninstall_string.ok_or(tr_str!("Cette entrée n'a pas de commande de désinstallation.", "This entry has no uninstall command."))?;
         let cmd = footprint::parse_command(&text, &footprint::system_dir(), |p| p.is_file())?;
         if cmd.exe.file_name().is_some_and(|n| n.eq_ignore_ascii_case("steam.exe")) {
-            return Err("Désinstallation gérée par Steam : utilise « Désinstaller avec Steam ».".into());
+            return Err(tr!("Désinstallation gérée par Steam : utilise « Désinstaller avec Steam ».", "Steam handles this uninstall: use \"Uninstall with Steam\"."));
         }
         footprint::launch(&cmd)
     })
@@ -1090,7 +1103,7 @@ async fn run_uninstaller(app: tauri::AppHandle, id: String, item: String) -> Res
 fn open_apps_settings(app: tauri::AppHandle) -> Result<(), String> {
     app.opener()
         .open_url("ms-settings:appsfeatures", None::<&str>)
-        .map_err(|e| format!("Impossible d'ouvrir les Paramètres : {e}"))
+        .map_err(|e| tr!("Impossible d'ouvrir les Paramètres : {e}", "Couldn't open Windows Settings: {e}"))
 }
 
 /// Événement `game-session` : phase d'une session et, quand Ludex vient d'ajouter du temps,
@@ -1216,7 +1229,7 @@ fn unlock_times(games: &[Game]) -> Vec<(String, Vec<u64>)> {
 #[tauri::command]
 async fn journal(app: AppHandle, before: Option<String>, game: Option<String>) -> Result<journal::Page, String> {
     let before = match before.as_deref() {
-        Some(text) => Some(journal::parse_day(text).ok_or("Date invalide.")?),
+        Some(text) => Some(journal::parse_day(text).ok_or(tr_str!("Date invalide.", "Invalid date."))?),
         None => None,
     };
     blocking(move || {
@@ -1251,7 +1264,7 @@ async fn journal(app: AppHandle, before: Option<String>, game: Option<String>) -
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
-    m.lock().map_err(|_| "État interne indisponible".to_string())
+    m.lock().map_err(|_| tr!("État interne indisponible", "Internal state unavailable"))
 }
 
 /// Scan complet : préférences, jaquettes et fiches appliquées, état mis à jour, puis recherche des
@@ -1370,10 +1383,10 @@ async fn scan_library(app: tauri::AppHandle) -> Result<ScanResult, String> {
                 let _ = tx.send(Err(e)); // sans effet si les premiers jeux sont déjà partis
             }
         });
-        rx.recv().map_err(|_| "Le scan s'est arrêté.".to_string())?
+        rx.recv().map_err(|_| tr!("Le scan s'est arrêté.", "The scan stopped."))?
     })
     .await
-    .map_err(|e| format!("Le scan a échoué : {e}"))??;
+    .map_err(|e| tr!("Le scan a échoué : {e}", "The scan failed: {e}"))??;
     start_watch(&app);
     Ok(result)
 }
@@ -1506,7 +1519,12 @@ fn find_game(state: &AppState, id: &str) -> Result<Game, String> {
         .iter()
         .find(|g| g.id == id)
         .cloned()
-        .ok_or_else(|| "Ce jeu n'est plus dans la bibliothèque. Relance un scan.".to_string())
+        .ok_or_else(not_in_library)
+}
+
+/// Jeu absent de l'état (désinstallé, ou id d'un ancien scan).
+fn not_in_library() -> String {
+    tr!("Ce jeu n'est plus dans la bibliothèque. Relance un scan.", "This game is no longer in the library. Run a new scan.")
 }
 
 /// Demande les pourcentages mondiaux manquants ou vieux de plus de 7 jours, sans tenir le verrou
@@ -1660,13 +1678,13 @@ async fn refresh_mods(app: AppHandle, id: String) -> Result<Option<workshop::Mod
 #[tauri::command]
 fn open_mods_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
     let game = find_game(&state, &id)?;
-    let (content, _) = workshop::installed(&game).ok_or("Aucun mod Workshop pour ce jeu.")?;
+    let (content, _) = workshop::installed(&game).ok_or(tr_str!("Aucun mod Workshop pour ce jeu.", "No Workshop mods for this game."))?;
     if !content.is_dir() {
-        return Err("Le dossier des mods n'existe plus.".into());
+        return Err(tr!("Le dossier des mods n'existe plus.", "The mods folder no longer exists."));
     }
     app.opener()
         .open_path(content.to_string_lossy(), None::<&str>)
-        .map_err(|e| format!("Impossible d'ouvrir {} : {e}", content.display()))
+        .map_err(|e| tr!("Impossible d'ouvrir {} : {e}", "Couldn't open {}: {e}", content.display()))
 }
 
 /// Ouvre la page d'un mod dans Steam (`steam://url/CommunityFilePage/<id>`). L'id doit être un
@@ -1674,14 +1692,14 @@ fn open_mods_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: String) 
 #[tauri::command]
 fn open_mod_page(app: tauri::AppHandle, state: State<'_, AppState>, id: String, mod_id: String) -> Result<(), String> {
     let game = find_game(&state, &id)?;
-    let wanted = workshop::parse_id(&mod_id).ok_or("Mod inconnu.")?;
-    let (_, installed) = workshop::installed(&game).ok_or("Aucun mod Workshop pour ce jeu.")?;
+    let wanted = workshop::parse_id(&mod_id).ok_or(tr_str!("Mod inconnu.", "Unknown mod."))?;
+    let (_, installed) = workshop::installed(&game).ok_or(tr_str!("Aucun mod Workshop pour ce jeu.", "No Workshop mods for this game."))?;
     if !installed.iter().any(|m| m.id == wanted) {
-        return Err("Ce mod n'est plus installé.".into());
+        return Err(tr!("Ce mod n'est plus installé.", "This mod is no longer installed."));
     }
     app.opener()
         .open_url(format!("steam://url/CommunityFilePage/{wanted}"), None::<&str>)
-        .map_err(|e| format!("Steam n'a pas répondu : {e}"))
+        .map_err(|e| tr!("Steam n'a pas répondu : {e}", "Steam didn't respond: {e}"))
 }
 
 /// Section « Vitrine » : total des succès, jeux à 100 %, dix plus rares, derniers déblocages.
@@ -1718,10 +1736,10 @@ async fn showcase(app: AppHandle) -> Result<showcase::Showcase, String> {
 fn open_install_dir(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
     let dir = find_game(&state, &id)?
         .install_dir
-        .ok_or("Dossier d'installation inconnu pour ce jeu.")?;
+        .ok_or(tr_str!("Dossier d'installation inconnu pour ce jeu.", "Install folder unknown for this game."))?;
     app.opener()
         .open_path(&dir, None::<&str>)
-        .map_err(|e| format!("Impossible d'ouvrir {dir} : {e}"))
+        .map_err(|e| tr!("Impossible d'ouvrir {dir} : {e}", "Couldn't open {dir}: {e}"))
 }
 
 /// Jeu ajouté ou modifié, avec la bibliothèque relue : le front n'a pas à rescanner.
@@ -1737,7 +1755,7 @@ const MAX_TITLE_INPUT: usize = 1024;
 
 /// Tâche bloquante (sélecteur de fichier, scan) hors du fil de l'interface.
 async fn blocking<T: Send + 'static>(task: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(task).await.map_err(|e| format!("Opération interrompue : {e}"))?
+    tauri::async_runtime::spawn_blocking(task).await.map_err(|e| tr!("Opération interrompue : {e}", "Operation interrupted: {e}"))?
 }
 
 /// Attend la fin d'un scan en cours (automatique ou demandé) : jamais deux à la fois.
@@ -1748,7 +1766,7 @@ fn wait_scan(state: &AppState) -> MutexGuard<'_, ()> {
 /// Sélecteur de fichier natif, limité aux exécutables, au-dessus de la fenêtre de Ludex. Le chemin
 /// choisi reste côté Rust : le front ne le voit ni ne le transmet. `None` : annulé.
 fn pick_exe(window: &tauri::WebviewWindow, title: &str, start: Option<&Path>) -> Option<PathBuf> {
-    let mut dialog = window.dialog().file().set_title(title).add_filter("Exécutable", &["exe"]).set_parent(window);
+    let mut dialog = window.dialog().file().set_title(title).add_filter(tr!("Exécutable", "Executable"), &["exe"]).set_parent(window);
     if let Some(dir) = start.filter(|d| d.is_dir()) {
         dialog = dialog.set_directory(dir);
     }
@@ -1758,7 +1776,11 @@ fn pick_exe(window: &tauri::WebviewWindow, title: &str, start: Option<&Path>) ->
 /// Un exécutable déjà lancé par un autre jeu de la bibliothèque ne crée pas de doublon.
 fn check_unused(games: &[Game], exe: &Path, except: Option<&str>) -> Result<(), String> {
     match manual::same_exe(games, exe, except) {
-        Some(g) => Err(format!("« {} » lance déjà cet exécutable : il est déjà dans la bibliothèque.", g.title)),
+        Some(g) => Err(tr!(
+            "« {} » lance déjà cet exécutable : il est déjà dans la bibliothèque.",
+            "\"{}\" already launches this executable: it's already in the library.",
+            g.title
+        )),
         None => Ok(()),
     }
 }
@@ -1787,7 +1809,10 @@ fn updated(id: String, scan: ScanResult) -> Result<LibraryUpdate, String> {
         .iter()
         .find(|g| g.id == id)
         .map(|g| g.title.clone())
-        .ok_or("Le jeu n'apparaît pas dans la bibliothèque : son exécutable a-t-il disparu ?")?;
+        .ok_or(tr_str!(
+            "Le jeu n'apparaît pas dans la bibliothèque : son exécutable a-t-il disparu ?",
+            "The game doesn't show up in the library: is its executable gone?"
+        ))?;
     Ok(LibraryUpdate { id, title, scan })
 }
 
@@ -1796,7 +1821,7 @@ fn updated(id: String, scan: ScanResult) -> Result<LibraryUpdate, String> {
 #[tauri::command]
 async fn add_game(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Option<LibraryUpdate>, String> {
     blocking(move || {
-        let Some(picked) = pick_exe(&window, "Ajouter un jeu", None) else { return Ok(None) };
+        let Some(picked) = pick_exe(&window, tr_str!("Ajouter un jeu", "Add a game"), None) else { return Ok(None) };
         let exe = manual::check_exe(&picked)?;
         let state = app.state::<AppState>();
         let scanning = wait_scan(&state);
@@ -1804,8 +1829,9 @@ async fn add_game(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result
             let games = lock(&state.games)?;
             check_unused(&games, &exe, None)?;
             if let Some(g) = manual::folder_owner(&games, &exe) {
-                return Err(format!(
+                return Err(tr!(
                     "Cet exécutable est dans le dossier de « {} », déjà dans la bibliothèque. Pour le lancer avec, ouvre sa fiche et choisis « Changer l'exécutable ».",
+                    "This executable is in the folder of \"{}\", already in the library. To launch the game with it, open its details and choose \"Change executable\".",
                     g.title
                 ));
             }
@@ -1825,15 +1851,19 @@ async fn change_executable(app: tauri::AppHandle, window: tauri::WebviewWindow, 
         let state = app.state::<AppState>();
         let game = find_game(&state, &id)?;
         if game.platform != Platform::Other {
-            return Err(format!("{} est lancé par son launcher : son exécutable ne se change pas dans Ludex.", game.title));
+            return Err(tr!(
+                "{} est lancé par son launcher : son exécutable ne se change pas dans Ludex.",
+                "{} is launched by its launcher: its executable can't be changed in Ludex.",
+                game.title
+            ));
         }
         let start = game.install_dir.as_deref().map(Path::new);
-        let Some(picked) = pick_exe(&window, &format!("Exécutable de {}", game.title), start) else { return Ok(None) };
+        let Some(picked) = pick_exe(&window, &tr!("Exécutable de {}", "Executable for {}", game.title), start) else { return Ok(None) };
         let exe = manual::check_exe(&picked)?;
         if !game.manual {
-            let dir = game.install_dir.as_deref().ok_or("Dossier du jeu inconnu.")?;
+            let dir = game.install_dir.as_deref().ok_or(tr_str!("Dossier du jeu inconnu.", "Game folder unknown."))?;
             if !manual::is_in_dir(&exe, dir) {
-                return Err(format!("Choisis un exécutable dans le dossier du jeu : {dir}"));
+                return Err(tr!("Choisis un exécutable dans le dossier du jeu : {dir}", "Choose an executable in the game's folder: {dir}"));
             }
         }
         let scanning = wait_scan(&state);
@@ -1848,7 +1878,7 @@ async fn change_executable(app: tauri::AppHandle, window: tauri::WebviewWindow, 
 #[tauri::command]
 async fn rename_game(app: tauri::AppHandle, id: String, title: String) -> Result<LibraryUpdate, String> {
     if title.len() > MAX_TITLE_INPUT {
-        return Err(format!("Titre trop long : {} caractères au plus.", manual::MAX_TITLE));
+        return Err(tr!("Titre trop long : {} caractères au plus.", "Title too long: {} characters at most.", manual::MAX_TITLE));
     }
     blocking(move || {
         let state = app.state::<AppState>();
@@ -1901,7 +1931,7 @@ struct GenresUpdate {
 #[tauri::command]
 fn set_genres(state: State<'_, AppState>, id: String, genres: Vec<String>) -> Result<GenresUpdate, String> {
     if genres.iter().any(|g| g.len() > 64) {
-        return Err("Genre inconnu.".into());
+        return Err(tr!("Genre inconnu.", "Unknown genre."));
     }
     let genres = corrections::clean_genres(&genres)?;
     let mut fresh = find_game(&state, &id)?;
@@ -2023,13 +2053,16 @@ fn set_in_collection(state: State<'_, AppState>, collection: String, id: String,
 #[tauri::command]
 async fn remove_game(app: tauri::AppHandle, id: String) -> Result<ScanResult, String> {
     if !manual::is_manual(&id) {
-        return Err("Seuls les jeux ajoutés à la main se retirent. Les autres se masquent.".into());
+        return Err(tr!(
+            "Seuls les jeux ajoutés à la main se retirent. Les autres se masquent.",
+            "Only games added by hand can be removed. Other games can be hidden."
+        ));
     }
     blocking(move || {
         let state = app.state::<AppState>();
         let scanning = wait_scan(&state);
         let (removed, scan) = save_and_rescan(&app, &state, scanning, |data| data.remove_manual(&id))?;
-        if removed { Ok(scan) } else { Err("Ce jeu n'est plus dans la bibliothèque. Relance un scan.".into()) }
+        if removed { Ok(scan) } else { Err(not_in_library()) }
     })
     .await
 }
@@ -2049,7 +2082,7 @@ async fn choose_cover(app: tauri::AppHandle, window: tauri::WebviewWindow, id: S
     blocking(move || {
         let state = app.state::<AppState>();
         let game = find_game(&state, &id)?;
-        let Some(picked) = pick_image(&window, &format!("{} de {}", kind.title(), game.title)) else { return Ok(None) };
+        let Some(picked) = pick_image(&window, &tr!("{} de {}", "{} for {}", kind.title(), game.title)) else { return Ok(None) };
         let (bytes, ext) = covers::check_image(&picked)?;
         // Un scan en cours remplacerait l'état sans ce choix : on attend sa fin.
         let _scanning = wait_scan(&state);
@@ -2067,7 +2100,7 @@ async fn choose_cover(app: tauri::AppHandle, window: tauri::WebviewWindow, id: S
         let event = {
             let mut games = lock(&state.games)?;
             let mut originals = lock(&state.originals)?;
-            let g = games.iter_mut().find(|g| g.id == id).ok_or("Ce jeu n'est plus dans la bibliothèque. Relance un scan.")?;
+            let g = games.iter_mut().find(|g| g.id == id).ok_or_else(not_in_library)?;
             covers::set(g, kind, file, &choice, &mut originals);
             ArtEvent::of(g)
         };
@@ -2100,7 +2133,7 @@ async fn reset_cover(app: tauri::AppHandle, id: String, kind: covers::Kind) -> R
             let images = lock(&state.images)?;
             let mut originals = lock(&state.originals)?;
             covers::remove(images.root(), &id, kind);
-            let g = games.iter_mut().find(|g| g.id == id).ok_or("Ce jeu n'est plus dans la bibliothèque. Relance un scan.")?;
+            let g = games.iter_mut().find(|g| g.id == id).ok_or_else(not_in_library)?;
             covers::restore(g, kind, &mut originals);
             // Jaquette retrouvée en ligne pendant que l'image perso la cachait, image déjà en cache.
             art.apply(g);
@@ -2158,14 +2191,14 @@ fn launch<R: Runtime>(app: &AppHandle<R>, state: &AppState, id: &str) -> Result<
         Launch::Uri(uri) => app
             .opener()
             .open_url(uri, None::<&str>)
-            .map_err(|e| format!("Le launcher n'a pas répondu : {e}")),
+            .map_err(|e| tr!("Le launcher n'a pas répondu : {e}", "The launcher didn't respond: {e}")),
         Launch::Exec { path, args } => std::process::Command::new(path)
             .args(args)
             // Beaucoup de jeux cherchent leurs fichiers dans le dossier courant.
             .current_dir(path.parent().unwrap_or(path))
             .spawn()
             .map(|_| ())
-            .map_err(|e| format!("Impossible de démarrer {} : {e}", path.display())),
+            .map_err(|e| tr!("Impossible de démarrer {} : {e}", "Couldn't start {}: {e}", path.display())),
     }?;
 
     // Surveille le jeu pour l'état « En jeu » et, si son launcher ne le fait pas, son temps de jeu.
@@ -2279,8 +2312,8 @@ fn notify_preview(app: &tauri::AppHandle) {
         let note = notify::Note {
             kind: notify::Kind::LowDisk,
             key: format!("essai:{}", notify::now()),
-            title: "Disque E: presque plein (essai)".into(),
-            body: "Notification d'essai de Ludex : un clic ouvre le Stockage.".into(),
+            title: tr!("Disque E: presque plein (essai)", "Drive E: almost full (test)"),
+            body: tr!("Notification d'essai de Ludex : un clic ouvre le Stockage.", "Ludex test notification: click to open Storage."),
             target: notify::Target::Storage,
         };
         println!("Essai : notification du disque : {}", notify_user(&app, note));
@@ -2354,18 +2387,18 @@ fn update_settings<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut stor
 /// Active ou coupe le lancement avec Windows (menu de la zone de notification, Paramètres).
 /// L'entrée du registre fait foi : le réglage enregistré reprend son état réel après la modification.
 fn set_autostart<R: Runtime>(app: &AppHandle<R>, value: bool) -> Result<(), String> {
-    let manager = app.try_state::<AutoLaunchManager>().ok_or("Lancement avec Windows indisponible.")?;
+    let manager = app.try_state::<AutoLaunchManager>().ok_or(tr_str!("Lancement avec Windows indisponible.", "Start with Windows unavailable."))?;
     let result = if value { manager.enable() } else { manager.disable() };
     let enabled = autostart_enabled(app);
     update_settings(app, |s| s.launch_at_startup = enabled);
-    result.map_err(|e| format!("Lancement avec Windows non modifié : {e}"))
+    result.map_err(|e| tr!("Lancement avec Windows non modifié : {e}", "Start with Windows not changed: {e}"))
 }
 
 fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
     match tray::action(id) {
         Some(tray::Action::Launch(game)) => {
             let Some(state) = app.try_state::<AppState>() else { return };
-            let title = find_game(&state, &game).map_or_else(|_| "ce jeu".to_string(), |g| g.title);
+            let title = find_game(&state, &game).map_or_else(|_| this_game(), |g| g.title);
             let event = match launch(app, &state, &game) {
                 Ok(ts) => TrayLaunchEvent { id: game, title, last_played: Some(ts), error: None },
                 Err(e) => {
@@ -2393,6 +2426,11 @@ fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         Some(tray::Action::Quit) => app.exit(0),
         None => {}
     }
+}
+
+/// Titre d'un jeu inconnu dans l'événement `tray-launch`.
+fn this_game() -> String {
+    tr!("ce jeu", "this game")
 }
 
 /// Délai laissé au premier scan quand Ludex est démarré par un lien.
@@ -2430,7 +2468,7 @@ fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
     let refuse = |id: String, error: String| {
         eprintln!("Lien {link} refusé : {error}");
         if app.get_webview_window(MAIN_WINDOW).is_some_and(|w| w.is_visible().unwrap_or(false)) {
-            let event = TrayLaunchEvent { id, title: "ce jeu".to_string(), last_played: None, error: Some(error) };
+            let event = TrayLaunchEvent { id, title: this_game(), last_played: None, error: Some(error) };
             let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
         }
     };
@@ -2439,10 +2477,16 @@ fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
         Err(e) => return refuse(String::new(), e.to_string()),
     };
     if !wait_first_scan(&state) {
-        return refuse(id, "Bibliothèque pas encore lue.".to_string());
+        return refuse(id, tr!("Bibliothèque pas encore lue.", "Library not read yet."));
     }
     let Ok(game) = find_game(&state, &id) else {
-        return refuse(id, "Ce jeu n'est pas dans la bibliothèque (désinstallé, masqué par un launcher désactivé ?).".to_string());
+        return refuse(
+            id,
+            tr!(
+                "Ce jeu n'est pas dans la bibliothèque (désinstallé, masqué par un launcher désactivé ?).",
+                "This game isn't in the library (uninstalled, or hidden by a disabled launcher?)."
+            ),
+        );
     };
     let event = match launch(app, &state, &id) {
         Ok(ts) => TrayLaunchEvent { id, title: game.title, last_played: Some(ts), error: None },
@@ -2461,7 +2505,7 @@ async fn create_shortcut(app: AppHandle, id: String) -> Result<String, String> {
     blocking(move || {
         let state = app.state::<AppState>();
         let game = find_game(&state, &id)?;
-        let desktop = dirs::desktop_dir().ok_or("Bureau introuvable.")?;
+        let desktop = dirs::desktop_dir().ok_or(tr_str!("Bureau introuvable.", "Desktop not found."))?;
         let ludex = std::env::current_exe().ok();
         let icon = shortcut::icon_for(&game, ludex.as_deref());
         let text = shortcut::contents(&deeplink::launch_url(&game.id), icon.as_deref());
@@ -2664,7 +2708,7 @@ async fn all_screenshots(app: tauri::AppHandle) -> Result<Vec<screenshots::Group
 #[tauri::command]
 async fn show_screenshot(app: tauri::AppHandle, id: Option<String>, key: String) -> Result<(), String> {
     if !screenshots::valid_key(&key) {
-        return Err("Capture inconnue.".into());
+        return Err(tr!("Capture inconnue.", "Unknown screenshot."));
     }
     blocking(move || {
         let state = app.state::<AppState>();
@@ -2677,10 +2721,10 @@ async fn show_screenshot(app: tauri::AppHandle, id: Option<String>, key: String)
             .find(|s| s.key == key && s.game_id == id)
             .map(|s| s.path)
             .filter(|p| screenshots::allowed(p, &roots))
-            .ok_or("Cette capture n'est plus dans son dossier.")?;
+            .ok_or(tr_str!("Cette capture n'est plus dans son dossier.", "This screenshot is no longer in its folder."))?;
         app.opener()
             .reveal_item_in_dir(&path)
-            .map_err(|e| format!("Impossible d'ouvrir le dossier de la capture : {e}"))
+            .map_err(|e| tr!("Impossible d'ouvrir le dossier de la capture : {e}", "Couldn't open the screenshot folder: {e}"))
     })
     .await
 }
