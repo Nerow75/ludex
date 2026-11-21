@@ -1003,6 +1003,41 @@ kbd {
 .mods__pending { color: var(--lx-warning); }
 .mods__msg { font-size: 13px; color: var(--lx-danger); }
 
+/* ---------- Souhaits : recherche dans la boutique Steam, prix et promos ---------- */
+.wishes { display: flex; flex-direction: column; gap: 12px; container-type: inline-size; }
+.wishes .bar { margin-bottom: 4px; }
+.wishes__search { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wishes__field { justify-self: auto; flex: 1 1 320px; width: auto; height: 44px; }
+.wishes__field input { font-size: 14px; }
+.wishes__field input::-webkit-search-cancel-button { display: none; }
+.wishes__note { font-size: 13px; color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
+.wishes__msg { font-size: 13px; color: var(--lx-danger); }
+.wishes__hits { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: var(--lx-radius-l); border: 1px solid var(--lx-border); background: var(--lx-surface); }
+.wishes__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.wish { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 12px 0; flex-wrap: wrap; }
+.wish + .wish { border-top: 1px solid var(--lx-border); }
+.wish--hit { gap: 12px; padding: 8px 0; flex-wrap: nowrap; }
+.wish__main { flex: 1 1 420px; min-width: 0; display: flex; align-items: center; gap: 16px; }
+.wish__img { flex: none; width: 128px; aspect-ratio: 460 / 215; border-radius: var(--lx-radius-s); background: var(--lx-surface-2); object-fit: cover; }
+.wish__img--small { width: 92px; }
+.wish__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.wish__title { font-size: 14px; font-weight: 500; color: var(--lx-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wish__meta { font: 12px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wish__price { flex: none; display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+.wish__discount { padding: 2px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--lx-accent-text); background: var(--lx-surface-2); }
+.wish__amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.wish__now { font-size: 15px; font-weight: 600; color: var(--lx-text); }
+.wish__was { font-size: 12px; color: var(--lx-text-3); }
+.wish__note { font-size: 13px; color: var(--lx-text-3); }
+.wish__actions { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.wish__owned { flex: none; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--lx-text-2); border: 1px solid var(--lx-border); background: none; }
+.wish__owned.is-link:hover { background: var(--lx-surface-2); color: var(--lx-text); }
+@container (max-width: 640px) {
+  .wish--hit { flex-wrap: wrap; }
+  .wish__img { width: 96px; }
+  .wish__main { flex-basis: 100%; }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes shimmer { to { background-position: -200% 0; } }

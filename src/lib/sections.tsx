@@ -4,7 +4,7 @@ import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
-import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, PieIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HeartIcon, HomeIcon, ImageIcon, JournalIcon, PieIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
@@ -13,6 +13,7 @@ import { ShowcaseView } from "../components/ShowcaseView";
 import { StatsView } from "../components/StatsView";
 import { TagsView } from "../components/TagsView";
 import { StorageView } from "../components/StorageView";
+import { WishlistView } from "../components/WishlistView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -35,6 +36,8 @@ export interface SectionContext {
   journalGame: Game | null;
   /** Revient au journal complet. */
   showWholeJournal: () => void;
+  /** Toast de 5 s avec « Annuler » (le même que pour un favori ou un statut). */
+  showUndo: (title: string, undo: () => void) => void;
 }
 
 /**
@@ -114,6 +117,8 @@ export const SECTIONS: readonly Section[] = [
   // Copies de sécurité des sauvegardes (base Ludusavi).
   { id: "saves", label: "Sauvegardes", icon: SaveIcon, group: TOOLS_GROUP, render: () => <SavesPage /> },
   { id: "storage", label: "Stockage", icon: StorageIcon, group: TOOLS_GROUP, render: (ctx) => <StorageView {...ctx} /> },
+  // Liste de souhaits locale : jeux de la boutique Steam suivis, alertes de promo.
+  { id: "wishlist", label: "Souhaits", icon: HeartIcon, group: TOOLS_GROUP, render: (ctx) => <WishlistView {...ctx} /> },
 ];
 
 /** Catégories ouvertes au premier lancement : les collections perso, où l'on crée. */

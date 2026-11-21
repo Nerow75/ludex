@@ -1,5 +1,6 @@
 //! Notifications Windows : téléchargement Steam terminé, actualité d'un jeu « En cours », disque
-//! presque plein, mise à jour de Ludex, copie automatique des sauvegardes ratée. Chaque type
+//! presque plein, mise à jour de Ludex, copie automatique des sauvegardes ratée, promo d'un jeu de
+//! la liste de souhaits. Chaque type
 //! s'active à part (`settings.notifications` dans `user-data.json`).
 //!
 //! Toasts WinRT par la crate `windows` (déjà là), pas `tauri-plugin-notification` : le plugin ne
@@ -52,10 +53,11 @@ pub enum Kind {
     LowDisk,
     Update,
     SavesError,
+    Sale,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 5] = [Kind::Download, Kind::News, Kind::LowDisk, Kind::Update, Kind::SavesError];
+    pub const ALL: [Kind; 6] = [Kind::Download, Kind::News, Kind::LowDisk, Kind::Update, Kind::SavesError, Kind::Sale];
 
     /// Nom dans `user-data.json` (le même qu'en JSON pour le front).
     fn name(self) -> &'static str {
@@ -65,6 +67,7 @@ impl Kind {
             Kind::LowDisk => "lowDisk",
             Kind::Update => "update",
             Kind::SavesError => "savesError",
+            Kind::Sale => "sale",
         }
     }
 
@@ -77,6 +80,8 @@ impl Kind {
             Kind::LowDisk => 24 * 3600,
             Kind::Update => 24 * 3600,
             Kind::SavesError => 3600,
+            // Par jeu : une promo signalée ne l'est pas de nouveau le même jour.
+            Kind::Sale => 24 * 3600,
         }
     }
 }
@@ -90,11 +95,12 @@ pub struct Prefs {
     pub low_disk: bool,
     pub update: bool,
     pub saves_error: bool,
+    pub sale: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true }
+        Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true }
     }
 }
 
@@ -106,6 +112,7 @@ impl Prefs {
             Kind::LowDisk => self.low_disk,
             Kind::Update => self.update,
             Kind::SavesError => self.saves_error,
+            Kind::Sale => self.sale,
         }
     }
 
@@ -116,6 +123,7 @@ impl Prefs {
             Kind::LowDisk => &mut self.low_disk,
             Kind::Update => &mut self.update,
             Kind::SavesError => &mut self.saves_error,
+            Kind::Sale => &mut self.sale,
         };
         *slot = value;
     }
@@ -167,6 +175,8 @@ pub enum Target {
     Game { id: String, tab: Option<String> },
     /// Section Stockage.
     Storage,
+    /// Section Souhaits.
+    Wishlist,
     /// La fenêtre seulement.
     Window,
 }
@@ -278,6 +288,28 @@ pub fn saves_error_note(id: &str, title: &str, error: &str) -> Note {
         body: error.into(),
         target: Target::Game { id: id.into(), tab: Some("saves".into()) },
     }
+}
+
+/// Promos nouvelles de jeux de la liste de souhaits (`wishlist.rs`).
+pub fn sale_note(sales: &[crate::wishlist::Sale]) -> Option<Note> {
+    let first = sales.first()?;
+    let money = |cents: u32, s: &crate::wishlist::Sale| crate::wishlist::money(cents, &s.price.currency);
+    let (key, title, body) = if sales.len() > 1 {
+        let list: Vec<String> = sales.iter().take(3).map(|s| format!("{} -{}\u{a0}%", s.title, s.price.discount)).collect();
+        let more = match sales.len() {
+            n if n > 4 => format!(" et {} autres", n - 3),
+            4 => " et 1 autre".to_string(),
+            _ => String::new(),
+        };
+        (format!("sale:plusieurs:{}", today()), format!("{} jeux de ta liste en promo", sales.len()), format!("{}{more}.", list.join(", ")))
+    } else {
+        (
+            format!("sale:{}", first.appid),
+            format!("{} en promo : -{}\u{a0}%", first.title, first.price.discount),
+            format!("{} au lieu de {}.", money(first.price.now, first), money(first.price.initial, first)),
+        )
+    };
+    Some(Note { kind: Kind::Sale, key, title, body, target: Target::Wishlist })
 }
 
 /// « 1 118 Go » : gigaoctets entiers, milliers séparés par une espace insécable.
@@ -572,7 +604,7 @@ mod tests {
 
     #[test]
     fn prefs_are_all_on_by_default_and_read_without_failing() {
-        assert_eq!(Prefs::default(), Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true });
+        assert_eq!(Prefs::default(), Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true });
         let p: Prefs = serde_json::from_str(r#"{"news": false, "lowDisk": false, "promos": true, "update": "oui"}"#).unwrap();
         assert!(!p.news && !p.low_disk, "types connus relus");
         assert!(p.update, "valeur illisible : défaut");
@@ -704,6 +736,25 @@ mod tests {
         assert_eq!(many.title, "Actualités de 2 jeux en cours");
         assert_eq!(many.body, "Terraria : Concours");
         assert!(news_note(&[]).is_none());
+    }
+
+    #[test]
+    fn sale_texts() {
+        use crate::wishlist::{Price, Sale};
+        let sale = |appid: u32, title: &str, discount: u8| Sale {
+            appid,
+            title: title.into(),
+            price: Price { currency: "EUR".into(), initial: 3999, now: 799, discount },
+        };
+        let one = sale_note(&[sale(1426210, "It Takes Two", 80)]).unwrap();
+        assert_eq!(one.title, "It Takes Two en promo : -80\u{a0}%");
+        assert_eq!(one.body, "7,99\u{a0}€ au lieu de 39,99\u{a0}€.");
+        assert_eq!((one.key.as_str(), &one.target), ("sale:1426210", &Target::Wishlist));
+        let many = sale_note(&[sale(1, "A", 10), sale(2, "B", 20), sale(3, "C", 30), sale(4, "D", 40)]).unwrap();
+        assert_eq!(many.title, "4 jeux de ta liste en promo");
+        assert_eq!(many.body, "A -10\u{a0}%, B -20\u{a0}%, C -30\u{a0}% et 1 autre.");
+        assert!(sale_note(&[]).is_none());
+        assert!(wanted(Kind::Sale, Presence::Visible) && !wanted(Kind::Sale, Presence::Focused));
     }
 
     #[test]

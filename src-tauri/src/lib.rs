@@ -36,6 +36,7 @@ mod tray;
 mod watch;
 mod welcome;
 mod window_controls;
+mod wishlist;
 mod workshop;
 
 use library::{manual, Game, Launch, Platform, PlaytimeSource, ScanResult};
@@ -133,6 +134,8 @@ struct AppState {
     news_busy: AtomicBool,
     /// Annonces à signaler quand la fenêtre principale sera de nouveau visible.
     pending_news: Mutex<Vec<news::Alert>>,
+    /// Liste de souhaits (`wishlist.rs`) : prix en cache, résultats de recherche, promos en attente.
+    wishlist: wishlist::State,
     /// Un déplacement des données lourdes tourne (`relocate.rs`).
     relocating: AtomicBool,
     /// Dossier des données choisi avec le sélecteur, en attente de confirmation (`relocate.rs`).
@@ -1328,6 +1331,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     resolve_saves(app.clone());
     resolve_sizes(app.clone());
     resolve_news(app.clone());
+    wishlist::resolve(app.clone());
     refresh_tray(app, false);
     check_disks(app);
 }
@@ -2721,6 +2725,7 @@ pub fn run() {
                 requirements_lock: Mutex::new(()),
                 requirements_busy: AtomicBool::new(false),
                 news: Mutex::new(news::NewsCache::load(&dir)),
+                wishlist: wishlist::State::load(&dir),
                 workshop: Mutex::new(workshop::WorkshopCache::load(&dir)),
                 workshop_lock: Mutex::new(()),
                 workshop_busy: AtomicBool::new(false),
@@ -2804,6 +2809,7 @@ pub fn run() {
             tauri::WindowEvent::Focused(true) => {
                 if window.label() == MAIN_WINDOW {
                     flush_news(window.app_handle());
+                    wishlist::flush(window.app_handle());
                 }
                 if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) {
                     let app = window.app_handle().clone();
@@ -2844,6 +2850,11 @@ pub fn run() {
             refresh_mods,
             open_mods_dir,
             open_mod_page,
+            wishlist::wishlist,
+            wishlist::wishlist_search,
+            wishlist::wishlist_add,
+            wishlist::wishlist_remove,
+            wishlist::open_store_page,
             showcase,
             storage,
             uninstall_game,

@@ -106,6 +106,10 @@ export const ChevronRightIcon = () => (
 export const StorageIcon = () => (
   <svg {...base}><ellipse cx="12" cy="6" rx="7" ry="2.5" /><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" /></svg>
 );
+/** Cœur : la liste de souhaits. */
+export const HeartIcon = () => (
+  <svg {...base}><path d="M12 19.5s-7.5-4.4-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 2.5c0 5.6-7.5 10-7.5 10z" /></svg>
+);
 /** Trois colonnes : la section « Progression ». */
 export const BoardIcon = () => (
   <svg {...base}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.2 4.5v15M14.8 4.5v15" /></svg>

@@ -52,6 +52,9 @@ pub struct UserData {
     pub collections: Vec<Collection>,
     /// Options de lancement par id de jeu, déjà validées (`launch_args.rs`).
     pub launch_args: BTreeMap<String, String>,
+    /// Liste de souhaits (`wishlist.rs`) : jeux de la boutique Steam suivis, dans l'ordre d'ajout.
+    #[serde(deserialize_with = "crate::wishlist::read_list")]
+    pub wishlist: Vec<crate::wishlist::Wish>,
 }
 
 /// Statuts relus en ignorant une valeur inconnue (fichier d'une version future) : sinon le
@@ -235,7 +238,8 @@ impl UserData {
                 && self.covers.is_empty()
                 && self.status.is_empty()
                 && self.notes.is_empty()
-                && self.collections.is_empty())
+                && self.collections.is_empty()
+                && self.wishlist.is_empty())
     }
 
     pub fn set_favorite(&mut self, id: &str, value: bool) {
