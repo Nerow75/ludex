@@ -23,6 +23,7 @@ mod moods;
 mod news;
 mod notify;
 mod quick;
+mod performance;
 mod session;
 mod story;
 mod settings;
@@ -1145,6 +1146,13 @@ fn game_sessions(state: State<'_, AppState>) -> Vec<SessionEvent> {
 #[tauri::command]
 fn game_history(state: State<'_, AppState>, id: String) -> Vec<history::PastSession> {
     state.tracker.history(&id)
+}
+
+/// Performances des dernières parties d'un jeu lancées depuis Ludex (processeur, mémoire, carte
+/// graphique), la plus récente d'abord. Lues en mémoire, rien n'est relevé ici.
+#[tauri::command]
+fn game_performance(state: State<'_, AppState>, id: String) -> Vec<performance::SessionPerf> {
+    state.tracker.performance(&id)
 }
 
 /// Temps de jeu des 14 derniers jours, tiré de l'historique (bas de la barre latérale).
@@ -2715,7 +2723,11 @@ pub fn run() {
                 games: Mutex::default(),
                 data: Mutex::new(data),
                 data_path,
-                tracker: Tracker::spawn(history::Journal::open(&dir), move |update| on_session_update(&handle, update)),
+                tracker: Tracker::spawn(
+                    history::Journal::open(&dir),
+                    std::sync::Arc::new(performance::Store::open(&dir)),
+                    move |update| on_session_update(&handle, update),
+                ),
                 art: Mutex::new(art::ArtCache::load(&dir)),
                 meta: Mutex::new(metadata::MetaCache::load(&dir)),
                 hltb: Mutex::new(hltb::HltbCache::load(&dir)),
@@ -2834,6 +2846,7 @@ pub fn run() {
             set_hidden,
             game_sessions,
             game_history,
+            game_performance,
             recent_playtime,
             last_sessions,
             install_dates,

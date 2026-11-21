@@ -15,6 +15,7 @@
 
 use crate::history::{Journal, OpenSession, PastSession, SharedHistory};
 use crate::library::{Game, Platform};
+use crate::performance::{self, PcLoad, Probe, Recorder, SessionPerf, Store};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -74,11 +75,15 @@ fn unix_now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// Processus en cours : exécutable (chemin normalisé) et démarrage (secondes Unix, 0 si inconnu).
+/// Processus en cours : exécutable (chemin normalisé) et démarrage (secondes Unix, 0 si inconnu),
+/// plus, pendant une partie, son processeur (% d'un cœur) et sa mémoire (octets, ensemble de travail).
 #[derive(Clone, Debug)]
 pub struct Proc {
     pub exe: String,
     pub start: u64,
+    pub pid: u32,
+    pub cpu: f32,
+    pub memory: u64,
 }
 
 /// Chemin comparable : séparateurs Windows, minuscules, sans préfixe `\\?\`.
@@ -135,6 +140,8 @@ pub struct Session {
     credited: u64,
     /// Dernière phase transmise, pour ne signaler que les changements.
     reported: Option<Phase>,
+    /// Performances mesurées depuis le premier relevé où le jeu tournait (ou depuis la reprise).
+    perf: Option<Recorder>,
 }
 
 /// Clôt une session qui ne peut pas reprendre (PC redémarré depuis) : ce qui a été mesuré
@@ -164,6 +171,7 @@ impl Session {
             played: Duration::ZERO,
             credited: 0,
             reported: None,
+            perf: None,
         }
     }
 
@@ -186,6 +194,7 @@ impl Session {
             played,
             credited: open.credited.min(played.as_secs()),
             reported: None,
+            perf: None,
         })
     }
 
@@ -226,6 +235,18 @@ impl Session {
             played: self.played.as_secs(),
             credited: self.credited,
         })
+    }
+
+    /// Ajoute un relevé des performances : processus du jeu comparés à tout le PC. Rien tant que
+    /// le jeu n'a pas été vu, ou si aucun de ses processus ne tourne à ce relevé.
+    pub fn measure(&mut self, procs: &[Proc], pc: &PcLoad, now: Instant) {
+        let Some(start) = self.first_seen else { return };
+        let mine: Vec<&Proc> = procs.iter().filter(|p| self.owns(&p.exe)).collect();
+        if mine.is_empty() {
+            return;
+        }
+        let sample = performance::sample(self.unix(now), &mine, pc);
+        self.perf.get_or_insert_with(|| Recorder::new(start)).add(&sample, pc.total_memory);
     }
 
     /// Entrée d'historique d'une session terminée, si elle a duré assez longtemps.
@@ -287,26 +308,40 @@ impl Session {
 }
 
 /// Processus en cours. `System` est gardé d'un relevé à l'autre : le chemin d'un processus
-/// n'est lu qu'une fois (son heure de démarrage est lue à sa découverte).
+/// n'est lu qu'une fois (son heure de démarrage est lue à sa découverte). `usage` : processeur et
+/// mémoire lus aussi (relevé des performances ; le processeur se mesure entre deux relevés).
+pub(crate) fn list_processes(sys: &mut System, usage: bool) -> Vec<Proc> {
+    let mut kind = ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet);
+    if usage {
+        kind = kind.with_cpu().with_memory();
+    }
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+    sys.processes()
+        .iter()
+        .filter_map(|(pid, p)| {
+            p.exe().map(|exe| Proc {
+                exe: normalize(&exe.to_string_lossy()),
+                start: p.start_time(),
+                pid: pid.as_u32(),
+                cpu: p.cpu_usage(),
+                memory: p.memory(),
+            })
+        })
+        .collect()
+}
+
+/// Relevé ponctuel des processus, sans processeur ni mémoire.
 fn running_processes(system: &mut Option<System>) -> Vec<Proc> {
     if system.is_none() {
         *system = System::new().ok();
     }
     let Some(sys) = system else { return Vec::new() };
-    sys.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
-    );
-    sys.processes()
-        .values()
-        .filter_map(|p| p.exe().map(|exe| Proc { exe: normalize(&exe.to_string_lossy()), start: p.start_time() }))
-        .collect()
+    list_processes(sys, false)
 }
 
 enum Msg {
     /// Jeu lancé depuis Ludex.
-    Start(Session),
+    Start(Box<Session>),
     /// Reprendre les sessions ouvertes lors de l'exécution précédente de Ludex.
     Resume,
 }
@@ -335,20 +370,22 @@ pub struct Tracker {
     tx: mpsc::Sender<Msg>,
     phases: Arc<Mutex<HashMap<String, Phase>>>,
     history: SharedHistory,
+    perf: Arc<Store>,
 }
 
 impl Tracker {
-    pub fn spawn(mut journal: Journal, on_update: impl Fn(Update) + Send + 'static) -> Self {
+    pub fn spawn(mut journal: Journal, perf: Arc<Store>, on_update: impl Fn(Update) + Send + 'static) -> Self {
         let (tx, rx) = mpsc::channel::<Msg>();
         let phases: Arc<Mutex<HashMap<String, Phase>>> = Arc::default();
         let shared = phases.clone();
         let history = journal.shared();
+        let store = perf.clone();
         let spawned = std::thread::Builder::new().name("ludex-sessions".into()).spawn(move || {
             let mut sessions: Vec<Session> = Vec::new();
-            let mut system: Option<System> = None;
+            let mut probe: Option<Probe> = None;
             loop {
                 let incoming = if sessions.is_empty() {
-                    system = None; // libère la liste des processus entre deux parties
+                    probe = None; // libère la liste des processus et les compteurs entre deux parties
                     match rx.recv() {
                         Ok(m) => Some(m),
                         Err(_) => return,
@@ -363,17 +400,34 @@ impl Tracker {
                 let mut finished: Vec<PastSession> = Vec::new();
                 let mut updates: Vec<Update> = Vec::new();
                 match incoming {
-                    Some(Msg::Start(s)) if !sessions.iter().any(|known| known.game_id == s.game_id) => sessions.push(s),
+                    Some(Msg::Start(s)) if !sessions.iter().any(|known| known.game_id == s.game_id) => sessions.push(*s),
                     Some(Msg::Resume) => resume_open(&journal, &mut sessions, &mut finished, &mut updates),
                     _ => {}
                 }
 
-                let procs = if sessions.is_empty() { Vec::new() } else { running_processes(&mut system) };
+                if probe.is_none() && !sessions.is_empty() {
+                    probe = Probe::new();
+                }
+                let procs = probe.as_mut().map(Probe::processes).unwrap_or_default();
                 let now = Instant::now();
+                let seen: Vec<bool> = sessions.iter_mut().map(|s| s.sees(&procs)).collect();
+                // État du PC lu seulement quand un jeu tourne (compteurs de la carte graphique compris).
+                let pc = if seen.contains(&true) { probe.as_mut().and_then(Probe::pc) } else { None };
+                let mut seen = seen.into_iter();
+                let mut measured: Vec<(String, SessionPerf)> = Vec::new();
                 sessions.retain_mut(|s| {
-                    let seen = s.sees(&procs);
+                    let seen = seen.next().unwrap_or(false);
                     let tick = s.tick(now, seen);
+                    if seen && let Some(pc) = &pc {
+                        s.measure(&procs, pc, now);
+                    }
                     let past = if tick.phase == Phase::Ended { s.past() } else { None };
+                    // Performances gardées seulement pour une session gardée dans l'historique.
+                    if past.is_some()
+                        && let Some(perf) = s.perf.take().and_then(Recorder::finish)
+                    {
+                        measured.push((s.game_id.clone(), perf));
+                    }
                     finished.extend(past.clone());
                     if tick.credit_secs > 0 || s.reported != Some(tick.phase) {
                         s.reported = Some(tick.phase);
@@ -394,13 +448,18 @@ impl Tracker {
                 journal.record(finished);
                 let open: Vec<OpenSession> = sessions.iter().filter_map(Session::snapshot).collect();
                 journal.save_open(&open);
+                for (id, perf) in measured {
+                    if let Err(e) = store.record(&id, perf) {
+                        eprintln!("Performances non enregistrées : {e}");
+                    }
+                }
                 updates.into_iter().for_each(&on_update);
             }
         });
         if let Err(e) = spawned {
             eprintln!("Surveillance des sessions indisponible : {e}");
         }
-        Tracker { tx, phases, history }
+        Tracker { tx, phases, history, perf }
     }
 
     /// Reprend les sessions restées ouvertes à l'arrêt précédent de Ludex. À appeler une fois,
@@ -412,6 +471,11 @@ impl Tracker {
     /// Sessions terminées d'un jeu, la plus récente d'abord.
     pub fn history(&self, game_id: &str) -> Vec<PastSession> {
         crate::history::sessions_of(&self.history, game_id)
+    }
+
+    /// Performances des dernières sessions d'un jeu, la plus récente d'abord.
+    pub fn performance(&self, game_id: &str) -> Vec<SessionPerf> {
+        self.perf.sessions(game_id)
     }
 
     /// Temps de jeu des derniers jours (sessions terminées).
@@ -453,7 +517,7 @@ impl Tracker {
         map.insert(game.id.clone(), Phase::Detecting);
         drop(map);
         let session = Session::new(&game.id, roots, !game.launcher_tracks_playtime, Instant::now());
-        if self.tx.send(Msg::Start(session)).is_err()
+        if self.tx.send(Msg::Start(Box::new(session))).is_err()
             && let Ok(mut map) = self.phases.lock()
         {
             map.remove(&game.id);
@@ -597,7 +661,7 @@ mod tests {
 
     /// Le jeu en cours, démarré à `start` (secondes Unix).
     fn game_running(start: u64) -> Vec<Proc> {
-        vec![Proc { exe: normalize(r"D:\Games\Rocket League\RL.exe"), start }]
+        vec![Proc { exe: normalize(r"D:\Games\Rocket League\RL.exe"), start, pid: 1, cpu: 0.0, memory: 0 }]
     }
 
     #[test]

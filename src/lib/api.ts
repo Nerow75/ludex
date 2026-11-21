@@ -250,6 +250,39 @@ export interface PastSession {
 }
 /** Historique d'un jeu, la session la plus récente d'abord. */
 export const gameHistory = (id: string) => invoke<PastSession[]>("game_history", { id });
+/** Mesure relevée pendant une partie : processeur et carte graphique en %, mémoires en Mo. */
+export type PerfMetric = "cpu" | "memory" | "gpu" | "vram";
+/** Moyenne et pic sur les relevés de 5 s. */
+export interface PerfStat {
+  avg: number;
+  peak: number;
+}
+/** Une mesure d'une session : chiffres et courbes du jeu et de tout le PC. */
+export interface PerfSeries {
+  metric: PerfMetric;
+  game: PerfStat;
+  pc: PerfStat;
+  /** Une valeur par point de `SessionPerf.times` (`null` : rien lu pendant ce point). */
+  gamePoints: (number | null)[];
+  pcPoints: (number | null)[];
+}
+/** Performances d'une partie lancée depuis Ludex. */
+export interface SessionPerf {
+  /** Début de la session (secondes Unix), le même que dans l'historique. */
+  start: number;
+  /** Dernier relevé (secondes Unix). */
+  end: number;
+  /** Secondes couvertes par un point (60, ou plus pour une longue session). */
+  step: number;
+  /** Mémoire installée, en Mo. */
+  totalMemory: number;
+  /** Début de chaque point, en secondes depuis `start`. */
+  times: number[];
+  /** Mesures lues (carte graphique absente si Windows ne la donne pas). */
+  series: PerfSeries[];
+}
+/** Performances des dernières parties d'un jeu (6 au plus), la plus récente d'abord. */
+export const gamePerformance = (id: string) => invoke<SessionPerf[]>("game_performance", { id });
 /** Dernière session de chaque jeu de l'historique, la plus récente d'abord. */
 export const lastSessions = () => invoke<PastSession[]>("last_sessions");
 /** Temps de jeu des derniers jours, tiré de l'historique (sessions terminées, chacune comptée une fois). */

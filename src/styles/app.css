@@ -988,6 +988,43 @@ kbd {
   .reqs__cell::before { content: attr(data-label); flex: none; width: 96px; color: var(--lx-text-3); }
 }
 
+/* Performances (onglet « Performances » de la fiche) : une carte par mesure, le jeu en accent
+   (ligne et surface), tout le PC en gris ; deux colonnes à partir de 720 px. */
+.perf { display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size; }
+.perf__picks { display: flex; flex-wrap: wrap; gap: 4px; }
+.perf__pick {
+  height: 32px; padding: 0 12px; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m); background: none;
+  color: var(--lx-text-2); font-size: 13px; display: inline-flex; align-items: center; gap: 8px; transition: color .15s, background-color .15s, border-color .15s;
+}
+.perf__pick em { font-style: normal; font: 12px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
+.perf__pick:hover { color: var(--lx-text); border-color: var(--lx-text-3); }
+.perf__pick[aria-checked="true"] { background: var(--lx-surface-2); color: var(--lx-text); border-color: var(--lx-text-3); }
+.perf__when { font-size: 13px; color: var(--lx-text-2); }
+.perf__grid-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@container (min-width: 720px) { .perf__grid-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.perf__card {
+  margin: 0; min-width: 0; padding: 12px; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-m);
+  background: var(--lx-surface); display: flex; flex-direction: column; gap: 8px;
+}
+.perf__card:focus-visible { outline-offset: 2px; }
+.perf__title { margin: 0; font-size: 14px; font-weight: 500; color: var(--lx-text); }
+.perf__stats { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.perf__stats div { display: flex; gap: 8px; min-width: 0; }
+.perf__stats dt { flex: none; width: 88px; display: inline-flex; align-items: center; gap: 6px; color: var(--lx-text-3); }
+.perf__stats dd { margin: 0; min-width: 0; color: var(--lx-text-2); font-family: var(--lx-font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.perf__key { flex: none; width: 12px; height: 2px; border-radius: 1px; }
+.perf__key.is-game { background: var(--lx-accent); }
+.perf__key.is-pc { background: var(--lx-text-3); }
+.perf__plot { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.perf__svg { display: block; width: 100%; height: 96px; border-bottom: 1px solid var(--lx-border); overflow: visible; }
+.perf__grid { stroke: var(--lx-border); stroke-width: 1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+.perf__line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.perf__line.is-game { stroke: var(--lx-accent); stroke-width: 2; }
+.perf__line.is-pc { stroke: var(--lx-text-3); }
+.perf__area { fill: color-mix(in srgb, var(--lx-accent) 16%, transparent); stroke: none; }
+.perf__max { position: absolute; top: 0; right: 0; font: 11px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
+.perf__axis { display: flex; justify-content: space-between; font: 11px var(--lx-font-mono); color: var(--lx-text-3); font-variant-numeric: tabular-nums; }
+
 /* Mods Steam Workshop (onglet « Mods » de la fiche) */
 .mods { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .mods__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -1891,6 +1928,12 @@ button.diag__head:hover { border-color: var(--lx-border); }
   .reqs__dot.is-ok { background: CanvasText; }
   .reqs__dot.is-below { background: Highlight; }
   .reqs__dot.is-unknown { background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; }
+  .perf__line.is-game { stroke: Highlight; }
+  .perf__line.is-pc, .perf__grid { stroke: CanvasText; }
+  .perf__area { fill: none; }
+  .perf__key.is-game { background: Highlight; }
+  .perf__key.is-pc { background: CanvasText; }
+  .perf__pick[aria-checked="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   :focus-visible { outline-color: Highlight; }
   /* Pastilles des accents : leur couleur reste visible pour pouvoir choisir, l'accent choisi
      n'en a pas moins aucun effet en couleurs forcées. */

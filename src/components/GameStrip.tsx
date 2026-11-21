@@ -3,6 +3,7 @@ import { LauncherIcon } from "./LauncherIcon";
 import {
   gameHistory,
   gameMods,
+  gamePerformance,
   gameSaves,
   gameScreenshots,
   genreChoices,
@@ -25,6 +26,7 @@ import {
   type Mood,
   type PastSession,
   type Screenshot,
+  type SessionPerf,
   type Status,
   type WorkshopMods,
 } from "../lib/api";
@@ -55,6 +57,8 @@ import { InlineInput } from "./InlineInput";
 import { NewsTab, useNews } from "./NewsPanel";
 import { newNewsCount } from "../lib/news";
 import { ModsPanel } from "./ModsPanel";
+import { PerformancePanel } from "./PerformancePanel";
+import { shownSessions } from "../lib/performance";
 import { SavesPanel } from "./SavesPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { markFocus, restoreFocus } from "./focus";
@@ -112,7 +116,7 @@ interface Props {
 export type FicheEdit = "rename" | "collection";
 
 /** Onglets de la fiche, dans l'ordre de la barre. */
-const TABS = ["overview", "achievements", "shots", "saves", "sessions", "journal", "news", "mods"] as const;
+const TABS = ["overview", "achievements", "shots", "saves", "sessions", "performance", "journal", "news", "mods"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   overview: "Aperçu",
@@ -120,6 +124,7 @@ const TAB_LABEL: Record<Tab, string> = {
   shots: "Captures",
   saves: "Sauvegardes",
   sessions: "Sessions",
+  performance: "Performances",
   journal: "Journal",
   news: "Actualités",
   mods: "Mods",
@@ -494,6 +499,24 @@ function useHasSaves(id: string, playing: boolean): boolean | null {
 }
 
 /**
+ * Performances des dernières parties lancées depuis Ludex, lues à l'ouverture de la fiche (pour
+ * savoir s'il faut montrer l'onglet) et à la fin d'une partie. `null` : lecture.
+ */
+function usePerformance(id: string, playing: boolean): SessionPerf[] | null {
+  const [perf, setPerf] = useState<{ id: string; list: SessionPerf[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    gamePerformance(id)
+      .then((list) => alive && setPerf({ id, list: shownSessions(list) }))
+      .catch(() => alive && setPerf({ id, list: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [id, playing]);
+  return perf?.id === id ? perf.list : null;
+}
+
+/**
  * Mods Steam Workshop installés (jeux Steam seulement), lus à l'ouverture de la fiche et à la fin
  * d'une partie (le jeu peut en télécharger). `null` : lecture ; liste vide : rien à montrer.
  */
@@ -739,6 +762,7 @@ export function GameStrip({
   const hasSaves = useHasSaves(game.id, playing);
   const news = useNews(game.id);
   const mods = useMods(game, playing);
+  const perf = usePerformance(game.id, playing);
   const member = collections.filter((c) => c.games.includes(game.id));
   const details = detailsLine(game);
   const d = game.details;
@@ -761,6 +785,7 @@ export function GameStrip({
     shots: shots && shots.length > 0,
     saves: hasSaves,
     sessions: history && history.length > 0,
+    performance: perf && perf.length > 0,
     journal: !onJournal ? false : journalData ? true : history === null || shots === null ? null : false,
     news: news && news.length > 0,
     mods: mods && mods.mods.length > 0,
@@ -776,6 +801,7 @@ export function GameStrip({
     achievements: achievements ? `${achievements.unlocked}/${achievements.total}` : undefined,
     shots: shots?.length ? String(shots.length) : undefined,
     sessions: history?.length ? String(history.length) : undefined,
+    performance: perf?.length ? String(perf.length) : undefined,
     // Annonces publiées depuis la dernière partie.
     news: news && newNewsCount(news, game.lastPlayed) > 0 ? String(newNewsCount(news, game.lastPlayed)) : undefined,
     mods: mods?.mods.length ? String(mods.mods.length) : undefined,
@@ -902,6 +928,7 @@ export function GameStrip({
             {active === "shots" && <ShotsTab key={`shots-${game.id}`} game={game} shots={shots} />}
             {active === "saves" && <SavesPanel key={`saves-${game.id}`} gameId={game.id} playing={playing} />}
             {active === "sessions" && <SessionsTab key={`sessions-${game.id}`} game={game} history={history} />}
+            {active === "performance" && perf && <PerformancePanel key={`perf-${game.id}`} sessions={perf} />}
             {active === "journal" && onJournal && <JournalTab key={`journal-${game.id}`} game={game} playing={playing} onJournal={onJournal} />}
             {active === "news" && <NewsTab key={`news-${game.id}`} game={game} news={news} />}
             {active === "mods" && mods && <ModsPanel key={`mods-${game.id}`} gameId={game.id} initial={mods} />}
