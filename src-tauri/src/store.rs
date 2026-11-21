@@ -125,6 +125,9 @@ pub struct Settings {
     /// Thème de l'interface (écran Paramètres). Valeur inconnue : thème par défaut, sans perdre le reste.
     #[serde(deserialize_with = "or_default")]
     pub theme: Theme,
+    /// Couleur d'accent de l'interface (écran Paramètres). Valeur inconnue : turquoise, sans perdre le reste.
+    #[serde(deserialize_with = "or_default")]
+    pub accent: Accent,
     /// Launchers dont les jeux sont écartés du scan (écran Paramètres). Valeur inconnue ignorée.
     #[serde(deserialize_with = "known_platforms")]
     pub disabled_sources: Vec<Platform>,
@@ -143,6 +146,19 @@ pub enum Theme {
     System,
     Oled,
     Contrast,
+}
+
+/// Couleur d'accent de l'interface (focus, boutons, barres, pastilles cochées) : turquoise par
+/// défaut, celui du logo. Les valeurs de chaque accent dans chaque thème sont dans `tokens.css`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Accent {
+    #[default]
+    Turquoise,
+    Blue,
+    Violet,
+    Pink,
+    Green,
 }
 
 /// Valeur relue en gardant la valeur par défaut si elle est illisible (fichier d'une version future).
@@ -177,6 +193,7 @@ impl Default for Settings {
             launch_screen: true,
             welcome_shown: None,
             theme: Theme::Dark,
+            accent: Accent::Turquoise,
             disabled_sources: Vec::new(),
             notifications: crate::notify::Prefs::default(),
         }
@@ -648,6 +665,38 @@ mod tests {
         // Casse différente : inconnu, donc le défaut.
         let upper: UserData = serde_json::from_str(r#"{"settings":{"theme":"OLED"}}"#).unwrap();
         assert_eq!(upper.settings.theme, Theme::Dark);
+    }
+
+    #[test]
+    fn accent_survives_unknown_values() {
+        assert_eq!(UserData::default().settings.accent, Accent::Turquoise);
+        for (name, accent) in [
+            ("turquoise", Accent::Turquoise),
+            ("blue", Accent::Blue),
+            ("violet", Accent::Violet),
+            ("pink", Accent::Pink),
+            ("green", Accent::Green),
+        ] {
+            let read: UserData = serde_json::from_str(&format!(r#"{{"settings":{{"accent":"{name}"}}}}"#)).unwrap();
+            assert_eq!(read.settings.accent, accent);
+            let text = serde_json::to_string(&read.settings).unwrap();
+            assert!(text.contains(&format!(r#""accent":"{name}""#)), "{text}");
+        }
+        // Fichier d'une version future : accent inconnu (ou d'un autre type) = turquoise, le reste gardé.
+        let future: UserData = serde_json::from_str(
+            r#"{"favorites":["steam:730"],"settings":{"accent":"sepia","theme":"light","autoSaves":false}}"#,
+        )
+        .unwrap();
+        assert_eq!(future.settings.accent, Accent::Turquoise);
+        assert_eq!(future.settings.theme, Theme::Light);
+        assert!(!future.settings.auto_saves && future.favorites.contains("steam:730"));
+        let odd: UserData = serde_json::from_str(r#"{"settings":{"accent":3,"theme":"oled"}}"#).unwrap();
+        assert_eq!((odd.settings.accent, odd.settings.theme), (Accent::Turquoise, Theme::Oled));
+        let upper: UserData = serde_json::from_str(r#"{"settings":{"accent":"Blue"}}"#).unwrap();
+        assert_eq!(upper.settings.accent, Accent::Turquoise);
+        // Fichier d'avant ce réglage : turquoise.
+        let old: UserData = serde_json::from_str(r#"{"settings":{"theme":"dark"}}"#).unwrap();
+        assert_eq!(old.settings.accent, Accent::Turquoise);
     }
 
     #[test]

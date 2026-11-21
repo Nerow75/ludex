@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LauncherIcon } from "./LauncherIcon";
 import {
+  ACCENT_LABEL,
+  ACCENTS,
   applyImport,
   cancelImport,
   checkUpdate,
@@ -12,6 +14,7 @@ import {
   onSettingsChanged,
   pauseQuickShortcut,
   PLATFORM_LABEL,
+  setAccent,
   setAutoSaves,
   setKeepInTray,
   setLaunchAtStartup,
@@ -35,7 +38,8 @@ import {
   type UpdateInfo,
   type WelcomeInfo,
 } from "../lib/api";
-import { applyTheme } from "../lib/theme";
+import { applyAccent, applyTheme } from "../lib/theme";
+import { CheckIcon } from "./Icons";
 import { NOTIFICATION_ROWS } from "../lib/notifications";
 import { DiagnosticPanel } from "./DiagnosticPanel";
 import { DataPlace } from "./DataPlace";
@@ -197,6 +201,12 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
     setTheme(theme).then(setInfo).catch(fail);
   };
 
+  const changeAccent = (accent: SettingsInfo["accent"]) => {
+    applyAccent(accent); // tout de suite, sans attendre Rust
+    setInfo((i) => i && { ...i, accent });
+    setAccent(accent).then(setInfo).catch(fail);
+  };
+
   const toggle = (patch: Partial<SettingsInfo>, run: () => Promise<SettingsInfo | void>) => {
     setInfo((i) => i && { ...i, ...patch });
     run()
@@ -329,6 +339,30 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 {THEMES.map((t) => (
                   <button key={t} type="button" role="radio" aria-checked={info.theme === t} aria-pressed={info.theme === t} data-nav onClick={() => changeTheme(t)}>
                     {THEME_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="set__row">
+              <span className="set__text">
+                <span id="set-accent">Couleur d'accent</span>
+                <small>Boutons, barres, focus et choix en cours. Le logo reste turquoise.</small>
+              </span>
+              <div className="swatches" role="radiogroup" aria-labelledby="set-accent">
+                {ACCENTS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    className="swatch"
+                    role="radio"
+                    aria-checked={info.accent === a}
+                    aria-label={ACCENT_LABEL[a]}
+                    title={ACCENT_LABEL[a]}
+                    data-accent={a}
+                    data-nav
+                    onClick={() => changeAccent(a)}
+                  >
+                    <span>{info.accent === a && <CheckIcon />}</span>
                   </button>
                 ))}
               </div>

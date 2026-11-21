@@ -809,9 +809,21 @@ export const THEME_LABEL: Record<Theme, string> = {
   contrast: "Contraste élevé",
 };
 
+/** Couleur d'accent de l'interface ; turquoise (celle du logo) par défaut. */
+export type Accent = "turquoise" | "blue" | "violet" | "pink" | "green";
+export const ACCENTS: readonly Accent[] = ["turquoise", "blue", "violet", "pink", "green"];
+export const ACCENT_LABEL: Record<Accent, string> = {
+  turquoise: "Turquoise",
+  blue: "Bleu",
+  violet: "Violet",
+  pink: "Rose",
+  green: "Vert",
+};
+
 /** Réglages de l'écran Paramètres (`settings.rs`). */
 export interface SettingsInfo {
   theme: Theme;
+  accent: Accent;
   /** Format du plugin (« Alt+Space »), vide si désactivé. */
   quickShortcut: string;
   /** Le même, lisible (« Alt+Espace », « Désactivé »). */
@@ -842,6 +854,7 @@ export type NotificationTarget = { target: "game"; id: string; tab: string | nul
 export const onNotificationOpen = (handler: (target: NotificationTarget) => void): Promise<UnlistenFn> =>
   listen<NotificationTarget>("notification-open", (e) => handler(e.payload));
 export const setTheme = (theme: Theme) => invoke<SettingsInfo>("set_theme", { theme });
+export const setAccent = (accent: Accent) => invoke<SettingsInfo>("set_accent", { accent });
 /** Texte au format du plugin (`Ctrl+Shift+KeyL`), validé et enregistré côté Rust ; vide : désactivé. */
 export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quick_shortcut", { text });
 /** Coupe le raccourci actuel pendant sa saisie (`true`), puis le remet (`false`). */
