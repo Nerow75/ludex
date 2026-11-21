@@ -1145,7 +1145,7 @@ kbd {
 .story__label { font-size: 4.07cqw; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .story__meter { height: .93cqw; border-radius: 99px; background: color-mix(in srgb, var(--lx-on-art) 18%, transparent); overflow: hidden; }
 .story__meter span { display: block; height: 100%; border-radius: inherit; background: var(--lx-accent); }
-.story__num { font: 500 3.5cqw var(--lx-font-mono); color: var(--lx-on-art-2); font-variant-numeric: tabular-nums; }
+.story__num { min-width: 11cqw; text-align: right; font: 500 3.5cqw var(--lx-font-mono); color: var(--lx-on-art-2); font-variant-numeric: tabular-nums; }
 .story__bars { height: 30cqw; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2.22cqw; }
 .story__bars span { position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 4.8cqw; }
 .story__bars span::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 4.8cqw; border-radius: .93cqw; background: color-mix(in srgb, var(--lx-on-art) 12%, transparent); }

@@ -315,7 +315,7 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
   const profile = playerProfile(r, ctx.title);
   pages.push(
     page("profile", {
-      gameId: game(first),
+      gameId: game(r.top[3]?.gameId ?? first),
       eyebrow: "Ton profil de joueur",
       title: profile.title,
       detail: profile.line,

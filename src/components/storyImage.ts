@@ -263,6 +263,9 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
     blocks.push({
       height: page.items.length * row + (page.items.length - 1) * gap,
       draw: (y0) => {
+        // Colonne des valeurs à la largeur de la plus longue : barres de même longueur, comme à l'écran.
+        ctx.font = `500 38px ${c.mono}`;
+        const valueW = Math.max(...page.items.map((item) => ctx.measureText(item.value).width), STORY_WIDTH * 0.11);
         page.items.forEach((item, i) => {
           const y = y0 + i * (row + gap);
           const img = covers[i];
@@ -277,7 +280,6 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
           }
           ctx.restore();
           ctx.font = `500 38px ${c.mono}`;
-          const valueW = ctx.measureText(item.value).width;
           ctx.fillStyle = c.onArt2;
           ctx.textAlign = "right";
           ctx.fillText(item.value, W - PAD, y + row / 2 + 13);
@@ -337,7 +339,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
   if (rare) {
     const pad = 40;
     const iconSize = 128;
-    const left = PAD + pad + (icon ? iconSize + 36 : 0);
+    const left = PAD + pad + iconSize + 36;
     const width = W - PAD - pad - left;
     const gameTitle = byId.get(rare.gameId)?.title;
     const lines: { font: string; color: string; text: string; size: number }[] = [
@@ -347,7 +349,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
       ...(gameTitle ? [{ font: `400 34px ${c.body}`, color: c.onArt2, text: gameTitle, size: 34 }] : []),
     ];
     const textH = lines.reduce((h, l) => h + l.size * 1.3, 0);
-    const inner = Math.max(icon ? iconSize : 0, textH);
+    const inner = Math.max(iconSize, textH);
     blocks.push({
       height: inner + 2 * pad,
       draw: (y) => {
@@ -355,14 +357,17 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
         ctx.beginPath();
         ctx.roundRect(PAD, y, CONTENT, inner + 2 * pad, 24);
         ctx.fill();
-        if (icon) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.roundRect(PAD + pad, y + pad + (inner - iconSize) / 2, iconSize, iconSize, 16);
-          ctx.clip();
-          ctx.drawImage(icon, PAD + pad, y + pad + (inner - iconSize) / 2, iconSize, iconSize);
-          ctx.restore();
+        // Icône, ou cadre vide comme à l'écran (icône du CDN sans CORS : jamais dans le canvas).
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(PAD + pad, y + pad + (inner - iconSize) / 2, iconSize, iconSize, 16);
+        ctx.clip();
+        if (icon) ctx.drawImage(icon, PAD + pad, y + pad + (inner - iconSize) / 2, iconSize, iconSize);
+        else {
+          ctx.fillStyle = alpha(ctx, c.onArt, 0.12);
+          ctx.fillRect(PAD + pad, y + pad + (inner - iconSize) / 2, iconSize, iconSize);
         }
+        ctx.restore();
         let ty = y + pad + (inner - textH) / 2;
         for (const l of lines) {
           ctx.font = l.font;
