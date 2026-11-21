@@ -1080,6 +1080,44 @@ kbd {
   .recap__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ---------- Statistiques ----------
+   Reprend les tuiles, barres et lignes du Récap. Deux colonnes dès 900 px de contenu : mois en haut,
+   « Les plus joués » à gauche, launchers et genres à droite. */
+.statpage { max-width: 1280px; container-type: inline-size; }
+.statpage__tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 16px; }
+.statpage__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.statpage__card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); }
+.statpage__card h3 { margin: 0; font-size: 15px; }
+.statpage__source { margin: 0 0 4px; font-size: 12px; color: var(--lx-text-3); }
+.statpage__empty { margin: 8px 0; font-size: 13px; color: var(--lx-text-2); }
+.statpage__chart { border: 0; padding: 0; height: 160px; }
+.statpage__chart .recap__col.is-current > span { color: var(--lx-text); }
+.statpage__row { grid-template-columns: 20px 40px minmax(0, 1fr) 112px; gap: 12px; }
+.statpage__time { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; }
+.statpage__time .recap__dim { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statpage__shares { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.statpage__share { display: grid; grid-template-columns: 16px minmax(0, 1fr) 48px 72px; align-items: center; gap: 12px; padding: 8px; color: var(--lx-text-2); }
+.statpage__share .recap__name > span:first-child { color: var(--lx-text); }
+.statpage__share .recap__name .recap__dim { margin-left: 8px; }
+.statpage__share--button {
+  width: 100%; grid-template-columns: minmax(0, 1fr) 72px; border: 0; border-radius: var(--lx-radius-m); background: none;
+  text-align: left; color: inherit; transition: background-color .15s;
+}
+.statpage__share--button:hover, .statpage__share--button:focus-visible { background: var(--lx-surface); }
+.statpage__share--button:active { transform: scale(.99); }
+@container (min-width: 900px) {
+  .statpage__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "hours unlocks" "top launchers" "top genres"; grid-template-rows: auto auto 1fr; align-items: start; }
+  .statpage__card--hours { grid-area: hours; }
+  .statpage__card--unlocks { grid-area: unlocks; }
+  .statpage__card--top { grid-area: top; }
+  .statpage__card--launchers { grid-area: launchers; }
+  .statpage__card--genres { grid-area: genres; }
+}
+@container (max-width: 760px) {
+  .statpage__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .statpage__row { grid-template-columns: 20px 40px minmax(0, 1fr) 88px; }
+}
+
 /* ---------- Story du récap ----------
    Portail par-dessus l'app (z-index 42 : au-dessus des toasts, du mode canapé et de l'accueil, sous
    l'écran de lancement et les boutons de la fenêtre). Cadre 9:16 centré, mesuré en `cqw` : 1 cqw =

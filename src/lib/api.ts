@@ -303,6 +303,31 @@ export interface Recap {
   historySince: number | null;
 }
 export const recap = (period: RecapPeriod, back: number) => invoke<Recap>("recap", { period, back });
+/** Un mois du calendrier local (statistiques). */
+export interface MonthStat {
+  /** `AAAA-MM`. */
+  month: string;
+  /** Temps des parties mesurées par Ludex. */
+  secs: number;
+  sessions: number;
+  /** Jours joués du mois. */
+  days: number;
+  /** Succès Steam débloqués dans le mois. */
+  achievements: number;
+}
+/** Section « Statistiques » : 12 derniers mois et séries, depuis l'historique de Ludex (fuseau local). */
+export interface StatsInfo {
+  /** Le plus ancien d'abord, le mois en cours en dernier. */
+  months: MonthStat[];
+  bestStreak: number;
+  /** Dernier jour de la plus longue série, `AAAA-MM-JJ`. */
+  bestStreakEnd: string | null;
+  currentStreak: number;
+  playedDays: number;
+  historySessions: number;
+  historySince: number | null;
+}
+export const loadStats = () => invoke<StatsInfo>("stats");
 /** Succès le plus rare débloqué pendant une période (pourcentage mondial du cache, aucune requête). */
 export interface RareUnlock {
   gameId: string;
