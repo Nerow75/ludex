@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { recap as loadRecap, type Game, type Recap, type RecapPeriod } from "../lib/api";
 import { formatDate, formatDuration } from "../lib/format";
 import type { SectionContext } from "../lib/sections";
+import { hasStory, parseDay, periodTitle } from "../lib/story";
 import { Cover } from "./Cover";
 import { ChevronLeftIcon, ChevronRightIcon } from "./Icons";
 import { EmptyState } from "./States";
+import { StoryView } from "./StoryView";
 
-const PERIODS: { id: RecapPeriod; label: string; current: string; previous: string }[] = [
-  { id: "week", label: "Semaine", current: "Cette semaine", previous: "la semaine précédente" },
-  { id: "month", label: "Mois", current: "Ce mois-ci", previous: "le mois précédent" },
-  { id: "year", label: "Année", current: "Cette année", previous: "l'année précédente" },
+const PERIODS: { id: RecapPeriod; label: string; current: string; previous: string; versus: string }[] = [
+  { id: "week", label: "Semaine", current: "Cette semaine", previous: "la semaine précédente", versus: "à la semaine précédente" },
+  { id: "month", label: "Mois", current: "Ce mois-ci", previous: "le mois précédent", versus: "au mois précédent" },
+  { id: "year", label: "Année", current: "Cette année", previous: "l'année précédente", versus: "à l'année précédente" },
 ];
 const WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 const MOMENTS = ["la nuit", "le matin", "l'après-midi", "le soir"];
@@ -19,40 +21,23 @@ const FEW_SESSIONS = 3;
 
 const integer = new Intl.NumberFormat("fr-FR");
 const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
-const dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
 const dayFull = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const monthShort = new Intl.DateTimeFormat("fr-FR", { month: "short" });
 
-/** « AAAA-MM-JJ » en date locale (sans passer par UTC). */
-const parseDay = (s: string) => {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-};
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** `data-nav` seulement sur un bouton actif : la navigation au clavier et à la manette saute les autres. */
 const nav = (enabled: boolean) => (enabled ? { "data-nav": "" } : {});
 const plural = (n: number, one: string, many: string) => `${integer.format(n)} ${n > 1 ? many : one}`;
 
-/** « 16 au 22 novembre 2026 », « Novembre 2026 », « 2026 ». */
-function periodTitle(r: Recap): string {
-  const start = parseDay(r.start);
-  const end = parseDay(r.end);
-  if (r.period === "year") return String(start.getFullYear());
-  if (r.period === "month") return capitalize(monthYear.format(start));
-  if (start.getFullYear() !== end.getFullYear()) return `${dayMonth.format(start)} ${start.getFullYear()} au ${dayMonth.format(end)} ${end.getFullYear()}`;
-  if (start.getMonth() !== end.getMonth()) return `${dayMonth.format(start)} au ${dayMonth.format(end)} ${end.getFullYear()}`;
-  return `${start.getDate()} au ${dayMonth.format(end)} ${end.getFullYear()}`;
-}
-
 /** « +35 % par rapport à la semaine précédente (à la même date) ». `null` si rien à comparer. */
-function comparison(r: Recap, previousLabel: string): string | null {
+function comparison(r: Recap, previousLabel: string, versus: string): string | null {
   const current = r.back === 0 && r.elapsedDays < r.days.length;
   const prev = current ? r.previousToDateSecs : r.previousSecs;
   const when = current ? ` au même stade` : "";
   if (prev === 0) return r.totalSecs > 0 ? `Rien de mesuré ${previousLabel}${when}` : null;
   const pct = Math.round(((r.totalSecs - prev) / prev) * 100);
   const sign = pct > 0 ? "+" : pct < 0 ? "−" : "";
-  return `${sign}${integer.format(Math.abs(pct))} % par rapport à ${previousLabel}${when} (${formatDuration(prev)})`;
+  return `${sign}${integer.format(Math.abs(pct))} % par rapport ${versus}${when} (${formatDuration(prev)})`;
 }
 
 interface Bar {
@@ -120,6 +105,8 @@ export function RecapView({ games, playing, openGame }: SectionContext) {
   const [back, setBack] = useState(0);
   const [data, setData] = useState<Recap | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [story, setStory] = useState(false);
+  const closeStory = useCallback(() => setStory(false), []);
   const byId = useMemo(() => new Map(games.map((g) => [g.id, g])), [games]);
 
   // Relu au changement de période et quand une partie commence ou se termine.
@@ -168,6 +155,11 @@ export function RecapView({ games, playing, openGame }: SectionContext) {
           <ChevronRightIcon />
         </button>
       </div>
+      {data && hasStory(data) && (
+        <button type="button" className="btn-ghost recap__story" data-nav onClick={() => setStory(true)}>
+          Voir en story
+        </button>
+      )}
     </div>
   );
 
@@ -192,7 +184,7 @@ export function RecapView({ games, playing, openGame }: SectionContext) {
   }
 
   const r = data;
-  const compare = comparison(r, meta.previous);
+  const compare = comparison(r, meta.previous, meta.versus);
   const longest = r.longest;
   const weekday = r.favoriteWeekday === null ? null : WEEKDAYS[r.favoriteWeekday];
   const moment = r.favoriteMoment;
@@ -201,6 +193,7 @@ export function RecapView({ games, playing, openGame }: SectionContext) {
   return (
     <section aria-labelledby="recap-title" className="recap">
       {header}
+      {story && <StoryView recap={r} byId={byId} onClose={closeStory} />}
       <p className="recap__period">
         <span>{r.back === 0 ? meta.current : capitalize(periodTitle(r))}</span>
         {r.back === 0 && <span className="recap__dim">{periodTitle(r)}</span>}
