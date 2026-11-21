@@ -44,6 +44,12 @@ pub struct SettingsInfo {
     notifications: crate::notify::Prefs,
     /// Windows a coupé les notifications de Ludex (ou toutes) : Ludex ne change pas ce réglage.
     notifications_blocked: bool,
+    /// Statut Discord des parties lancées depuis Ludex.
+    discord_presence: bool,
+    /// Statut Discord sans le nom du jeu.
+    discord_hide_name: bool,
+    /// Faux tant que cette version de Ludex n'a pas d'identifiant d'application Discord.
+    discord_available: bool,
 }
 
 fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
@@ -68,6 +74,9 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
         version: app.package_info().version.to_string(),
         notifications: s.notifications,
         notifications_blocked,
+        discord_presence: s.discord_presence,
+        discord_hide_name: s.discord_hide_name,
+        discord_available: crate::discord::available(),
     })
 }
 
@@ -183,6 +192,30 @@ pub fn set_notification(app: AppHandle, kind: crate::notify::Kind, value: bool) 
     publish(&app)
 }
 
+/// Statut Discord : réglage enregistré puis repris par le fil `ludex-discord` (activité posée ou
+/// effacée tout de suite si une partie est en cours).
+#[tauri::command]
+pub fn set_discord_presence(app: AppHandle, value: bool) -> Result<SettingsInfo, String> {
+    update_settings(&app, |s| s.discord_presence = value);
+    refresh_discord(&app);
+    publish(&app)
+}
+
+/// Statut Discord sans le nom du jeu (« En jeu »).
+#[tauri::command]
+pub fn set_discord_hide_name(app: AppHandle, value: bool) -> Result<SettingsInfo, String> {
+    update_settings(&app, |s| s.discord_hide_name = value);
+    refresh_discord(&app);
+    publish(&app)
+}
+
+/// Le fil du statut Discord relit les réglages (aussi après un import).
+pub fn refresh_discord<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(presence) = app.try_state::<crate::discord::Presence>() {
+        presence.refresh();
+    }
+}
+
 /// Active ou désactive un launcher, puis rescanne : la bibliothèque relue est renvoyée.
 #[tauri::command]
 pub async fn set_source_enabled(app: AppHandle, platform: Platform, value: bool) -> Result<ScanResult, String> {
@@ -255,9 +288,12 @@ mod tests {
             version: "0.2.0".into(),
             notifications: crate::notify::Prefs { news: false, ..Default::default() },
             notifications_blocked: true,
+            discord_presence: true,
+            discord_hide_name: false,
+            discord_available: false,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
+        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#, r#""discordPresence":true"#, r#""discordHideName":false"#, r#""discordAvailable":false"#] {
             assert!(text.contains(part), "{text}");
         }
     }

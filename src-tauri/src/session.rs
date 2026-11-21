@@ -66,6 +66,8 @@ pub struct Update {
     pub game_id: String,
     pub phase: Phase,
     pub credit_secs: u64,
+    /// Début de la partie (premier relevé où le jeu tournait, secondes Unix), `None` avant.
+    pub start: Option<u64>,
     /// Session terminée et gardée dans l'historique (une minute au moins) : déclenche la copie des sauvegardes.
     pub finished: Option<PastSession>,
 }
@@ -359,7 +361,7 @@ fn resume_open(journal: &Journal, sessions: &mut Vec<Session>, finished: &mut Ve
             None => {
                 let (past, credit_secs) = close_stale(&open);
                 finished.extend(past.clone());
-                updates.push(Update { game_id: open.game_id, phase: Phase::Ended, credit_secs, finished: past });
+                updates.push(Update { game_id: open.game_id, phase: Phase::Ended, credit_secs, start: Some(open.start), finished: past });
             }
         }
     }
@@ -438,7 +440,7 @@ impl Tracker {
                                 map.insert(s.game_id.clone(), tick.phase);
                             }
                         }
-                        updates.push(Update { game_id: s.game_id.clone(), phase: tick.phase, credit_secs: tick.credit_secs, finished: past });
+                        updates.push(Update { game_id: s.game_id.clone(), phase: tick.phase, credit_secs: tick.credit_secs, start: s.first_seen, finished: past });
                     }
                     tick.phase != Phase::Ended
                 });

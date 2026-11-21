@@ -160,6 +160,8 @@ pub struct Diagnostic {
     pub created: u64,
     pub sources: Vec<SourceDiag>,
     pub services: Vec<ServiceDiag>,
+    /// Statut Discord (client local, aucun réseau).
+    pub discord: crate::discord::Status,
     /// Rapport texte anonymisé, prêt à copier.
     pub report: String,
 }
@@ -178,6 +180,8 @@ pub struct Inputs<'a> {
     pub manual: Vec<(String, bool)>,
     /// Services dont une lecture tourne.
     pub busy: Vec<Service>,
+    /// État du fil du statut Discord.
+    pub discord: crate::discord::Status,
 }
 
 /// Sources dans l'ordre du scan.
@@ -283,6 +287,7 @@ pub fn build(input: Inputs, locations: impl Fn(Platform) -> Vec<Location>, when:
         created: now(),
         sources,
         services,
+        discord: input.discord,
         report: String::new(),
     };
     diag.report = report(&diag, privacy, when);
@@ -452,6 +457,8 @@ pub fn report(d: &Diagnostic, privacy: &Privacy, when: &dyn Fn(u64) -> String) -
         let busy = if s.busy { ", lecture en cours" } else { "" };
         out.push(format!("- {} ({}) : {ok}, {err}{busy}", s.label, s.host));
     }
+    out.push(String::new());
+    out.push(format!("Statut Discord : {}", d.discord.text()));
     anonymize(&(out.join("\n") + "\n"), privacy)
 }
 
@@ -486,6 +493,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             games: &games,
             manual,
             busy,
+            discord: app.try_state::<crate::discord::Presence>().map(|p| p.status()).unwrap_or_default(),
         };
         Ok(build(input, crate::library::locations, &local_time, &Privacy::of_this_pc()))
     })
@@ -616,6 +624,7 @@ mod tests {
             games: &games,
             manual: vec![("Titre très perso".into(), true), ("Autre titre perso".into(), false)],
             busy: vec![Service::Art],
+            discord: crate::discord::Status { state: crate::discord::State::Absent, error: Some("Discord n'est pas ouvert.".into()) },
         };
         let locations = |p: Platform| match p {
             Platform::Steam => vec![
@@ -668,6 +677,7 @@ mod tests {
             games: &scan.games,
             manual: Vec::new(),
             busy: Vec::new(),
+            discord: crate::discord::Status::default(),
         };
         let d = build(input, crate::library::locations, &local_time, &Privacy::of_this_pc());
         println!("{}", d.report);

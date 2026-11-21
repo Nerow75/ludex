@@ -4,6 +4,7 @@ mod corrections;
 mod covers;
 mod deeplink;
 mod diagnostic;
+mod discord;
 mod footprint;
 mod history;
 mod hltb;
@@ -1110,6 +1111,10 @@ fn on_session_update<R: Runtime>(app: &tauri::AppHandle<R>, update: session::Upd
     if update.finished.is_some() {
         let (app, id) = (app.clone(), update.game_id.clone());
         std::thread::spawn(move || auto_backup(&app, &id));
+    }
+    // Statut Discord : message au fil `ludex-discord`, jamais d'attente ici.
+    if let Some(presence) = app.try_state::<discord::Presence>() {
+        presence.session(&update.game_id, update.phase, update.start);
     }
     let mut event = SessionEvent { id: update.game_id, phase: update.phase, playtime_minutes: None, playtime_source: None };
     if update.credit_secs > 0
@@ -2294,6 +2299,10 @@ fn autostart_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
 /// principal sans l'attendre : appelée depuis le fil d'un scan, une construction directe attendrait
 /// le fil principal et pourrait bloquer le scan. Aucun verrou n'est tenu pendant la construction.
 fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
+    // Statut Discord : titres relus (jeu renommé, partie reprise avant le premier scan).
+    if let Some(presence) = app.try_state::<discord::Presence>() {
+        presence.refresh();
+    }
     let (Some(state), Some(_)) = (app.try_state::<AppState>(), app.tray_by_id(tray::TRAY_ID)) else { return };
     let keep = lock(&state.data).map(|d| d.settings.keep_in_tray).unwrap_or(true);
     let autostart = autostart_enabled(app);
@@ -2767,6 +2776,21 @@ pub fn run() {
                 relocating: AtomicBool::new(false),
                 picked_data_dir: Mutex::default(),
             });
+            // Statut Discord : avant la reprise des sessions, qui peut déjà annoncer une partie.
+            let (games, prefs) = (app.handle().clone(), app.handle().clone());
+            app.manage(discord::Presence::spawn(
+                move |id| {
+                    let state = games.try_state::<AppState>()?;
+                    let games = lock(&state.games).ok()?;
+                    games.iter().find(|g| g.id == id).map(discord::Shown::of)
+                },
+                move || {
+                    prefs
+                        .try_state::<AppState>()
+                        .and_then(|s| lock(&s.data).ok().map(|d| discord::Prefs { enabled: d.settings.discord_presence, hide_name: d.settings.discord_hide_name }))
+                        .unwrap_or_default()
+                },
+            ));
             let clicks = app.handle().clone();
             let notes_dir = app.state::<AppState>().data_dir.clone();
             app.manage(notify::Notifier::spawn(&notes_dir, move |target| notification_clicked(&clicks, target)));
@@ -2919,6 +2943,8 @@ pub fn run() {
             update::check_update,
             settings::settings,
             settings::set_theme,
+            settings::set_discord_presence,
+            settings::set_discord_hide_name,
             settings::set_accent,
             settings::set_notification,
             settings::set_launch_screen,
@@ -2938,6 +2964,15 @@ pub fn run() {
             transfer::cancel_import,
             transfer::apply_import
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            // Ludex se ferme : activité Discord effacée (Discord l'efface aussi en voyant le
+            // processus disparaître, mais plus tard).
+            if let tauri::RunEvent::Exit = event
+                && let Some(presence) = app.try_state::<discord::Presence>()
+            {
+                presence.shutdown(std::time::Duration::from_millis(1500));
+            }
+        });
 }

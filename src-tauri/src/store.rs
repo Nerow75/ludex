@@ -136,6 +136,13 @@ pub struct Settings {
     pub disabled_sources: Vec<Platform>,
     /// Notifications Windows activées, par type (`notify.rs`). Type inconnu ignoré.
     pub notifications: crate::notify::Prefs,
+    /// Statut Discord des parties lancées depuis Ludex (`discord.rs`). Faux par défaut : montrer
+    /// à ses amis ce qu'on joue est un choix. Suit l'export.
+    #[serde(deserialize_with = "or_default")]
+    pub discord_presence: bool,
+    /// Statut Discord sans le nom du jeu, ni son launcher, ni son image (« En jeu »).
+    #[serde(deserialize_with = "or_default")]
+    pub discord_hide_name: bool,
 }
 
 /// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, celui de
@@ -199,6 +206,8 @@ impl Default for Settings {
             accent: Accent::Turquoise,
             disabled_sources: Vec::new(),
             notifications: crate::notify::Prefs::default(),
+            discord_presence: false,
+            discord_hide_name: false,
         }
     }
 }
@@ -701,6 +710,23 @@ mod tests {
         // Fichier d'avant ce réglage : turquoise.
         let old: UserData = serde_json::from_str(r#"{"settings":{"theme":"dark"}}"#).unwrap();
         assert_eq!(old.settings.accent, Accent::Turquoise);
+    }
+
+    #[test]
+    fn discord_presence_is_off_by_default_and_survives_odd_values() {
+        let d = UserData::default();
+        assert!(!d.settings.discord_presence && !d.settings.discord_hide_name);
+        let old: UserData = serde_json::from_str(r#"{"settings":{"theme":"light"}}"#).unwrap();
+        assert!(!old.settings.discord_presence);
+        let on: UserData = serde_json::from_str(r#"{"settings":{"discordPresence":true,"discordHideName":true}}"#).unwrap();
+        assert!(on.settings.discord_presence && on.settings.discord_hide_name);
+        let text = serde_json::to_string(&on).unwrap();
+        assert!(text.contains(r#""discordPresence":true"#) && text.contains(r#""discordHideName":true"#), "{text}");
+        // Valeur illisible (version future) : désactivé, sans perdre le reste.
+        let odd: UserData = serde_json::from_str(r#"{"favorites":["steam:730"],"settings":{"discordPresence":"oui","theme":"oled"}}"#).unwrap();
+        assert!(!odd.settings.discord_presence);
+        assert_eq!(odd.settings.theme, Theme::Oled);
+        assert!(odd.favorites.contains("steam:730"));
     }
 
     #[test]

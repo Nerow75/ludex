@@ -765,6 +765,7 @@ pub async fn apply_import(app: AppHandle, mode: Mode) -> Result<ImportDone, Stri
         let theme = result.settings.theme;
         let ((), scan) = save_and_rescan(&app, &state, scanning, |data| *data = result)?;
         settings::apply_theme(&app, theme);
+        settings::refresh_discord(&app);
         settings::publish(&app)?;
         Ok(ImportDone { scan, summary, backup: backup_name })
     })
@@ -821,6 +822,8 @@ mod tests {
         d.settings.theme = crate::store::Theme::Oled;
         d.settings.accent = crate::store::Accent::Violet;
         d.settings.launch_screen = false;
+        d.settings.discord_presence = true;
+        d.settings.discord_hide_name = true;
         d.settings.notifications.set(crate::notify::Kind::News, false);
         d.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
         let picked = Picked { ext: "png".into(), at: 42 };
@@ -914,6 +917,8 @@ mod tests {
         assert!(!result.settings.launch_screen);
         // Notifications : préférence de l'utilisateur, pas de ce PC (elles suivent l'archive).
         assert!(!result.settings.notifications.news && result.settings.notifications.download);
+        // Statut Discord : préférence de l'utilisateur comme le thème, elle suit l'archive.
+        assert!(result.settings.discord_presence && result.settings.discord_hide_name);
         assert!(result.favorites.contains("steam:730"));
 
         let _ = fs::remove_dir_all(root);
