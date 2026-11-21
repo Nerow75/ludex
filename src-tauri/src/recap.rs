@@ -162,6 +162,13 @@ fn bounds(period: Period, today: i64, back: u32) -> (i64, i64) {
     }
 }
 
+/// Premier et dernier jour local (compris) de la période du récap qui contient `now`, `back`
+/// périodes en arrière (story : succès débloqués dans la période).
+pub fn span(period: Period, now: u64, back: u32, zone: &impl Zone) -> (i64, i64) {
+    let now = i64::try_from(now).unwrap_or(i64::MAX / 2);
+    bounds(period, local_day(now, zone), back.min(MAX_BACK))
+}
+
 /// Découpe une session en morceaux par heure locale : (jour, heure ou `None` si inconnue, secondes).
 pub(crate) fn pieces(s: &PastSession, zone: &impl Zone, mut f: impl FnMut(i64, Option<i64>, u64)) {
     let start = i64::try_from(s.start).unwrap_or(i64::MAX / 2);

@@ -303,6 +303,21 @@ export interface Recap {
   historySince: number | null;
 }
 export const recap = (period: RecapPeriod, back: number) => invoke<Recap>("recap", { period, back });
+/** Succès le plus rare débloqué pendant une période (pourcentage mondial du cache, aucune requête). */
+export interface RareUnlock {
+  gameId: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  percent: number;
+  unlockedAt: number;
+}
+export const recapRarest = (period: RecapPeriod, back: number) => invoke<RareUnlock | null>("recap_rarest", { period, back });
+/**
+ * Enregistre une page de la story : seuls les octets du PNG (1080 × 1920) partent, en corps brut ;
+ * Rust les vérifie et ouvre lui-même le sélecteur d'enregistrement. Renvoie le nom du fichier, `null` si annulé.
+ */
+export const saveStoryImage = (png: Uint8Array) => invoke<string | null>("save_story_image", png);
 /** Un succès Steam avec la progression du compte (liste lue à la demande, pas pendant le scan). */
 export interface Achievement {
   /** Nom interne, clé des pourcentages mondiaux. */

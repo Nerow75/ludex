@@ -1181,8 +1181,9 @@ export default function App() {
       if (a) couchControl.current?.(a);
       return;
     }
-    // Écran de premier lancement ou menu contextuel ouvert : la manette les pilote comme le clavier.
-    if (welcomeOpen.current) {
+    // Story du récap, écran de premier lancement ou menu contextuel ouvert : la manette les pilote
+    // comme le clavier (B ou Menu ferment la story, croix et stick changent de page).
+    if (document.documentElement.classList.contains("has-story") || welcomeOpen.current) {
       const key = PAD_MENU_KEYS[action];
       if (key) (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
       return;

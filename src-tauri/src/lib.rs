@@ -23,6 +23,7 @@ mod news;
 mod notify;
 mod quick;
 mod session;
+mod story;
 mod settings;
 mod shortcut;
 mod showcase;
@@ -2821,6 +2822,8 @@ pub fn run() {
             last_sessions,
             install_dates,
             recap,
+            story::recap_rarest,
+            story::save_story_image,
             journal,
             game_achievements,
             game_requirements,
