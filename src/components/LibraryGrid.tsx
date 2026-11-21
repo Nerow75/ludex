@@ -65,7 +65,7 @@ export function LibraryGrid({ games, selectedId, open, meta, playing, onSelect, 
   });
 
   const card = (g: Game) => (
-    <GameCard key={g.id} game={g} selected={g.id === selectedId} meta={meta(g)} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} onFavorite={onFavorite} />
+    <GameCard key={g.id} game={g} selected={g.id === selectedId} expanded={showStrip && g.id === selectedId} meta={meta(g)} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} onFavorite={onFavorite} />
   );
 
   let content: ReactNode;

@@ -34,7 +34,7 @@ export function RequirementsPanel({ gameId }: { gameId: string }) {
   const summary = requirementSummary(req);
   return (
     <section className="reqs" aria-label="Configuration requise">
-      <p className="fiche__label">Configuration</p>
+      <p className="fiche__label" role="heading" aria-level={3}>Configuration</p>
       {summary && <p className="reqs__summary">{summary}</p>}
       <div className={`reqs__table ${hasRec ? "" : "is-single"}`} role="table" aria-label="Configuration requise et ce PC">
         <div role="row" className="reqs__row reqs__head">

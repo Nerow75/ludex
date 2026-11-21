@@ -54,7 +54,7 @@ export function SavesPage() {
   return (
     <section className="saves-page" aria-label="Sauvegardes">
       <div className="bar">
-        <h2>Sauvegardes{overview && <span>{overview.games.length}</span>}</h2>
+        <h2>Sauvegardes{overview && <span><span className="sr-only">, </span>{overview.games.length}</span>}</h2>
         <button type="button" className="btn-ghost" onClick={chooseDir}>Changer le dossier</button>
       </div>
       {overview && (

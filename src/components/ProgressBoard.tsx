@@ -85,7 +85,7 @@ export function ProgressBoard({ games, playing, openGame, play, setStatus }: Sec
   return (
     <section aria-labelledby="progress-title" ref={root}>
       <div className="bar">
-        <h2 id="progress-title">Progression<span>{total}</span></h2>
+        <h2 id="progress-title">Progression<span><span className="sr-only">, </span>{total}</span></h2>
         <p className="board__hint">
           <kbd>Maj</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>LT</kbd><kbd>RT</kbd> change le statut, <kbd>Suppr</kbd> le retire
         </p>
@@ -95,7 +95,7 @@ export function ProgressBoard({ games, playing, openGame, play, setStatus }: Sec
           const list = columns.get(status) ?? [];
           return (
             <section key={status} className="board__col" aria-labelledby={`board-${status}`}>
-              <h3 id={`board-${status}`}>{STATUS_LABEL[status]}<span>{list.length}</span></h3>
+              <h3 id={`board-${status}`}>{STATUS_LABEL[status]}<span><span className="sr-only">, </span>{list.length}</span></h3>
               {list.length === 0 ? (
                 <p className="board__empty">Aucun jeu</p>
               ) : (

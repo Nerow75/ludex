@@ -4,6 +4,7 @@ import { formatAchievements, formatDate, formatPlaytime, formatSize, installBadg
 import { virtualDisabled } from "../lib/fake";
 import { achievementPercent, SORT_LABEL, storyMinutes, type Sort } from "../lib/library";
 import { VIRTUAL_MIN } from "../lib/virtual";
+import { rowLabel } from "../lib/a11y";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { PlayIcon, StarIcon } from "./Icons";
@@ -28,8 +29,8 @@ const ASCENDING: ReadonlySet<Sort> = new Set(["title", "lifespan"]);
 /** Position de la flèche de la fiche : sous la petite jaquette. */
 const NOTCH = 28;
 
-/** Donnée absente : un point discret plutôt qu'un texte. */
-const Missing = () => <span className="lrow__none" aria-label="Inconnu">·</span>;
+/** Donnée absente : un point discret plutôt qu'un texte (le nom de la ligne dit déjà ce qui est connu). */
+const Missing = () => <span className="lrow__none" aria-hidden="true">·</span>;
 
 interface Props {
   games: Game[];
@@ -65,7 +66,7 @@ export function LibraryList({ games, selectedId, open, sort, playing, onSort, on
   });
   const row = (g: Game) => (
     <Fragment key={g.id}>
-      <ListRow game={g} selected={g.id === selectedId} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
+      <ListRow game={g} selected={g.id === selectedId} expanded={open && g.id === selectedId} playing={playing.has(g.id)} onSelect={onSelect} onPlay={onPlay} />
       {open && g.id === selectedId && renderStrip(g, NOTCH)}
     </Fragment>
   );
@@ -104,12 +105,14 @@ export function LibraryList({ games, selectedId, open, sort, playing, onSort, on
 interface RowProps {
   game: Game;
   selected: boolean;
+  /** Fiche dépliée sous la ligne. */
+  expanded: boolean;
   playing: boolean;
   onSelect: (game: Game) => void;
   onPlay: (game: Game) => void;
 }
 
-const ListRow = memo(function ListRow({ game, selected, playing, onSelect, onPlay }: RowProps) {
+const ListRow = memo(function ListRow({ game, selected, expanded, playing, onSelect, onPlay }: RowProps) {
   const badge = installBadge(game.installState);
   const year = releaseYear(game.details?.releaseDate ?? null);
   const ach = game.achievements && game.achievements.total > 0 ? game.achievements : null;
@@ -121,15 +124,15 @@ const ListRow = memo(function ListRow({ game, selected, playing, onSelect, onPla
         type="button"
         className="lrow__hit"
         data-nav
-        aria-pressed={selected}
-        aria-label={playing ? `${game.title}, en jeu` : badge ? `${game.title}, ${badge.toLowerCase()}` : game.title}
+        aria-expanded={expanded}
+        aria-label={rowLabel(game, playing)}
         onClick={() => onSelect(game)}
         onDoubleClick={() => onPlay(game)}
       >
         <Cover game={game} className="lrow__cover" />
         <span className="lc--title lrow__title">
           <span className="lrow__name">{game.title}</span>
-          {game.favorite && <span className="lrow__fav" aria-label="Favori"><StarIcon filled /></span>}
+          {game.favorite && <span className="lrow__fav"><StarIcon filled /></span>}
           {playing ? <span className="live">En jeu</span> : badge && <span className="live is-pending">{badge}</span>}
         </span>
         <span className="lc--plat"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</span>

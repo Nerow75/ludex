@@ -57,6 +57,7 @@ import { newNewsCount } from "../lib/news";
 import { ModsPanel } from "./ModsPanel";
 import { SavesPanel } from "./SavesPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
+import { markFocus, restoreFocus } from "./focus";
 
 interface Props {
   game: Game;
@@ -129,15 +130,19 @@ const TAB_KEY = "ficheTab";
 /** Titre modifiable sur place : Entrée valide, Échap (ou un clic ailleurs) annule. */
 function TitleEditor({ game, onDone, onRename }: { game: Game; onDone: () => void; onRename: Props["onRename"] }) {
   const [value, setValue] = useState(game.title);
+  // Fermé au clavier, le champ rend le focus au bouton Renommer (sinon il tombait sur la page).
+  const [opener] = useState(markFocus);
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation(); // pas de raccourci global (Ctrl+D, flèches) pendant la saisie
     if (e.key === "Enter") {
       e.preventDefault();
       if (value.trim() !== game.title) onRename(game, value);
       onDone();
+      restoreFocus(opener);
     } else if (e.key === "Escape") {
       e.preventDefault();
       onDone();
+      restoreFocus(opener);
     }
   };
   return (
@@ -180,7 +185,7 @@ function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["o
   const refusal = game.launchArgsRefusal;
   return (
     <div className="fiche__block">
-      <p className="fiche__label">Options de lancement</p>
+      <p className="fiche__label" role="heading" aria-level={3}>Options de lancement</p>
       {refusal ? (
         <>
           <button type="button" className="strip__note strip__args is-empty" disabled aria-describedby={`args-why-${game.id}`}>
@@ -258,7 +263,7 @@ function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"
   const text = game.aliases.join(", ");
   return (
     <div className="fiche__block">
-      <p className="fiche__label">Alias de recherche</p>
+      <p className="fiche__label" role="heading" aria-level={3}>Alias de recherche</p>
       {editing ? (
         <InlineInput
           key={draft ?? ""}
@@ -339,7 +344,7 @@ function Genres({ game, onGenres }: { game: Game; onGenres: Props["onGenres"] })
   return (
     <div className="fiche__block">
       <div className="fiche__row">
-        <p className="fiche__label">Genres</p>
+        <p className="fiche__label" role="heading" aria-level={3}>Genres</p>
         <button type="button" className="fiche__link" data-nav aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           {open ? "Fermer" : "Corriger"}
         </button>
@@ -631,7 +636,7 @@ function Lifespan({ game }: { game: Game }) {
   const left = storyLeft(h.main, played);
   return (
     <div className="lifespan" title={`Moyennes HowLongToBeat pour « ${h.name} »`}>
-      <p className="lifespan__head">Durée de vie</p>
+      <p className="lifespan__head" role="heading" aria-level={3}>Durée de vie</p>
       {rows.map(([label, target]) => {
         const ratio = target && played ? Math.min(played / target, 1) : 0;
         return (
@@ -905,7 +910,7 @@ export function GameStrip({
 
         <aside className="strip__side" data-nav-zone="side" aria-label="Suivi et actions">
           <div className="fiche__block">
-            <p className="fiche__label">Progression</p>
+            <p className="fiche__label" role="heading" aria-level={3}>Progression</p>
             <div className="seg strip__status" role="group" aria-label="Progression">
               {STATUSES.map((s) => (
                 <button
@@ -946,7 +951,7 @@ export function GameStrip({
 
           <div className="fiche__block">
             <div className="fiche__row">
-              <p className="fiche__label">Collections</p>
+              <p className="fiche__label" role="heading" aria-level={3}>Collections</p>
               <button
                 type="button"
                 className="fiche__link"
@@ -1000,7 +1005,7 @@ export function GameStrip({
           <LaunchArgs game={game} onLaunchArgs={onLaunchArgs} />
 
           <div className="fiche__block">
-            <p className="fiche__label">Actions</p>
+            <p className="fiche__label" role="heading" aria-level={3}>Actions</p>
             <div className="strip__tools">
               {game.installDir && (
                 <button type="button" className="btn-icon" data-nav aria-label="Ouvrir le dossier" title="Ouvrir le dossier" onClick={() => onOpenFolder(game)}>

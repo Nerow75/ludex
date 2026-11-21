@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { gamesCount } from "../lib/a11y";
 import { launchGame, PLATFORM_LABEL, type Game } from "../lib/api";
 import { cleanTitle, installBadge, relativeTime } from "../lib/format";
 import { hideQuick, onLibraryChanged, onQuickShow, quickGames, quickResults } from "../lib/quick";
@@ -145,6 +146,7 @@ export function QuickLauncher() {
           <strong>{error.title}</strong> {error.detail}
         </p>
       )}
+      <p className="sr-only" aria-live="polite">{query.trim() ? (results.length ? gamesCount(results.length) : empty) : ""}</p>
       <div className="quick__list" id="quick-list" role="listbox" aria-label={query.trim() ? "Résultats" : "Derniers jeux joués"} ref={list}>
         {empty && <p className="quick__empty">{empty}</p>}
         {results.map((g, i) => {
@@ -169,7 +171,8 @@ export function QuickLauncher() {
                   <LauncherIcon platform={g.platform} size={12} />{PLATFORM_LABEL[g.platform]} · {badge ? <span className="is-pending">{badge}</span> : relativeTime(g.lastPlayed)}
                 </span>
               </span>
-              <kbd className="quick__enter">{launching === g.id ? "Lancement…" : "Entrée"}</kbd>
+              {/* « Entrée » est une aide visuelle : hors du nom de l'option ; « Lancement… » reste lu. */}
+              <kbd className="quick__enter" aria-hidden={launching !== g.id}>{launching === g.id ? "Lancement…" : "Entrée"}</kbd>
             </div>
           );
         })}

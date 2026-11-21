@@ -36,13 +36,13 @@ export function HistoryList({ games, playing, openGame, play }: SectionContext) 
   return (
     <section aria-labelledby="history-title">
       <div className="bar">
-        <h2 id="history-title">Historique<span>{list.length}</span></h2>
+        <h2 id="history-title">Historique<span><span className="sr-only">, </span>{list.length}</span></h2>
       </div>
       {/* Par période, en grille qui suit la largeur ; flèches à l'écran (`data-nav-2d`). */}
       <div className="hist-groups" data-nav-2d>
         {groups.map((group) => (
           <section key={group.label} className="hist-group" aria-label={group.label}>
-            <h3 className="hist-group__h">{group.label}<span>{group.games.length}</span></h3>
+            <h3 className="hist-group__h">{group.label}<span><span className="sr-only">, </span>{group.games.length}</span></h3>
             <ol className="hist">
               {group.games.map((g) => {
                 const live = playing.has(g.id);

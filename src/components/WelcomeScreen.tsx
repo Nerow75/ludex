@@ -15,6 +15,7 @@ import {
   type WelcomeInfo,
 } from "../lib/api";
 import { applyTheme } from "../lib/theme";
+import { positionText } from "../lib/a11y";
 import { STEPS, stepAfter, summarize } from "../lib/welcome";
 import { DataPlace } from "./DataPlace";
 import { LudexMark } from "./Icons";
@@ -150,6 +151,8 @@ export default function WelcomeScreen({ scan, info, pad, onDone, onShowHidden, o
           </ol>
         </div>
 
+        {/* Changement d'étape annoncé (le focus passe au bouton principal, qui ne dit pas où l'on est). */}
+        <p className="sr-only" aria-live="polite">{positionText("Étape", step, STEPS.length)} : {STEPS[step]}</p>
         <div className="welcome__step" key={step}>
           {step === 0 && (
             <>
@@ -234,7 +237,7 @@ export default function WelcomeScreen({ scan, info, pad, onDone, onShowHidden, o
                     </span>
                     <div className="seg" role="radiogroup" aria-label="Thème">
                       {THEMES.map((t) => (
-                        <button key={t} type="button" role="radio" aria-checked={prefs.theme === t} aria-pressed={prefs.theme === t} data-nav onClick={() => changeTheme(t)}>
+                        <button key={t} type="button" role="radio" aria-checked={prefs.theme === t} data-nav onClick={() => changeTheme(t)}>
                           {THEME_LABEL[t]}
                         </button>
                       ))}

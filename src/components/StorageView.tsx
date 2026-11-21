@@ -109,7 +109,7 @@ export function StorageView({ games, openGame }: SectionContext) {
   return (
     <section aria-labelledby="storage-title" className="storage">
       <div className="bar">
-        <h2 id="storage-title">Stockage<span>{disks.length} disque{disks.length > 1 ? "s" : ""}</span></h2>
+        <h2 id="storage-title">Stockage<span><span className="sr-only">, </span>{disks.length} disque{disks.length > 1 ? "s" : ""}</span></h2>
         {report.measuring && <span className="storage__busy">Mesure des dossiers en cours</span>}
       </div>
       {error && <p className="notice notice--error">{error}</p>}
@@ -118,7 +118,7 @@ export function StorageView({ games, openGame }: SectionContext) {
       </ul>
 
       <div className="bar">
-        <h2>À désinstaller<span>{list.length ? `${list.length} · ${formatSize(total)}` : "0"}</span></h2>
+        <h2>À désinstaller<span><span className="sr-only">, </span>{list.length ? `${list.length} · ${formatSize(total)}` : "0"}</span></h2>
       </div>
       {list.length === 0 ? (
         <p className="hint storage__none">Aucun jeu de taille connue n'est resté sans lancement depuis six mois</p>

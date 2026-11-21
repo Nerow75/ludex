@@ -2,6 +2,7 @@ import { memo } from "react";
 import { PLATFORM_LABEL, type Game } from "../lib/api";
 import { installBadge } from "../lib/format";
 import { achievementPercent } from "../lib/library";
+import { cardLabel } from "../lib/a11y";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { PlayIcon, StarIcon } from "./Icons";
@@ -9,6 +10,8 @@ import { PlayIcon, StarIcon } from "./Icons";
 interface Props {
   game: Game;
   selected: boolean;
+  /** Fiche du jeu dépliée sous sa rangée (annoncée « développé » par le lecteur d'écran). */
+  expanded: boolean;
   /** Information contextuelle sous le titre (dernière session, taille…). */
   meta: string;
   /** Une session lancée depuis Ludex est en cours : remplace l'information sous le titre. */
@@ -19,7 +22,7 @@ interface Props {
   onFavorite: (game: Game) => void;
 }
 
-export const GameCard = memo(function GameCard({ game, selected, meta, playing, onSelect, onPlay, onFavorite }: Props) {
+export const GameCard = memo(function GameCard({ game, selected, expanded, meta, playing, onSelect, onPlay, onFavorite }: Props) {
   const badge = installBadge(game.installState);
   const percent = achievementPercent(game);
   return (
@@ -28,8 +31,8 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
         <button
           type="button"
           className="card__hit"
-          aria-pressed={selected}
-          aria-label={`${game.title}${game.favorite ? ", favori" : ""}${playing ? ", en jeu" : badge ? `, ${badge.toLowerCase()}` : ""}`}
+          aria-expanded={expanded}
+          aria-label={cardLabel(game, playing, meta)}
           onClick={() => onSelect(game)}
           onDoubleClick={() => onPlay(game)}
         >
@@ -58,7 +61,8 @@ export const GameCard = memo(function GameCard({ game, selected, meta, playing, 
           <PlayIcon />
         </button>
       </div>
-      <div className="card__text" onClick={() => onSelect(game)} onDoubleClick={() => onPlay(game)}>
+      {/* Déjà dans le nom de la jaquette : caché aux lecteurs d'écran pour ne pas tout lire deux fois. */}
+      <div className="card__text" aria-hidden="true" onClick={() => onSelect(game)} onDoubleClick={() => onPlay(game)}>
         <span className="card__title">{game.title}</span>
         <span className="card__meta">
           {playing ? <span className="live">En jeu</span> : badge ? <span className="live is-pending">{badge}</span> : meta}
