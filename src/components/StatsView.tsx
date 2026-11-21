@@ -152,7 +152,9 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
         />
       </div>
 
-      <div className="statpage__grid" data-nav-2d>
+      {/* Pas de `data-nav-2d` : les lignes des deux colonnes ne sont pas alignées, la navigation
+          spatiale sautait d'une colonne à l'autre. Haut et bas suivent l'ordre : top 10 puis genres. */}
+      <div className="statpage__grid">
         <Card id="stats-hours" area="hours" title="Heures par mois" source={LUDEX_SOURCE}>
           {info.historySessions > 0 ? (
             <MonthChart bars={hours} label="Temps de jeu mesuré par Ludex par mois" format={formatDuration} />
