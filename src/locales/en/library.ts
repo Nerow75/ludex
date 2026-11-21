@@ -20,7 +20,7 @@ export default {
     collapseHint: "Collapse sidebar (Ctrl+B)",
     groups: {
       activity: "Activity",
-      memories: "Achievements and screenshots",
+      memories: "Highlights",
       tools: "Tools",
       mine: "My collections",
       steam: "Steam collections",
