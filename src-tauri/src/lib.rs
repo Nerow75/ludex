@@ -2881,6 +2881,7 @@ pub fn run() {
             update::check_update,
             settings::settings,
             settings::set_theme,
+            settings::set_accent,
             settings::set_notification,
             settings::set_launch_screen,
             settings::set_quick_shortcut,

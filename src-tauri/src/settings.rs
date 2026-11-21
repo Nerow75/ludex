@@ -7,7 +7,7 @@
 //! `settings-changed` : la page ouverte et la fenêtre de recherche rapide (thème) suivent.
 
 use crate::library::{Platform, ScanResult};
-use crate::store::{Settings, Theme};
+use crate::store::{Accent, Settings, Theme};
 use crate::{AppState, blocking, lock, quick, refresh_tray, save_and_rescan, saves_root, update_settings, wait_scan};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -23,6 +23,8 @@ const MAX_SHORTCUT: usize = 64;
 #[serde(rename_all = "camelCase")]
 pub struct SettingsInfo {
     theme: Theme,
+    /// Couleur d'accent de l'interface.
+    accent: Accent,
     /// Raccourci au format du plugin (« Alt+Space »), vide si désactivé.
     quick_shortcut: String,
     /// Le même, lisible (« Alt+Espace », « Désactivé »).
@@ -53,6 +55,7 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
     let s: &Settings = &data.settings;
     Ok(SettingsInfo {
         theme: s.theme,
+        accent: s.accent,
         quick_shortcut: s.quick_shortcut.clone(),
         quick_shortcut_label: quick::label(&s.quick_shortcut),
         launch_at_startup,
@@ -112,6 +115,14 @@ pub fn settings(app: AppHandle) -> Result<SettingsInfo, String> {
 pub fn set_theme(app: AppHandle, theme: Theme) -> Result<SettingsInfo, String> {
     update_settings(&app, |s| s.theme = theme);
     apply_theme(&app, theme);
+    publish(&app)
+}
+
+/// Couleur d'accent : rien à appliquer côté Rust (aucune couleur native), les fenêtres suivent
+/// par `settings-changed`.
+#[tauri::command]
+pub fn set_accent(app: AppHandle, accent: Accent) -> Result<SettingsInfo, String> {
+    update_settings(&app, |s| s.accent = accent);
     publish(&app)
 }
 
@@ -231,6 +242,7 @@ mod tests {
     fn info_is_sent_in_camel_case() {
         let info = SettingsInfo {
             theme: Theme::System,
+            accent: Accent::Pink,
             quick_shortcut: "Alt+Space".into(),
             quick_shortcut_label: quick::label("Alt+Space"),
             launch_at_startup: false,
@@ -245,7 +257,7 @@ mod tests {
             notifications_blocked: true,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
+        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
             assert!(text.contains(part), "{text}");
         }
     }

@@ -809,6 +809,7 @@ mod tests {
         let rpg = d.create_collection("RPG", 1).unwrap();
         d.set_in_collection(&rpg, "steam:730", true).unwrap();
         d.settings.theme = crate::store::Theme::Oled;
+        d.settings.accent = crate::store::Accent::Violet;
         d.settings.launch_screen = false;
         d.settings.notifications.set(crate::notify::Kind::News, false);
         d.settings.saves_dir = Some(PathBuf::from(r"D:\Copies"));
@@ -868,6 +869,7 @@ mod tests {
         assert_eq!(back.data.manual, data.manual);
         assert_eq!(back.data.collections, data.collections);
         assert_eq!(back.data.settings.theme, crate::store::Theme::Oled);
+        assert_eq!(back.data.settings.accent, crate::store::Accent::Violet);
         // Seule la jaquette dont le fichier existe a voyagé, avec sa date de choix.
         assert_eq!(back.covers.len(), 1);
         assert_eq!(back.covers[0].bytes, png(600, 900));
@@ -895,6 +897,8 @@ mod tests {
         assert_eq!(result.settings.data_dir, Some(PathBuf::from(r"F:\Ludex")));
         assert!(result.settings.launch_at_startup);
         assert_eq!(result.settings.theme, crate::store::Theme::Oled);
+        // Couleur d'accent : préférence de l'utilisateur comme le thème, elle suit l'archive.
+        assert_eq!(result.settings.accent, crate::store::Accent::Violet);
         // Écran de lancement coupé : préférence de l'utilisateur, elle suit l'archive.
         assert!(!result.settings.launch_screen);
         // Notifications : préférence de l'utilisateur, pas de ce PC (elles suivent l'archive).
@@ -1045,6 +1049,7 @@ mod tests {
         here.playtime.insert("epic:Sugar".into(), 600);
         here.launched.insert("epic:Sugar".into(), 50);
         here.settings.theme = crate::store::Theme::Light;
+        here.settings.accent = crate::store::Accent::Pink;
         let coop = here.create_collection("Coop", 1).unwrap();
         here.set_in_collection(&coop, "steam:730", true).unwrap();
         here.set_cover("riot:valorant", Kind::Cover, Some(Picked { ext: "png".into(), at: 1 }));
@@ -1063,6 +1068,7 @@ mod tests {
         there.playtime.insert("epic:Fortnite".into(), 60);
         there.launched.insert("epic:Sugar".into(), 90);
         there.settings.theme = crate::store::Theme::Oled;
+        there.settings.accent = crate::store::Accent::Green;
         there.collections.push(Collection { id: coop.clone(), name: "COOP".into(), games: vec!["steam:440".into()] });
         there.collections.push(Collection { id: coop.clone(), name: "Solo".into(), games: vec!["steam:620".into()] });
         there.covers.insert("riot:valorant".into(), CustomArt { cover: Some(Picked { ext: "jpg".into(), at: 9 }), hero: Some(Picked { ext: "jpg".into(), at: 9 }) });
@@ -1086,6 +1092,7 @@ mod tests {
         assert_eq!(out.playtime["epic:Fortnite"], 60);
         assert_eq!(out.launched["epic:Sugar"], 90);
         assert_eq!(out.settings.theme, crate::store::Theme::Light);
+        assert_eq!(out.settings.accent, crate::store::Accent::Pink); // ce PC l'emporte
         // Collection de même nom : jeux réunis ; autre nom au même id : nouvel id.
         assert_eq!(out.collections.len(), 2);
         assert_eq!(out.collections[0].games, ["steam:730", "steam:440"]);

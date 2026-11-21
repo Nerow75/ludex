@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { THEMES } from "./api";
-import { knownTheme, themeAttribute } from "./theme";
+import { ACCENT_LABEL, ACCENTS, THEMES } from "./api";
+import { accentAttribute, knownAccent, knownTheme, themeAttribute } from "./theme";
 
 describe("themeAttribute", () => {
   it("laisse le sombre sans attribut, tokens par défaut", () => {
@@ -33,5 +33,33 @@ describe("knownTheme", () => {
     expect(knownTheme(null)).toBe("dark");
     expect(knownTheme(undefined)).toBe("dark");
     expect(knownTheme(3)).toBe("dark");
+  });
+});
+
+describe("accentAttribute", () => {
+  it("laisse le turquoise sans attribut, tokens par défaut", () => {
+    expect(accentAttribute("turquoise")).toBeNull();
+  });
+
+  it("pose le nom des autres accents", () => {
+    for (const a of ACCENTS.filter((x) => x !== "turquoise")) expect(accentAttribute(a)).toBe(a);
+  });
+});
+
+describe("knownAccent", () => {
+  it("garde chaque accent connu, avec un libellé", () => {
+    for (const a of ACCENTS) {
+      expect(knownAccent(a)).toBe(a);
+      expect(ACCENT_LABEL[a]).toBeTruthy();
+    }
+  });
+
+  it("revient au turquoise pour une valeur inconnue ou absente", () => {
+    expect(knownAccent("amber")).toBe("turquoise");
+    expect(knownAccent("Blue")).toBe("turquoise");
+    expect(knownAccent("")).toBe("turquoise");
+    expect(knownAccent(null)).toBe("turquoise");
+    expect(knownAccent(undefined)).toBe("turquoise");
+    expect(knownAccent(2)).toBe("turquoise");
   });
 });

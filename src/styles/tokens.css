@@ -3,7 +3,8 @@
    couleur du jeu sélectionné réservée au contour de sélection.
    Thème sombre par défaut ; sur <html>, [data-theme="light"] pour le clair, [data-theme="oled"]
    pour le noir OLED et [data-theme="contrast"] pour le contraste élevé (règles en plus à la fin
-   d'app.css). Aucune couleur en dur ailleurs : tout passe par ces tokens. */
+   d'app.css). Couleur d'accent par [data-accent="…"] (blocs « Accents » en fin de fichier ;
+   turquoise sans attribut). Aucune couleur en dur ailleurs : tout passe par ces tokens. */
 :root {
   --lx-bg: #0B0B0B;
   --lx-surface: #1A1A1A;
@@ -12,12 +13,11 @@
   --lx-text: #FFFFFF;
   --lx-text-2: #D9D9D9;
   --lx-text-3: #8A8A8A;
-  --lx-accent: #14B8A6;
-  --lx-accent-deep: #0E8F81; /* flanc de la touche du logo */
-  --lx-on-accent: #0B0B0B;
-  --lx-accent-text: #2DD4BF;
-  /* Fond d'une pastille cochée, sous --lx-text : teinte sombre de l'accent. */
-  --lx-accent-soft: #0F3B36;
+  /* Logo et icône de l'app : toujours turquoise, quelle que soit la couleur d'accent. */
+  --lx-brand: #14B8A6;
+  --lx-brand-deep: #0E8F81; /* flanc de la touche du logo */
+  --lx-on-brand: #0B0B0B;
+  /* Accent (--lx-accent, --lx-on-accent, --lx-accent-text, --lx-accent-soft) : blocs « Accents ». */
   --lx-success: #5EE08F;
   --lx-warning: #F3BD55;
   --lx-danger: #FF7A7A;
@@ -60,11 +60,6 @@
   --lx-text: #0B0B0B;
   --lx-text-2: #333333;
   --lx-text-3: #6B6B6B;
-  --lx-accent: #14B8A6;
-  --lx-accent-deep: #0E8F81;
-  --lx-on-accent: #0B0B0B;
-  --lx-accent-text: #0F766E;
-  --lx-accent-soft: #CCFBF1;
   --lx-success: #15803D;
   --lx-warning: #B45309;
   --lx-danger: #DC2626;
@@ -79,8 +74,7 @@
   --lx-surface: #0A0A0A;
   --lx-surface-2: #161616;
   --lx-border: #2A2A2A;
-  --lx-on-accent: #000000;
-  --lx-accent-soft: #0A2E2A;
+  --lx-on-brand: #000000;
   --lx-overlay: rgba(0, 0, 0, 0.72);
   --lx-art-base: #000000;
   --lx-art-deep: #000000;
@@ -89,8 +83,8 @@
 
 /* Contraste élevé (sombre) : textes à 7:1 au moins (WCAG AAA) sur le fond comme sur les surfaces,
    contours clairs (plus de 3:1) pour tout ce qui se clique, turquoise plus lumineux. Rapports
-   calculés : --lx-text-3 #BDBDBD = 11,2:1 sur #000 et 8,8:1 sur --lx-surface-2, --lx-accent-text
-   #5EEAD4 = 14,2:1 sur #000, --lx-accent #2DD4BF = 11,3:1, --lx-danger #FF9B9B = 10,4:1. */
+   calculés : --lx-text-3 #BDBDBD = 11,2:1 sur #000 et 8,8:1 sur --lx-surface-2, --lx-danger
+   #FF9B9B = 10,4:1 ; accents dans les blocs « Accents ». */
 [data-theme="contrast"] {
   --lx-bg: #000000;
   --lx-surface: #0F0F0F;
@@ -99,11 +93,9 @@
   --lx-text: #FFFFFF;
   --lx-text-2: #EDEDED;
   --lx-text-3: #BDBDBD;
-  --lx-accent: #2DD4BF;
-  --lx-accent-deep: #14B8A6;
-  --lx-on-accent: #000000;
-  --lx-accent-text: #5EEAD4;
-  --lx-accent-soft: #003D36;
+  --lx-brand: #2DD4BF;
+  --lx-brand-deep: #14B8A6;
+  --lx-on-brand: #000000;
   --lx-success: #7CF5A8;
   --lx-warning: #FFD27A;
   --lx-danger: #FF9B9B;
@@ -114,4 +106,94 @@
   --lx-art-scrim: rgba(0, 0, 0, 0.92);
   --lx-art-badge: #000000;
   color-scheme: dark;
+}
+
+/* ---------- Accents ----------
+   Couleur d'accent choisie dans les Paramètres : [data-accent] sur <html> (turquoise : aucun
+   attribut), et sur chaque pastille de choix, qui montre ainsi l'accent dans le thème affiché
+   (d'où les deux formes de sélecteur : même élément et descendant). Quatre tokens par accent et
+   par thème :
+   - --lx-accent : remplissages (boutons, barres, interrupteurs, pastilles « ok ») et focus, au
+     moins 3:1 sur --lx-bg, --lx-surface et --lx-surface-2 (contour non textuel, WCAG 1.4.11) ;
+   - --lx-on-accent : texte posé sur --lx-accent, au moins 4,5:1 (7:1 en contraste élevé) ;
+   - --lx-accent-text : texte d'accent, au moins 4,5:1 sur les trois fonds (7:1 en contraste élevé) ;
+   - --lx-accent-soft : fond d'une pastille cochée sous --lx-text, au moins 4,5:1 (7:1).
+   Rapports notés au plus bas des trois fonds (calcul WCAG 2.x), dans l'ordre accent, sur-accent,
+   texte, pastille. « Comme Windows » prend les valeurs du clair ou du sombre. Pas d'ambre ni
+   d'orange : trop proches de --lx-warning (pause, mise à jour en attente) et de --lx-perfect ; pas
+   de rouge : --lx-danger. Le contraste de Windows (forced-colors) remplace tout par les couleurs
+   système, accent compris. */
+
+/* Sombre (défaut). Fonds #0B0B0B, #1A1A1A, #242424 ; texte sur pastille #FFFFFF.
+   Turquoise : accent 6,2:1, sur-accent 7,9:1, texte 8,3:1, pastille 12,4:1.
+   Bleu : 4,2, 5,4, 6,1, 13,1. Violet : 3,7, 4,7, 5,7, 14,3. Rose : 4,4, 5,6, 5,9, 14,0.
+   Vert : 6,8, 8,6, 8,9, 12,2. */
+:root, [data-accent="turquoise"] {
+  --lx-accent: #14B8A6; --lx-on-accent: #0B0B0B; --lx-accent-text: #2DD4BF; --lx-accent-soft: #0F3B36;
+}
+[data-accent="blue"] {
+  --lx-accent: #3B82F6; --lx-on-accent: #0B0B0B; --lx-accent-text: #60A5FA; --lx-accent-soft: #172F5C;
+}
+[data-accent="violet"] {
+  --lx-accent: #8B5CF6; --lx-on-accent: #0B0B0B; --lx-accent-text: #A78BFA; --lx-accent-soft: #2E1F5C;
+}
+[data-accent="pink"] {
+  --lx-accent: #EC4899; --lx-on-accent: #0B0B0B; --lx-accent-text: #F472B6; --lx-accent-soft: #4F1734;
+}
+[data-accent="green"] {
+  --lx-accent: #22C55E; --lx-on-accent: #0B0B0B; --lx-accent-text: #4ADE80; --lx-accent-soft: #123D22;
+}
+
+/* Noir OLED : mêmes accents et textes que le sombre (fonds #000, #0A0A0A, #161616 : rapports un
+   peu plus hauts), texte sur l'accent noir pur, pastille plus sombre.
+   Turquoise : accent 7,3:1, sur-accent 8,4:1, texte 9,7:1, pastille 14,6:1.
+   Bleu : 4,9, 5,7, 7,1, 15,4. Violet : 4,3, 5,0, 6,7, 16,4. Rose : 5,1, 6,0, 6,8, 16,1.
+   Vert : 7,9, 9,2, 10,4, 14,8. */
+[data-theme="oled"], [data-theme="oled"] [data-accent="turquoise"] { --lx-on-accent: #000000; --lx-accent-soft: #0A2E2A; }
+[data-theme="oled"][data-accent="blue"], [data-theme="oled"] [data-accent="blue"] { --lx-on-accent: #000000; --lx-accent-soft: #10234A; }
+[data-theme="oled"][data-accent="violet"], [data-theme="oled"] [data-accent="violet"] { --lx-on-accent: #000000; --lx-accent-soft: #22164A; }
+[data-theme="oled"][data-accent="pink"], [data-theme="oled"] [data-accent="pink"] { --lx-on-accent: #000000; --lx-accent-soft: #3D1028; }
+[data-theme="oled"][data-accent="green"], [data-theme="oled"] [data-accent="green"] { --lx-on-accent: #000000; --lx-accent-soft: #0C2E19; }
+
+/* Clair. Fonds #FFFFFF, #F5F5F5, #EBEBEB ; texte sur pastille #0B0B0B. Remplissages plus foncés
+   qu'en sombre pour tenir 3:1 sur #EBEBEB (le turquoise #14B8A6 d'avant n'y faisait que 2,1:1 :
+   passé à #0D9488 ; le logo garde #14B8A6).
+   Turquoise : accent 3,1:1, sur-accent (#0B0B0B) 5,3:1, texte 4,6:1, pastille 17,5:1.
+   Bleu (sur-accent #FFF) : 4,3, 5,2, 5,6, 16,1. Violet : 4,8, 5,7, 6,0, 16,6.
+   Rose : 3,9, 4,6, 5,1, 16,7. Vert : 4,2, 5,0, 6,0, 17,9. */
+[data-theme="light"], [data-theme="light"] [data-accent="turquoise"] {
+  --lx-accent: #0D9488; --lx-on-accent: #0B0B0B; --lx-accent-text: #0F766E; --lx-accent-soft: #CCFBF1;
+}
+[data-theme="light"][data-accent="blue"], [data-theme="light"] [data-accent="blue"] {
+  --lx-accent: #2563EB; --lx-on-accent: #FFFFFF; --lx-accent-text: #1D4ED8; --lx-accent-soft: #DBEAFE;
+}
+[data-theme="light"][data-accent="violet"], [data-theme="light"] [data-accent="violet"] {
+  --lx-accent: #7C3AED; --lx-on-accent: #FFFFFF; --lx-accent-text: #6D28D9; --lx-accent-soft: #EDE9FE;
+}
+[data-theme="light"][data-accent="pink"], [data-theme="light"] [data-accent="pink"] {
+  --lx-accent: #DB2777; --lx-on-accent: #FFFFFF; --lx-accent-text: #BE185D; --lx-accent-soft: #FCE7F3;
+}
+[data-theme="light"][data-accent="green"], [data-theme="light"] [data-accent="green"] {
+  --lx-accent: #15803D; --lx-on-accent: #FFFFFF; --lx-accent-text: #166534; --lx-accent-soft: #DCFCE7;
+}
+
+/* Contraste élevé. Fonds #000, #0F0F0F, #1F1F1F ; texte sur pastille #FFFFFF ; seuils AAA (7:1)
+   pour tout texte. Teintes plus lumineuses que le sombre.
+   Turquoise : accent 8,9:1, sur-accent (#000) 11,3:1, texte 11,1:1, pastille 12,2:1.
+   Bleu : 6,5, 8,3, 9,1, 14,0. Violet : 6,1, 7,7, 8,9, 14,4. Rose : 6,2, 7,9, 9,1, 13,3.
+   Vert : 9,5, 12,1, 11,7, 12,4. */
+[data-theme="contrast"], [data-theme="contrast"] [data-accent="turquoise"] {
+  --lx-accent: #2DD4BF; --lx-on-accent: #000000; --lx-accent-text: #5EEAD4; --lx-accent-soft: #003D36;
+}
+[data-theme="contrast"][data-accent="blue"], [data-theme="contrast"] [data-accent="blue"] {
+  --lx-accent: #60A5FA; --lx-on-accent: #000000; --lx-accent-text: #93C5FD; --lx-accent-soft: #0B2A5C;
+}
+[data-theme="contrast"][data-accent="violet"], [data-theme="contrast"] [data-accent="violet"] {
+  --lx-accent: #A78BFA; --lx-on-accent: #000000; --lx-accent-text: #C4B5FD; --lx-accent-soft: #2E1A66;
+}
+[data-theme="contrast"][data-accent="pink"], [data-theme="contrast"] [data-accent="pink"] {
+  --lx-accent: #F472B6; --lx-on-accent: #000000; --lx-accent-text: #F9A8D4; --lx-accent-soft: #5C0F38;
+}
+[data-theme="contrast"][data-accent="green"], [data-theme="contrast"] [data-accent="green"] {
+  --lx-accent: #4ADE80; --lx-on-accent: #000000; --lx-accent-text: #86EFAC; --lx-accent-soft: #0B3D1E;
 }
