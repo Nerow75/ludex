@@ -17,6 +17,7 @@ mod recap;
 mod relocate;
 mod requirements;
 mod screenshots;
+mod stats;
 mod saves;
 mod moods;
 mod news;
@@ -1177,7 +1178,16 @@ fn recap(state: State<'_, AppState>, period: recap::Period, back: Option<u32>) -
     recap::compute(&state.tracker.sessions(), &unlocks, now, period, back.unwrap_or(0), &recap::LocalZone)
 }
 
-/// Dates de déblocage des succès de chaque jeu qui en a (récap et journal).
+/// Section « Statistiques » : 12 derniers mois (temps mesuré par Ludex, sessions, jours joués,
+/// succès Steam) et séries de jours de tout l'historique. Sans argument.
+#[tauri::command]
+fn stats(state: State<'_, AppState>) -> stats::Stats {
+    let unlocks = state.games.lock().map(|games| unlock_times(&games)).unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    stats::compute(&state.tracker.sessions(), &unlocks, now, &recap::LocalZone)
+}
+
+/// Dates de déblocage des succès de chaque jeu qui en a (récap, journal et statistiques).
 fn unlock_times(games: &[Game]) -> Vec<(String, Vec<u64>)> {
     games
         .iter()
@@ -2822,6 +2832,7 @@ pub fn run() {
             last_sessions,
             install_dates,
             recap,
+            stats,
             story::recap_rarest,
             story::save_story_image,
             journal,

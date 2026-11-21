@@ -93,6 +93,10 @@ export const ClockIcon = () => (
 export const ChartIcon = () => (
   <svg {...base}><path d="M4.5 19.5h15M7.5 16v-4M12 16V8M16.5 16v-6" /></svg>
 );
+/** Statistiques : un camembert au trait. */
+export const PieIcon = () => (
+  <svg {...base}><path d="M12 4.5a7.5 7.5 0 1 0 7.5 7.5H12z" /><path d="M15 3.5A6.5 6.5 0 0 1 20.5 9H15z" /></svg>
+);
 export const ChevronLeftIcon = () => (
   <svg {...base}><path d="m15 5-7 7 7 7" /></svg>
 );

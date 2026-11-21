@@ -4,12 +4,13 @@ import type { Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
-import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HomeIcon, ImageIcon, JournalIcon, PieIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
 import { RecapView } from "../components/RecapView";
 import { ShowcaseView } from "../components/ShowcaseView";
+import { StatsView } from "../components/StatsView";
 import { TagsView } from "../components/TagsView";
 import { StorageView } from "../components/StorageView";
 
@@ -91,6 +92,8 @@ export const SECTIONS: readonly Section[] = [
   // Frise jour par jour : sessions, succès Steam et captures.
   { id: "journal", label: "Journal", icon: JournalIcon, group: ACTIVITY_GROUP, render: (ctx) => <JournalView {...ctx} /> },
   { id: "recap", label: "Récap", icon: ChartIcon, group: ACTIVITY_GROUP, render: (ctx) => <RecapView {...ctx} /> },
+  // Heures par mois, launchers, genres, top 10, séries et succès par mois.
+  { id: "stats", label: "Statistiques", icon: PieIcon, group: ACTIVITY_GROUP, render: (ctx) => <StatsView {...ctx} /> },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
   { id: "showcase", label: "Vitrine", icon: TrophyIcon, group: MEMORIES_GROUP, render: (ctx) => <ShowcaseView {...ctx} /> },
   // Captures Steam et Xbox Game Bar, jeu par jeu.
