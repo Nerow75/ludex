@@ -27,6 +27,9 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 sysinfo = { version = "0.40.3", default-features = false, features = ["system", "disk"] }
 ureq = "2"
 notify = "8.2.2"
+# Journal d'erreurs sur disque (`logfile.rs`) : macros `log::error!`… et logger maison. Déjà dans
+# l'arbre des dépendances par Tauri.
+log = "0.4"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tauri-plugin-updater = "2"
 tauri-plugin-autostart = "2"
@@ -56,7 +59,8 @@ winreg = "0.55"
 # Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
 # Cartes graphiques, niveau DirectX et mémoire installée (`requirements.rs`) : DXGI, Direct3D 11,
 # SystemInformation. Notifications Windows (`notify.rs`) : toasts WinRT et leur clic. Charge de la
-# carte graphique pendant une partie (`performance.rs`) : compteurs PDH « GPU Engine ».
+# carte graphique pendant une partie (`performance.rs`) : compteurs PDH « GPU Engine ». Boîte de
+# dialogue d'une panique (`logfile.rs`) : MessageBoxW.
 windows = { version = "0.62", features = [
     "Data_Xml_Dom",
     "Foundation",
@@ -74,6 +78,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
     "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

@@ -444,7 +444,7 @@ impl Notifier {
         let tx = match spawned {
             Ok(_) => Some(tx),
             Err(e) => {
-                eprintln!("Notifications Windows indisponibles : {e}");
+                log::warn!("Notifications Windows indisponibles : {e}");
                 None
             }
         };
@@ -460,7 +460,7 @@ impl Notifier {
                 return false;
             }
             if let Err(e) = limiter.save(&self.path) {
-                eprintln!("Dates des notifications non enregistrées : {e}");
+                log::error!("Dates des notifications non enregistrées : {e}");
             }
         }
         tx.send(Request::Show(note)).is_ok()
@@ -509,7 +509,7 @@ mod toasts {
             if notifier.is_none() {
                 match ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(crate::jumplist::APP_ID)) {
                     Ok(n) => notifier = Some(n),
-                    Err(e) => eprintln!("Notifications Windows indisponibles : {e}"),
+                    Err(e) => log::warn!("Notifications Windows indisponibles : {e}"),
                 }
             }
             let Some(n) = &notifier else {
@@ -529,7 +529,7 @@ mod toasts {
                             kept.pop_front();
                         }
                     }
-                    Err(e) => eprintln!("Notification « {} » non affichée : {e}", note.title),
+                    Err(e) => log::warn!("Notification « {} » non affichée : {e}", note.title),
                 },
             }
         }
@@ -557,7 +557,7 @@ mod toasts {
         if std::fs::read(icon).ok().as_deref() != Some(ICON)
             && let Err(e) = std::fs::write(icon, ICON)
         {
-            eprintln!("Icône des notifications non écrite : {e}");
+            log::warn!("Icône des notifications non écrite : {e}");
         }
         let key = format!(r"Software\Classes\AppUserModelId\{}", crate::jumplist::APP_ID);
         let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
@@ -572,7 +572,7 @@ mod toasts {
             Ok(())
         });
         if let Err(e) = result {
-            eprintln!("Identifiant des notifications non déclaré : {e}");
+            log::warn!("Identifiant des notifications non déclaré : {e}");
         }
     }
 }

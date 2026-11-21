@@ -57,7 +57,7 @@ pub fn spawn_check(app: AppHandle) {
                     return;
                 }
                 Ok(None) => {}
-                Err(e) => eprintln!("Vérification des mises à jour impossible : {e}"),
+                Err(e) => log::warn!("Vérification des mises à jour impossible : {e}"),
             }
             std::thread::sleep(RECHECK);
         }

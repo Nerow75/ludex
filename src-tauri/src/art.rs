@@ -399,7 +399,7 @@ impl ArtCache {
                                 Ok(store) => store,
                                 Err(e) => {
                                     crate::diagnostic::failed(crate::diagnostic::Service::Art, format!("Microsoft Store : {e}"));
-                                    eprintln!("Recherche de jaquettes interrompue (Microsoft Store) : {e}");
+                                    log::warn!("Recherche de jaquettes interrompue (Microsoft Store) : {e}");
                                     return;
                                 }
                             }
@@ -409,7 +409,7 @@ impl ArtCache {
                     let found = appid.is_some() || store.is_some();
                     self.titles.insert(compact(title), Entry { appid, checked: now(), cover, hero, store });
                     if let Err(e) = self.save() {
-                        eprintln!("Cache des jaquettes non enregistré : {e}");
+                        log::warn!("Cache des jaquettes non enregistré : {e}");
                     }
                     if found {
                         on_found(title);
@@ -417,7 +417,7 @@ impl ArtCache {
                 }
                 Err(e) => {
                     crate::diagnostic::failed(crate::diagnostic::Service::Art, &e);
-                    eprintln!("Recherche de jaquettes interrompue : {e}");
+                    log::warn!("Recherche de jaquettes interrompue : {e}");
                     return;
                 }
             }

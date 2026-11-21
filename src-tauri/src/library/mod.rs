@@ -497,6 +497,11 @@ pub fn finish(pending: Pending) -> ScanResult {
 fn complete(mut games: Vec<Game>, reports: Vec<SourceReport>) -> ScanResult {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     *LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner()) = Some((now, reports.clone()));
+    // Journal (`logfile.rs`) : de quoi aider au support, une ligne par scan complet.
+    log::info!("{}", crate::logfile::scan_line(&reports, games.len()));
+    for r in reports.iter().filter(|r| r.error.is_some()) {
+        log::warn!("Lecture de {} impossible : {}", r.platform.label(), r.error.as_deref().unwrap_or_default());
+    }
     games.iter_mut().for_each(add_icon);
     games.sort_by_key(|g| g.title.to_lowercase());
     ScanResult { games, sources: reports, partial: false }

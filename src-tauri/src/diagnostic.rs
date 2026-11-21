@@ -2,7 +2,8 @@
 //! jeux écartés et durée de lecture, d'après le dernier scan (aucun rescan) ; état des services en
 //! ligne depuis le démarrage ; versions de Ludex, de Windows et de WebView2. Le rapport texte à
 //! copier est anonymisé : nom d'utilisateur Windows et numéro de compte Steam remplacés, aucun
-//! contenu de `user-data.json` hormis le nombre de jeux ajoutés à la main.
+//! contenu de `user-data.json` hormis le nombre de jeux ajoutés à la main. Le rapport se termine par
+//! les 50 dernières lignes du journal d'erreurs (`logfile.rs`).
 
 use crate::library::{Game, Location, Platform, Skipped, SourceReport};
 use crate::{AppState, blocking, lock};
@@ -487,7 +488,12 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             manual,
             busy,
         };
-        Ok(build(input, crate::library::locations, &local_time, &Privacy::of_this_pc()))
+        let privacy = Privacy::of_this_pc();
+        let mut diag = build(input, crate::library::locations, &local_time, &privacy);
+        // Dernières lignes du journal d'erreurs (`logfile.rs`), anonymisées comme le reste.
+        let dir = crate::logfile::dir().map(PathBuf::from).unwrap_or_else(|| state.data_dir.clone());
+        diag.report.push_str(&crate::logfile::report_section(&crate::logfile::tail(&dir, crate::logfile::TAIL_LINES), &privacy));
+        Ok(diag)
     })
     .await
 }

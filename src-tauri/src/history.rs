@@ -179,7 +179,7 @@ impl Journal {
         };
         match result {
             Ok(()) => self.open_written = Some(text),
-            Err(e) => eprintln!("Session en cours non enregistrée : {e}"),
+            Err(e) => log::error!("Session en cours non enregistrée : {e}"),
         }
     }
 
@@ -202,7 +202,7 @@ impl Journal {
         }
         compact(&mut sessions, MAX_SESSIONS);
         if let Err(e) = write_atomic(&self.history_path, &to_lines(&sessions)) {
-            eprintln!("Historique non enregistré : {e}");
+            log::error!("Historique non enregistré : {e}");
         }
     }
 }

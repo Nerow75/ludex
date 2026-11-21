@@ -59,7 +59,7 @@ pub fn set_process_app_id() {
         let id = windows::core::HSTRING::from(APP_ID);
         // SAFETY : appel sans pointeur conservé, chaîne valide pendant l'appel.
         if let Err(e) = unsafe { windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(&id) } {
-            eprintln!("Identifiant d'application non posé : {e}");
+            log::warn!("Identifiant d'application non posé : {e}");
         }
     }
 }
@@ -90,7 +90,7 @@ impl JumpList {
                     #[cfg(windows)]
                     match com::apply(&items) {
                         Ok(()) => last = Some(items),
-                        Err(e) => eprintln!("Jump List non mise à jour : {e}"),
+                        Err(e) => log::warn!("Jump List non mise à jour : {e}"),
                     }
                     #[cfg(not(windows))]
                     {
@@ -98,7 +98,7 @@ impl JumpList {
                     }
                 }
             });
-            spawned.map_err(|e| eprintln!("Jump List indisponible : {e}")).ok().map(|_| tx)
+            spawned.map_err(|e| log::warn!("Jump List indisponible : {e}")).ok().map(|_| tx)
         });
         JumpList { exe, tx: Mutex::new(tx) }
     }

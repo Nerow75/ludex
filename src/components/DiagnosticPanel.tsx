@@ -1,8 +1,9 @@
 // Diagnostic des launchers (bas des Paramètres) : état de chaque source au dernier scan, chemins et
 // clés lus, jeux écartés, services en ligne, versions. « Copier le rapport » met dans le presse-papiers
-// le texte anonymisé préparé par Rust (`diagnostic.rs`), pour déboguer un PC qui n'est pas le sien.
+// le texte anonymisé préparé par Rust (`diagnostic.rs`), pour déboguer un PC qui n'est pas le sien,
+// avec la fin du journal d'erreurs ; « Ouvrir le journal » montre `ludex.log` dans l'Explorateur.
 import { useCallback, useEffect, useState } from "react";
-import { diagnostic as getDiagnostic, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
+import { diagnostic as getDiagnostic, openLog, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
 import { problems, serviceState, sourceDetail, sourceState, sourceTone } from "../lib/diagnostic";
 import { relativeTime } from "../lib/format";
 import { ChevronRightIcon } from "./Icons";
@@ -105,12 +106,17 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
     if (!diag) return;
     navigator.clipboard
       .writeText(diag.report)
-      .then(() => setCopied({ text: "Rapport copié. Nom d'utilisateur et compte Steam remplacés, aucun titre perso.", error: false }))
+      .then(() => setCopied({ text: "Rapport copié, avec la fin du journal. Nom d'utilisateur et compte Steam remplacés, aucun titre perso.", error: false }))
       .catch(() => {
         // Presse-papiers refusé : le texte reste sélectionnable à la main.
         setShowText(true);
         setCopied({ text: "Copie impossible : sélectionne le texte ci-dessous.", error: true });
       });
+  };
+
+  const showLog = () => {
+    setCopied(null);
+    openLog().catch((e) => setError(String(e)));
   };
 
   const toggle = (id: string) =>
@@ -140,6 +146,7 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
           <button type="button" className="btn-ghost set__small" data-nav disabled={rereading} onClick={reread}>
             {rereading ? "Lecture…" : "Relire"}
           </button>
+          <button type="button" className="btn-ghost set__small" data-nav onClick={showLog}>Ouvrir le journal</button>
           <button type="button" className="btn-ghost set__small is-primary" data-nav onClick={copy}>Copier le rapport</button>
         </div>
       </div>

@@ -530,7 +530,7 @@ impl HltbCache {
                         self.endpoint = Some(client.endpoint.clone()).filter(|e| e != DEFAULT_ENDPOINT);
                     }
                     if let Err(e) = self.save() {
-                        eprintln!("Cache HowLongToBeat non enregistré : {e}");
+                        log::warn!("Cache HowLongToBeat non enregistré : {e}");
                     }
                     if found {
                         on_update(self);
@@ -538,7 +538,7 @@ impl HltbCache {
                 }
                 Err(e) => {
                     crate::diagnostic::failed(crate::diagnostic::Service::Hltb, &e);
-                    eprintln!("Durées HowLongToBeat interrompues : {e}");
+                    log::warn!("Durées HowLongToBeat interrompues : {e}");
                     return false;
                 }
             }

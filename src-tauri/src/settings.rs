@@ -101,7 +101,7 @@ pub fn current_theme<R: Runtime>(app: &AppHandle<R>) -> Theme {
 pub fn apply_theme<R: Runtime>(app: &AppHandle<R>, theme: Theme) {
     for window in app.webview_windows().values() {
         if let Err(e) = window.set_theme(window_theme(theme)) {
-            eprintln!("Thème de la fenêtre « {} » non appliqué : {e}", window.label());
+            log::warn!("Thème de la fenêtre « {} » non appliqué : {e}", window.label());
         }
     }
 }

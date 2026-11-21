@@ -406,7 +406,7 @@ impl Watch {
             .name("ludex-surveillance".into())
             .spawn(move || run(rx, events, targets, quiet, gap, rescan, progress));
         if let Err(e) = spawned {
-            eprintln!("Surveillance des dossiers de jeux impossible : {e}");
+            log::warn!("Surveillance des dossiers de jeux impossible : {e}");
         }
         Watch { tx }
     }
@@ -431,7 +431,7 @@ fn run(
     });
     let mut watcher = match watcher {
         Ok(w) => w,
-        Err(e) => return eprintln!("Surveillance des dossiers de jeux impossible : {e}"),
+        Err(e) => return log::warn!("Surveillance des dossiers de jeux impossible : {e}"),
     };
     let mut watched = Vec::new();
     let mut manifests = Manifests::default();
@@ -476,7 +476,7 @@ fn run(
                     }
                 }
             }
-            Some(Msg::Fs(Err(e))) => eprintln!("Surveillance des dossiers de jeux : {e}"),
+            Some(Msg::Fs(Err(e))) => log::warn!("Surveillance des dossiers de jeux : {e}"),
             Some(Msg::Rewatch) => rewatch(&mut watcher, &mut watched, &mut manifests, targets()),
             None => {}
         }
@@ -519,7 +519,7 @@ fn rewatch(watcher: &mut impl Watcher, watched: &mut Vec<Watched>, manifests: &m
         }
         if !watched.contains(&w) {
             if let Err(e) = watcher.watch(&w.dir, w.source.mode()) {
-                eprintln!("Dossier non surveillé {} : {e}", w.dir.display());
+                log::warn!("Dossier non surveillé {} : {e}", w.dir.display());
                 continue;
             }
             manifests.remember(&w);
