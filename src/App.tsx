@@ -113,6 +113,7 @@ import { DownloadIcon, GridIcon, ListIcon, LudexMark, PencilIcon, PlusIcon, Refr
 import { SettingsView } from "./components/SettingsView";
 import { EmptyState, LibrarySkeleton } from "./components/States";
 import WelcomeScreen from "./components/WelcomeScreen";
+import { gamesCount, libraryAnnouncement } from "./lib/a11y";
 import CouchMode from "./components/CouchMode";
 import { LaunchScreen } from "./components/LaunchScreen";
 import { WindowControls } from "./components/WindowControls";
@@ -200,6 +201,8 @@ export default function App() {
   /** Fermeture de l'écran de lancement depuis la manette (posée par LaunchScreen). */
   const launchClose = useRef<(() => void) | null>(null);
   const toastTimer = useRef<number>(undefined);
+  /** Toast affiché et sa durée, pour Ctrl+Z et pour reprendre le compte à rebours après un survol. */
+  const toastLive = useRef<{ toast: Toast | null; ms: number }>({ toast: null, ms: 0 });
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   /** Mode canapé (plein écran, pour la TV), retenu : Ludex se rouvre ainsi s'il a été quitté ainsi. */
@@ -264,8 +267,17 @@ export default function App() {
 
   const showToast = useCallback((t: Toast, ms = 3600) => {
     setToast(t);
+    toastLive.current = { toast: t, ms };
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
+  }, []);
+
+  // Accessibilité : un toast survolé ou qui a le focus (Tab jusqu'à « Annuler ») ne disparaît pas ;
+  // le compte à rebours reprend en entier quand la souris ou le focus le quittent.
+  const holdToast = useCallback(() => window.clearTimeout(toastTimer.current), []);
+  const releaseToast = useCallback(() => {
+    window.clearTimeout(toastTimer.current);
+    if (toastLive.current.toast) toastTimer.current = window.setTimeout(() => setToast(null), toastLive.current.ms);
   }, []);
 
   /**
@@ -1089,6 +1101,13 @@ export default function App() {
       } else if (ctrl && key === ",") {
         e.preventDefault();
         s.goTo(SETTINGS_ID);
+      } else if (ctrl && !e.shiftKey && key.toLowerCase() === "z" && !inInput && toastLive.current.toast?.action?.label === "Annuler") {
+        // Ctrl+Z = « Annuler » du toast affiché, sans aller le chercher à la souris (hors champ de texte).
+        e.preventDefault();
+        const run = toastLive.current.toast.action!.run;
+        setToast(null);
+        toastLive.current = { toast: null, ms: 0 };
+        run();
       } else if (inInput) {
         if (key === "ArrowDown" && s.selected) {
           e.preventDefault();
@@ -1136,6 +1155,31 @@ export default function App() {
 
   const errors = scan?.sources.filter((s) => s.error) ?? [];
   const emptyLibrary = scan !== null && games.every((g) => g.isTool);
+
+  // Annonce pour les lecteurs d'écran (région `aria-live` discrète) : nombre de jeux à chaque
+  // recherche, filtre ou section de bibliothèque, et fin du scan complet sur un écran à part.
+  // Attendue 500 ms : une recherche tapée n'est lue qu'une fois la frappe posée.
+  const announceText = !scan || emptyLibrary
+    ? ""
+    : custom
+      ? scan.partial ? "" : `Bibliothèque chargée : ${gamesCount(games.filter((g) => !g.hidden && !g.isTool).length)}`
+      : libraryAnnouncement({
+          section: view.label,
+          count: results.length,
+          query,
+          filter: activeFilter === "all" ? null : FILTER_LABEL[activeFilter],
+          extra: [
+            facets.mood && `ambiance ${MOOD_LABEL[facets.mood]}`,
+            facets.tag && `tag ${facets.tag}`,
+            facets.genre && `genre ${facets.genre}`,
+            statusFilter !== "any" && `statut ${STATUS_FILTER_LABEL[statusFilter]}`,
+          ].filter((x): x is string => !!x),
+        }) + (query.trim() && selected ? `. Entrée lance ${selected.title}` : "");
+  const [announce, setAnnounce] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnnounce(announceText), 500);
+    return () => window.clearTimeout(t);
+  }, [announceText]);
   const meta = useCallback((g: Game) => sortMeta(g, sort), [sort]);
   // Comptes des pastilles mémorisés : refaits à chaque rendu (chaque flèche), ils coûtaient ~250 ms avec 3 000 jeux.
   const counts = useMemo(() => new Map(FILTERS.map((f) => [f, countGames(scoped, f, facets)])), [scoped, facets]);
@@ -1339,7 +1383,7 @@ export default function App() {
       {/* Mode canapé : pas de boutons de fenêtre (le mode a son ×) ; on en sort par Échap, B, Guide ou Vue + Menu. */}
       {!showCouch && <WindowControls />}
       <header className="top" data-tauri-drag-region>
-        <span className="brand" data-tauri-drag-region="deep"><LudexMark />Ludex</span>
+        <h1 className="brand" data-tauri-drag-region="deep"><LudexMark />Ludex</h1>
         <label className="search">
           <SearchIcon />
           <input
@@ -1386,7 +1430,8 @@ export default function App() {
           </button>
         </div>
       </header>
-      <p className="hint" aria-live="polite" data-tauri-drag-region="deep">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>
+      <p className="hint" data-tauri-drag-region="deep">
         {!scan
           ? "Recherche de tes jeux dans tous tes launchers"
           : query && selected
@@ -1440,7 +1485,7 @@ export default function App() {
                 />
               ) : (
                 <h2 id="lib-title" title={view.collection?.kind === "steam" ? "Collection lue dans Steam, modifiable seulement dans Steam" : undefined}>
-                  {query ? "Résultats" : view.label}<span>{results.length}</span>
+                  {query ? "Résultats" : view.label}<span><span className="sr-only">, </span>{results.length}</span>
                 </h2>
               )}
               {mineCollection && !query && (
@@ -1685,7 +1730,16 @@ export default function App() {
         />
       )}
 
-      <div className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`} role="status" aria-live="polite">
+      {/* Erreur annoncée tout de suite (assertive), le reste à la fin de la phrase en cours. */}
+      <div
+        className={`toast ${toast ? "is-on" : ""} ${toast?.error ? "toast--error" : ""}`}
+        role={toast?.error ? "alert" : "status"}
+        aria-live={toast?.error ? "assertive" : "polite"}
+        onMouseEnter={holdToast}
+        onMouseLeave={releaseToast}
+        onFocus={holdToast}
+        onBlur={releaseToast}
+      >
         {toast && (
           <>
             {toast.spin && <span className="toast__spin" aria-hidden />}
@@ -1697,6 +1751,7 @@ export default function App() {
               <button
                 type="button"
                 className="toast__action"
+                title={toast.action.label === "Annuler" ? "Annuler (Ctrl+Z)" : undefined}
                 onClick={() => {
                   // Fermé avant l'action : un toast ouvert par l'action reste affiché.
                   const run = toast.action!.run;

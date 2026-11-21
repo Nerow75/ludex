@@ -140,7 +140,7 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
     <section className="shots-page" aria-label="Captures" aria-busy={loading} data-nav-2d>
       <div className="bar">
         <h2>
-          Captures{folders && <span>{shotCount(total)}</span>}
+          Captures{folders && <span><span className="sr-only">, </span>{shotCount(total)}</span>}
         </h2>
         {showKinds && (
           <div className="seg" role="group" aria-label="Genre de capture">

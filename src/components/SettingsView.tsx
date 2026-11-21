@@ -1,6 +1,6 @@
 // Écran Paramètres (Ctrl+, ou bas de la barre latérale). Réglages gardés et appliqués côté Rust
 // (`settings.rs`) : la page n'envoie que des valeurs fermées, des booléens et le texte d'un raccourci.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { LauncherIcon } from "./LauncherIcon";
 import {
   applyImport,
@@ -80,13 +80,15 @@ function sourceState(s: SourceReport): string {
 
 /** Interrupteur : un bouton `switch`, navigable comme le reste (`data-nav`). */
 export function Switch({ label, icon, detail, checked, disabled, onChange }: { label: string; icon?: ReactNode; detail?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+  // Le texte d'aide sous le libellé est lu après le nom de l'interrupteur.
+  const detailId = useId();
   return (
     <div className="set__row">
       <span className="set__text">
         <span className={icon ? "with-icon" : undefined}>{icon}{label}</span>
-        {detail && <small>{detail}</small>}
+        {detail && <small id={detailId}>{detail}</small>}
       </span>
-      <button type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" data-nav disabled={disabled} onClick={() => onChange(!checked)}>
+      <button type="button" role="switch" aria-checked={checked} aria-label={label} aria-describedby={detail ? detailId : undefined} className="switch" data-nav disabled={disabled} onClick={() => onChange(!checked)}>
         <span />
       </button>
     </div>
@@ -327,7 +329,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               </span>
               <div className="seg" role="radiogroup" aria-label="Thème">
                 {THEMES.map((t) => (
-                  <button key={t} type="button" role="radio" aria-checked={info.theme === t} aria-pressed={info.theme === t} data-nav onClick={() => changeTheme(t)}>
+                  <button key={t} type="button" role="radio" aria-checked={info.theme === t} data-nav onClick={() => changeTheme(t)}>
                     {THEME_LABEL[t]}
                   </button>
                 ))}

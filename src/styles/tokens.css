@@ -21,6 +21,9 @@
   --lx-success: #5EE08F;
   --lx-warning: #F3BD55;
   --lx-danger: #FF7A7A;
+  /* Anneau de focus : l'accent, sauf en clair où le turquoise ne fait que 2,5:1 sur le blanc
+     (3:1 au moins exigés pour un indicateur de focus) et cède la place au texte d'accent. */
+  --lx-focus: var(--lx-accent);
   --lx-overlay: rgba(6, 6, 6, 0.6);
   /* Bouton Fermer de la barre de titre au survol : le rouge de Windows 11, dans les deux thèmes. */
   --lx-caption-close: #C42B1C;
@@ -59,15 +62,19 @@
   --lx-border: #D9D9D9;
   --lx-text: #0B0B0B;
   --lx-text-2: #333333;
-  --lx-text-3: #6B6B6B;
+  /* Rapports calculés (accessibilité, 4,5:1 au moins sur les trois fonds clairs) : --lx-text-3
+     4,8:1 sur --lx-surface-2 ; --lx-success 5,2:1, --lx-warning 4,9:1, --lx-danger 5,0:1 sur
+     --lx-surface-2 ; --lx-focus (= --lx-accent-text) 5,5:1 sur blanc, 4,6:1 sur --lx-surface-2. */
+  --lx-text-3: #666666;
   --lx-accent: #14B8A6;
   --lx-accent-deep: #0E8F81;
   --lx-on-accent: #0B0B0B;
   --lx-accent-text: #0F766E;
   --lx-accent-soft: #CCFBF1;
-  --lx-success: #15803D;
-  --lx-warning: #B45309;
-  --lx-danger: #DC2626;
+  --lx-success: #137036;
+  --lx-warning: #A14D07;
+  --lx-danger: #C21F1F;
+  --lx-focus: var(--lx-accent-text);
   --lx-overlay: rgba(255, 255, 255, 0.6);
   color-scheme: light;
 }

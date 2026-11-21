@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { showScreenshot, type Screenshot } from "../lib/api";
+import { positionText } from "../lib/a11y";
 import { formatDateTime, formatSize } from "../lib/format";
+import { trapTab } from "./focus";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlayIcon } from "./Icons";
 
 /** Origine lisible d'une capture : « Steam », « Steam, appid 244210 » (jeu désinstallé), « Xbox Game Bar ». */
@@ -56,6 +58,7 @@ interface ViewerProps {
 export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: ViewerProps) {
   const shot = shots[index];
   const closeRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const live = useRef({ index, count: shots.length, onIndex, onClose });
   live.current = { index, count: shots.length, onIndex, onClose };
@@ -67,6 +70,8 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
       const s = live.current;
       // Phase de capture sur window : rien ne passe aux raccourcis globaux (recherche, F5, Ctrl+D…).
       e.stopPropagation();
+      // Dialogue modal : Tab boucle sur ses boutons au lieu de passer à la barre latérale dessous.
+      if (trapTab(e, rootRef.current)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         s.onClose();
@@ -109,6 +114,7 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
   return createPortal(
     <div
       className="viewer"
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label={`Captures de ${title}`}
@@ -119,7 +125,9 @@ export function ScreenshotViewer({ shots, index, title, onIndex, onClose }: View
     >
       <header className="viewer__bar" data-tauri-drag-region="deep">
         <span className="viewer__title">{title}</span>
-        <span className="viewer__count">{index + 1} / {shots.length}</span>
+        <span className="viewer__count" aria-hidden="true">{index + 1} / {shots.length}</span>
+        {/* Annonce de la capture affichée à chaque flèche (le compteur visible « 1 / 128 » se lit mal). */}
+        <span className="sr-only" aria-live="polite">{positionText("Capture", index, shots.length)}</span>
         <button type="button" className="btn-icon" aria-label="Ouvrir le dossier" title="Ouvrir le dossier de la capture" onClick={reveal}>
           <FolderIcon />
         </button>

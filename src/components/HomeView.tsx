@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { installDates, MOOD_LABEL, PLATFORM_LABEL, recap, STATUS_LABEL, type Game } from "../lib/api";
 import { formatDuration, formatPlaytime, installBadge, relativeTime } from "../lib/format";
 import { downloads, lastAchievement, moodIdeas, pickTonight, pileGames, tonightSettled, type Tonight } from "../lib/home";
@@ -117,7 +117,7 @@ function TonightBanner({ tonight, live, openGame, play }: { tonight: Tonight; li
         <Logo game={game} className="tonight__logo" />
         {facts.length > 0 && <p className="tonight__facts" title={last.title}>{facts.join(" · ")}</p>}
         <div className="tonight__acts">
-          <button type="button" className="btn-play" data-nav onClick={() => play(game)}><PlayIcon /> Jouer</button>
+          <button type="button" className="btn-play" data-nav onClick={() => play(game)} aria-label={`Jouer à ${game.title}`}><PlayIcon /> Jouer</button>
           <button type="button" className="btn-ghost" data-nav onClick={() => openGame(game)}>Voir la fiche</button>
           {install && <span className="live is-pending">{install}</span>}
         </div>
@@ -175,7 +175,7 @@ interface ShelfProps {
 function Shelf({ title, count, note, onTitle, titleHint, children }: ShelfProps) {
   const head = (
     <>
-      {title}<em>{count}</em>
+      {title}<em><span className="sr-only">, </span>{count}</em>
       {onTitle && <ChevronRightIcon />}
     </>
   );
@@ -183,7 +183,10 @@ function Shelf({ title, count, note, onTitle, titleHint, children }: ShelfProps)
     <section className="shelf" aria-label={title}>
       <div className="shelf__bar">
         {onTitle ? (
-          <button type="button" className="shelf__title is-link" data-nav onClick={onTitle} title={titleHint}>{head}</button>
+          // Titre de rangée cliquable : un bouton dans un titre, pour rester dans le plan des titres.
+          <h3 className="shelf__heading">
+            <button type="button" className="shelf__title is-link" data-nav onClick={onTitle} title={titleHint}>{head}</button>
+          </h3>
         ) : (
           <h3 className="shelf__title">{head}</h3>
         )}
@@ -196,12 +199,14 @@ function Shelf({ title, count, note, onTitle, titleHint, children }: ShelfProps)
 
 /** Jaquette d'une rangée : clic = fiche, double clic = jouer. */
 function ShelfItem({ game, meta, openGame, play }: { game: Game; meta: ReactNode } & Pick<SectionContext, "openGame" | "play">) {
+  // Nom = titre, description = la ligne sous la jaquette (dernière partie, état d'installation…).
+  const metaId = useId();
   return (
     <li className="shelf__item" data-game={game.id}>
-      <button type="button" className="shelf__hit" data-nav onClick={() => openGame(game)} onDoubleClick={() => play(game)} aria-label={game.title}>
+      <button type="button" className="shelf__hit" data-nav onClick={() => openGame(game)} onDoubleClick={() => play(game)} aria-label={game.title} aria-describedby={metaId}>
         <Cover game={game} progress />
         <span className="shelf__name">{game.title}</span>
-        <span className="shelf__meta">{meta}</span>
+        <span className="shelf__meta" id={metaId}>{meta}</span>
       </button>
     </li>
   );

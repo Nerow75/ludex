@@ -102,7 +102,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
         <div className="vitrine__col">
           {s.perfect.length > 0 && (
             <>
-              <h3 className="vitrine__h">Jeux à 100 %<span>{s.perfect.length}</span></h3>
+              <h3 className="vitrine__h">Jeux à 100 %<span><span className="sr-only">, </span>{s.perfect.length}</span></h3>
               <ol className="vitrine__list">
                 {s.perfect.map((p) => {
                   const game = byId.get(p.gameId);

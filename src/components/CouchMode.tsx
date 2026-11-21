@@ -226,7 +226,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
             {rows.length === 0 && <p className="couch__empty">Aucun jeu à afficher. Quitte le mode canapé pour ajouter un jeu ou relancer un scan.</p>}
             {rows.map((row) => (
               <section key={row.id} className="couch__row" aria-label={row.title}>
-                <h2>{row.title}<em>{row.games.length}</em></h2>
+                <h2>{row.title}<em><span className="sr-only">, </span>{row.games.length}</em></h2>
                 <ul className="couch__list">
                   {row.games.map((g) => {
                     const key = couchKey(row.id, g.id);
