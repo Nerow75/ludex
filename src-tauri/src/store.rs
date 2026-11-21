@@ -131,6 +131,10 @@ pub struct Settings {
     /// Couleur d'accent de l'interface (écran Paramètres). Valeur inconnue : turquoise, sans perdre le reste.
     #[serde(deserialize_with = "or_default")]
     pub accent: Accent,
+    /// Langue de l'interface (`i18n.rs`) : `system` (celle de Windows), `fr` ou `en`. Valeur
+    /// inconnue : `system`, sans perdre le reste. Préférence de l'utilisateur : suit l'export.
+    #[serde(deserialize_with = "or_default")]
+    pub language: crate::i18n::Language,
     /// Launchers dont les jeux sont écartés du scan (écran Paramètres). Valeur inconnue ignorée.
     #[serde(deserialize_with = "known_platforms")]
     pub disabled_sources: Vec<Platform>,
@@ -197,6 +201,7 @@ impl Default for Settings {
             welcome_shown: None,
             theme: Theme::Dark,
             accent: Accent::Turquoise,
+            language: crate::i18n::Language::System,
             disabled_sources: Vec::new(),
             notifications: crate::notify::Prefs::default(),
         }

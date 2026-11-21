@@ -1,4 +1,5 @@
 import type { Game, InstallState } from "./api";
+import { t } from "./i18n";
 import { RANK_META, searchRank } from "./search";
 
 /** Comparaison sans accents ni casse, pour la recherche. */
@@ -167,3 +168,11 @@ export function shortArgs(text: string, max = 40): string {
 
 /** Exemple d'options pour le champ, selon le launcher. */
 export const argsExample = (platform: Game["platform"]) => (platform === "steam" ? "-novid +fps_max 240" : "-windowed -dx11");
+
+/**
+ * Nom affiché d'un genre de Ludex. Le nom français (`metadata.rs`) reste l'identifiant partout
+ * (corrections, filtre `ludex.genre`) ; un genre inconnu (version future) s'affiche tel quel.
+ */
+export function genreLabel(name: string): string {
+  return Object.prototype.hasOwnProperty.call(t.common.genre, name) ? t.common.genre[name] : name;
+}

@@ -1,3 +1,5 @@
+#[macro_use]
+mod i18n;
 mod art;
 mod collections;
 mod corrections;
@@ -2327,6 +2329,18 @@ fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
 }
 
 /// Modifie les réglages de l'application, puis les enregistre.
+/// Relit les caches propres à une langue (fiches Steam, configurations requises) après un
+/// changement de langue : le rescan qui suit pose les fiches connues dans la nouvelle langue et
+/// relance la lecture des autres.
+fn reload_language_caches(state: &AppState) {
+    if let Ok(mut meta) = lock(&state.meta) {
+        *meta = metadata::MetaCache::load(&state.data_dir);
+    }
+    if let Ok(mut req) = lock(&state.requirements) {
+        *req = requirements::ReqCache::load(&state.data_dir);
+    }
+}
+
 fn update_settings<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut store::Settings)) {
     let Some(state) = app.try_state::<AppState>() else { return };
     if let Ok(mut data) = lock(&state.data) {
@@ -2717,6 +2731,8 @@ pub fn run() {
             let data_path = store::file_in(dir.clone());
             let handle = app.handle().clone();
             let data = UserData::load(&data_path);
+            // Langue choisie (ou celle de Windows) avant tout texte montré.
+            i18n::set(i18n::resolve(data.settings.language));
             // Cache des images dans le dossier choisi pour les données lourdes, s'il y en a un.
             let cache = relocate::cache_root(&dir, data.settings.data_dir.as_deref());
             app.manage(AppState {
@@ -2920,6 +2936,7 @@ pub fn run() {
             settings::settings,
             settings::set_theme,
             settings::set_accent,
+            settings::set_language,
             settings::set_notification,
             settings::set_launch_screen,
             settings::set_quick_shortcut,

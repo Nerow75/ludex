@@ -765,6 +765,7 @@ pub async fn apply_import(app: AppHandle, mode: Mode) -> Result<ImportDone, Stri
         let theme = result.settings.theme;
         let ((), scan) = save_and_rescan(&app, &state, scanning, |data| *data = result)?;
         settings::apply_theme(&app, theme);
+        settings::apply_language(&app);
         settings::publish(&app)?;
         Ok(ImportDone { scan, summary, backup: backup_name })
     })
