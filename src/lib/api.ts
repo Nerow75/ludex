@@ -860,12 +860,12 @@ export interface SettingsInfo {
   notificationsBlocked: boolean;
 }
 /** Types de notifications Windows (`notify.rs`). */
-export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError";
+export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError" | "sale";
 export type NotificationPrefs = Record<NotificationKind, boolean>;
 export const settings = () => invoke<SettingsInfo>("settings");
 export const setNotification = (kind: NotificationKind, value: boolean) => invoke<SettingsInfo>("set_notification", { kind, value });
 /** Clic sur une notification Windows : la fenêtre est déjà affichée, le front ouvre la cible. */
-export type NotificationTarget = { target: "game"; id: string; tab: string | null } | { target: "storage" } | { target: "window" };
+export type NotificationTarget = { target: "game"; id: string; tab: string | null } | { target: "storage" } | { target: "wishlist" } | { target: "window" };
 export const onNotificationOpen = (handler: (target: NotificationTarget) => void): Promise<UnlistenFn> =>
   listen<NotificationTarget>("notification-open", (e) => handler(e.payload));
 export const setTheme = (theme: Theme) => invoke<SettingsInfo>("set_theme", { theme });
@@ -957,6 +957,7 @@ export interface TransferSummary {
   aliases: number;
   genres: number;
   launchArgs: number;
+  wishes: number;
   playtimeGames: number;
   sessions: number;
   covers: number;
@@ -1090,3 +1091,64 @@ export const dataLocation = () => invoke<DataLocation>("data_location");
 export const chooseDataDir = () => invoke<string | null>("choose_data_dir");
 /** Copie, vérifie, puis supprime l'ancien ; refusé pendant une partie. Bibliothèque relue. */
 export const moveData = (target: DataTarget) => invoke<MoveDone>("move_data", { target });
+
+/** Prix de la boutique Steam, en centimes (`wishlist.rs`). */
+export interface WishPrice {
+  currency: string;
+  initial: number;
+  final: number;
+  /** Remise en %, 0 sans promo. */
+  discount: number;
+}
+/** Jeu de la liste de souhaits. */
+export interface WishItem {
+  appid: number;
+  title: string;
+  /** Date d'ajout, secondes Unix. */
+  added: number;
+  /** Prix vu à l'ajout. */
+  addedPrice: WishPrice | null;
+  /** Dernier prix connu. */
+  price: WishPrice | null;
+  /** `price` : en vente ; `noPrice` : gratuit ou pas encore en vente ; `unavailable` : retiré ou pas vendu en France ; `unknown` : jamais relu. */
+  offer: "price" | "noPrice" | "unavailable" | "unknown";
+  /** Plus bas prix vu, seulement s'il est sous le prix actuel. */
+  lowest: WishPrice | null;
+  checked: number | null;
+  imageUrl: string;
+  /** Id du jeu dans la bibliothèque : « Déjà à toi ». */
+  owned: string | null;
+}
+export interface Wishlist {
+  items: WishItem[];
+  /** Dernière relecture complète des prix. */
+  checked: number | null;
+}
+/** Résultat de la recherche de la boutique Steam. */
+export interface WishHit {
+  appid: number;
+  title: string;
+  price: WishPrice | null;
+  imageUrl: string;
+  owned: string | null;
+  /** Déjà dans la liste. */
+  wished: boolean;
+}
+/** Promo nouvelle d'un jeu de la liste. */
+export interface WishSale {
+  appid: number;
+  title: string;
+  price: WishPrice;
+}
+export const wishlist = () => invoke<Wishlist>("wishlist");
+/** Recherche dans la boutique Steam : seul le texte part, les résultats restent connus de Rust. */
+export const wishlistSearch = (text: string) => invoke<WishHit[]>("wishlist_search", { text });
+/** Ajoute un résultat de la dernière recherche, ou remet un jeu retiré (« Annuler »). */
+export const wishlistAdd = (appid: number) => invoke<Wishlist>("wishlist_add", { appid });
+export const wishlistRemove = (appid: number) => invoke<Wishlist>("wishlist_remove", { appid });
+/** Page du jeu dans Steam (`steam://store/<appid>` reconstruit côté Rust). */
+export const openStorePage = (appid: number) => invoke<void>("open_store_page", { appid });
+export const onWishlistChanged = (handler: (list: Wishlist) => void): Promise<UnlistenFn> =>
+  listen<Wishlist>("wishlist-changed", (e) => handler(e.payload));
+export const onWishlistSale = (handler: (sales: WishSale[]) => void): Promise<UnlistenFn> =>
+  listen<WishSale[]>("wishlist-sale", (e) => handler(e.payload));

@@ -18,6 +18,7 @@ export function summaryParts(s: TransferSummary): string[] {
     [s.aliases, "jeu avec des alias", "jeux avec des alias"],
     [s.genres, "jeu aux genres corrigés", "jeux aux genres corrigés"],
     [s.launchArgs, "option de lancement", "options de lancement"],
+    [s.wishes, "souhait", "souhaits"],
     [s.covers, "image perso", "images perso"],
     [s.hidden, "jeu masqué", "jeux masqués"],
   ];

@@ -133,6 +133,7 @@ pub struct Summary {
     aliases: usize,
     genres: usize,
     launch_args: usize,
+    wishes: usize,
     playtime_games: usize,
     sessions: usize,
     covers: usize,
@@ -150,6 +151,7 @@ fn summarize(data: &UserData, sessions: &[PastSession]) -> Summary {
         aliases: data.aliases.len(),
         genres: data.genres.len(),
         launch_args: data.launch_args.len(),
+        wishes: data.wishlist.len(),
         playtime_games: data.playtime.values().filter(|&&s| s > 0).count(),
         sessions: sessions.len(),
         covers: data.covers.values().map(|c| Kind::ALL.iter().filter(|&&k| c.get(k).is_some()).count()).sum(),
@@ -424,6 +426,7 @@ fn sanitize(mut data: UserData) -> UserData {
         .filter(|(id, _)| valid_id(id))
         .filter_map(|(id, a)| Some((id, crate::launch_args::clean(&a).ok()??)))
         .collect();
+    data.wishlist = crate::wishlist::clean(std::mem::take(&mut data.wishlist));
     let mut ids: BTreeSet<String> = BTreeSet::new();
     data.manual = std::mem::take(&mut data.manual)
         .into_iter()
@@ -539,6 +542,7 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
             for c in incoming.collections {
                 add_collection(&mut out.collections, c, seed);
             }
+            crate::wishlist::merge(&mut out.wishlist, incoming.wishlist);
             out
         }
     }
@@ -803,6 +807,12 @@ mod tests {
         d.set_aliases("steam:1938090", vec!["cod".into(), "Call of Duty".into()]);
         d.set_genres("steam:431960", vec!["Occasionnel".into()]);
         d.launch_args.insert("steam:730".into(), "-novid".into());
+        d.wishlist.push(crate::wishlist::Wish {
+            appid: 1426210,
+            title: "It Takes Two".into(),
+            added: 1_700_000_000,
+            price: Some(crate::wishlist::Price { currency: "EUR".into(), initial: 3999, now: 799, discount: 80 }),
+        });
         d.add_playtime("epic:Sugar", 4200);
         d.launched.insert("epic:Sugar".into(), 100);
         d.add_manual(PathBuf::from(r"D:\Emu\Dolphin\Dolphin.exe"), "Dolphin".into());
@@ -865,6 +875,7 @@ mod tests {
         assert_eq!(back.data.aliases, data.aliases);
         assert_eq!(back.data.genres, data.genres);
         assert_eq!(back.data.launch_args, data.launch_args);
+        assert_eq!(back.data.wishlist, data.wishlist);
         assert_eq!(back.data.playtime, data.playtime);
         assert_eq!(back.data.manual, data.manual);
         assert_eq!(back.data.collections, data.collections);
@@ -877,7 +888,7 @@ mod tests {
         assert_eq!(back.data.covers["riot:valorant"].get(Kind::Cover), Some(&Picked { ext: "png".into(), at: 42 }));
         let s = summarize(&back.data, &back.sessions);
         assert_eq!((s.favorites, s.collections, s.manual_games, s.sessions, s.covers), (1, 1, 1, 2, 1));
-        assert_eq!((s.aliases, s.genres), (1, 1));
+        assert_eq!((s.aliases, s.genres, s.wishes), (1, 1, 1));
 
         // Remplacement sur un autre PC : jaquette écrite là-bas, réglages propres au PC gardés.
         let other = temp_dir("round-other");
@@ -1074,6 +1085,9 @@ mod tests {
         there.covers.insert("riot:valorant".into(), CustomArt { cover: Some(Picked { ext: "jpg".into(), at: 9 }), hero: Some(Picked { ext: "jpg".into(), at: 9 }) });
         there.manual.push(ManualGame { id: dolphin.clone(), exe: PathBuf::from(r"F:\Dolphin.exe"), title: "Ailleurs".into(), args: vec![] });
         there.add_manual(PathBuf::from(r"D:\Emu\Pcsx2.exe"), "PCSX2".into());
+        let wish = |appid: u32, title: &str| crate::wishlist::Wish { appid, title: title.into(), added: 1, price: None };
+        here.wishlist.push(wish(1145360, "Hades"));
+        there.wishlist = vec![wish(1145360, "Autre titre"), wish(1426210, "It Takes Two")];
 
         let images = vec![
             CoverImage { game: "riot:valorant".into(), kind: Kind::Cover, bytes: vec![], ext: "jpg", at: 9 },
@@ -1093,6 +1107,8 @@ mod tests {
         assert_eq!(out.launched["epic:Sugar"], 90);
         assert_eq!(out.settings.theme, crate::store::Theme::Light);
         assert_eq!(out.settings.accent, crate::store::Accent::Pink); // ce PC l'emporte
+        // Liste de souhaits : fusion par appid, l'entrée de ce PC reste.
+        assert_eq!(out.wishlist.iter().map(|w| (w.appid, w.title.as_str())).collect::<Vec<_>>(), [(1145360, "Hades"), (1426210, "It Takes Two")]);
         // Collection de même nom : jeux réunis ; autre nom au même id : nouvel id.
         assert_eq!(out.collections.len(), 2);
         assert_eq!(out.collections[0].games, ["steam:730", "steam:440"]);

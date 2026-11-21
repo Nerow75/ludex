@@ -13,6 +13,7 @@ const vide: TransferSummary = {
   aliases: 0,
   genres: 0,
   launchArgs: 0,
+  wishes: 0,
   playtimeGames: 0,
   sessions: 0,
   covers: 0,

@@ -22,6 +22,7 @@ import {
   onGameHltb,
   onGameNews,
   onNotificationOpen,
+  onWishlistSale,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -63,6 +64,7 @@ import {
   welcomeDone,
 } from "./lib/api";
 import { newsToast } from "./lib/news";
+import { saleToast } from "./lib/wishlist";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { useGamepad, type PadAction } from "./lib/gamepad";
 import { COUCH_KEY, COUCH_VALUES, couchPadAction, type CouchAction } from "./lib/couch";
@@ -844,12 +846,23 @@ export default function App() {
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [openGame, showToast]);
 
+  // Promos nouvelles de la liste de souhaits, quand aucune notification Windows n'est partie.
+  useEffect(() => {
+    const unlisten = onWishlistSale((sales) => {
+      const t = saleToast(sales);
+      if (t) showToast({ ...t, action: { label: "Voir", run: () => live.current.goTo("wishlist") } }, 8000);
+    });
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [showToast]);
+
   // Clic sur une notification Windows (fenêtre déjà affichée côté Rust) : fiche du jeu, sur
   // l'onglet voulu, ou section Stockage.
   useEffect(() => {
     const unlisten = onNotificationOpen((t) => {
       if (t.target === "storage") {
         live.current.goTo("storage");
+      } else if (t.target === "wishlist") {
+        live.current.goTo("wishlist");
       } else if (t.target === "game") {
         const game = live.current.games.find((g) => g.id === t.id);
         if (!game) return;
@@ -1289,7 +1302,7 @@ export default function App() {
   });
   const showPadHints = padConnected && padHints;
   const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
-  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, showGenre, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null) };
+  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, showGenre, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null), showUndo };
   const changeStatusFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setOpen(false);

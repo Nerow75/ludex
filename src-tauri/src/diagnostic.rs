@@ -24,10 +24,11 @@ pub enum Service {
     Requirements,
     News,
     Workshop,
+    Wishlist,
 }
 
 impl Service {
-    pub const ALL: [Service; 8] = [
+    pub const ALL: [Service; 9] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -36,6 +37,7 @@ impl Service {
         Service::Requirements,
         Service::News,
         Service::Workshop,
+        Service::Wishlist,
     ];
 
     pub fn label(self) -> &'static str {
@@ -48,6 +50,7 @@ impl Service {
             Service::Requirements => "Configurations requises",
             Service::News => "Actualités des jeux",
             Service::Workshop => "Mods Steam Workshop",
+            Service::Wishlist => "Prix de la liste de souhaits",
         }
     }
 
@@ -62,6 +65,7 @@ impl Service {
             Service::Requirements => "boutique Steam",
             Service::News => "annonces Steam",
             Service::Workshop => "API publique de Steam",
+            Service::Wishlist => "boutique Steam",
         }
     }
 
