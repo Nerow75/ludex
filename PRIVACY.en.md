@@ -2,7 +2,7 @@
 
 [Français](PRIVACY.md) · **English**
 
-Ludex is a local game launcher. It has no account, no server and no telemetry: no usage statistics, no crash report and no identifier of your PC is ever sent. This document lists everything Ludex contacts on the Internet and what it sends there. It is kept up to date from the code (version 0.2.0).
+Ludex is a local game launcher. It has no server and no telemetry and asks for no account (the GOG and Epic Games accounts and the Steam Web API key are optional and off by default): no usage statistics, no crash report and no identifier of your PC is ever sent. This document lists everything Ludex contacts on the Internet and what it sends there. It is kept up to date from the code (version 0.2.0).
 
 ## What Ludex reads on your PC
 
@@ -58,6 +58,33 @@ Every request goes straight from your PC to the service, over HTTPS, without coo
 | --- | --- | --- |
 | `howlongtobeat.com` | After a scan, one request every 1.2 s, each title kept 30 days | A request for a search token (`init`), then the words of the game title; if the search address has changed, the home page and its scripts are read to find it again |
 
+### Optional accounts: GOG and Epic Games (off by default)
+
+Only if you connect these accounts in Settings > Accounts, for the "Not installed" section (games you own that aren't on this PC). You sign in on the store's own page, in a separate private window: Ludex never sees your login or password. It keeps only the store's tokens, encrypted for your Windows account (DPAPI) in `comptes.bin`, never shown to the interface, the log, the Diagnostic or the export. "Sign out" erases the tokens and the list.
+
+| Host | When | Sent |
+| --- | --- | --- |
+| `auth.gog.com`, `embed.gog.com`, `login.gog.com` | Sign-in (GOG's page), then token exchange and renewal | The sign-in code given by GOG, then the refresh token; public client id of GOG Galaxy |
+| `embed.gog.com/user/data/games` | List of your games, read again after 6 h or with "Reload" | GOG's access token |
+| `api.gog.com/products` | Public pages of owned games (kept 30 days), then a game's installer when you click "Install" | GOG game numbers; the access token only to ask for the download link |
+| `*.gog.com` (GOG download servers) | Installer download, after your click on "Install" | Nothing but the address given by GOG |
+| `www.epicgames.com` | Sign-in (Epic's page, in its own window) | What you type on Epic's page, which Ludex doesn't read |
+| `account-public-service-prod03.ol.epicgames.com` | Token exchange, renewal and revocation (on sign-out) | The sign-in code given by Epic, then the refresh token; public client id of the Epic launcher |
+| `library-service.live.use1a.on.epicgames.com` | List of your games, read again after 6 h or with "Reload" | Epic's access token |
+| `catalog-public-service-prod06.ol.epicgames.com` | Owned game details (title, type, platform, image), kept 30 days | Catalog numbers of the games; Epic's access token |
+
+Ludex downloads nothing for Epic: "Install in Epic" opens the Epic launcher on your PC on the game.
+
+### Optional Steam Web API key (none by default)
+
+Without a key, the "Not installed" section shows Steam games already launched on your account, read on your PC (Steam's `localconfig.vdf` and `appinfo.vdf`): nothing is sent. Only if you paste your personal Steam Web API key in Settings > Accounts does Ludex ask Steam for the full list of your games. The key is checked by that same request, then encrypted for your Windows account (DPAPI) in `comptes.bin`, never shown to the interface, the log, the Diagnostic or the export. "Remove key" erases it along with the list.
+
+| Host | When | Sent |
+| --- | --- | --- |
+| `api.steampowered.com/IPlayerService/GetOwnedGames` | When the key is saved, then list read again after 6 h or with "Refresh" | Your Web API key and the Steam ID (SteamID64) of this PC's account |
+
+"Get a key" opens `steamcommunity.com/dev/apikey` in your browser. "Install in Steam" opens Steam on the game (`steam://install/<number>`): Ludex downloads nothing for Steam.
+
 ### Images
 
 These addresses are built by Ludex from a Steam number or an image name; Ludex downloads some images to its cache, the interface shows others directly.
@@ -68,12 +95,14 @@ These addresses are built by Ludex from a Steam number or an image name; Ludex d
 | `store-images.s-microsoft.com` | Covers and background art found in the Microsoft Store | The image address |
 | `clan.akamai.steamstatic.com`, `clan.fastly.steamstatic.com` | Steam news images | The image address |
 | `images.steamusercontent.com` | Workshop mod thumbnails | The thumbnail address |
-| `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images of Epic free games | The image address (resized by the CDN) |
+| `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images of Epic free games, thumbnails of Epic games not installed (Epic account connected) | The image address (resized by the CDN) |
+| `shared.akamai.steamstatic.com` | Headers of Steam games not installed | Image address (with the game's Steam number) |
+| `images.gog-statics.com` | Thumbnails of GOG games not installed (GOG account connected) | The thumbnail address |
 
 ## Never sent
 
 - Your Windows user name, your folder paths, your PC's name.
-- Your Steam account identifier (read from disk to find your playtime, never transmitted).
+- Your Steam account identifier (read from disk to find your playtime), except to `api.steampowered.com` if you save a Steam Web API key.
 - Your playtime, history, favorites, statuses, notes, collections, launch options.
 - The contents of your files, saves or screenshots.
 

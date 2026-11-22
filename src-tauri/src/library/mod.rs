@@ -430,6 +430,7 @@ impl SteamStats {
 
 pub use epic::item_installed;
 pub use steam::account_dir as steam_account_dir;
+pub use steam::{appinfo_file as steam_appinfo_file, local_account_apps as steam_local_account_apps};
 pub use steam::{cloud_storage_file, manifest_installed, read_manifest as read_steam_manifest, steam_root, ManifestState};
 
 /// Scan de toutes les sources (relevés réels des tests).

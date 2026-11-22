@@ -70,7 +70,7 @@ interface Props {
 
 const DEFAULT_SHORTCUT = "Alt+Space";
 /** Services en ligne listés dans « À propos », dans cet ordre (textes dans `settings.about.services`). */
-const ABOUT_SERVICES = ["updates", "steam", "store", "hltb", "saves", "epic", "images"] as const;
+const ABOUT_SERVICES = ["updates", "steam", "store", "hltb", "saves", "epic", "images", "accounts"] as const;
 const MODIFIER_CODES = new Set(["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight", "OSLeft", "OSRight"]);
 
 /** Modificateurs tenus, pour l'aperçu pendant la saisie. */

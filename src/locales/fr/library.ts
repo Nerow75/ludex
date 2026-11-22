@@ -240,6 +240,52 @@ export default {
     checked: (when: string) => `Liste relue ${when}.`,
   },
 
+  // Section « Pas installés » : un groupe par boutique (GOG, Epic, Steam).
+  notInstalled: {
+    title: "Pas installés",
+    subtitle: "Tes jeux qui ne sont pas sur ce PC",
+    filter: "Boutique",
+    all: "Toutes",
+    offNote: (store: string) => `Compte ${store} non connecté.`,
+    expiredNote: (store: string) => `${store} a refusé la connexion enregistrée.`,
+    connect: "Connecter dans les Paramètres",
+    nothing: "Steam introuvable sur ce PC et aucun compte connecté. Connecte GOG ou Epic Games dans les Paramètres pour voir tes jeux pas installés.",
+  },
+
+  steam: {
+    subtitle: "Tes jeux Steam qui ne sont pas sur ce PC",
+    loading: "Lecture de tes jeux Steam…",
+    refreshing: "Lecture de tes jeux Steam…",
+    install: "Installer dans Steam",
+    installLabel: (title: string) => `Installer ${title} dans Steam`,
+    installHint: "Steam s'ouvre sur le jeu : il demande le dossier et télécharge lui-même.",
+    opened: (title: string) => `Steam ouvert pour ${title}`,
+    absent: "Steam n'est pas sur ce PC, ou aucun compte n'y est connu.",
+    localNote: "Liste locale : seulement les jeux déjà lancés sur ce compte Steam. Pour tous tes jeux, ajoute une clé Web API Steam dans les Paramètres.",
+    addKey: "Ajouter une clé",
+    keyRefused: "Steam refuse la clé Web API enregistrée : liste locale en attendant.",
+    fixKey: "Voir dans les Paramètres",
+    summary: (n: number, owned: number) => `${jeux(n)} à installer sur ${frNum(owned)} possédé${s(owned)}.`,
+    allInstalled: (owned: number) => `${jeux(owned)} possédé${s(owned)}, tous installés.`,
+    localSummary: (n: number, known: number) => `${jeux(n)} à installer sur ${frNum(known)} déjà lancé${s(known)} sur ce compte.`,
+    localAllInstalled: (known: number) => `${jeux(known)} déjà lancé${s(known)} sur ce compte, tous installés.`,
+  },
+
+  epic: {
+    subtitle: "Tes jeux Epic Games qui ne sont pas sur ce PC",
+    loading: "Lecture de tes jeux Epic…",
+    refreshing: "Lecture de tes jeux Epic…",
+    install: "Installer dans Epic",
+    installLabel: (title: string) => `Installer ${title} dans le launcher Epic`,
+    installHint: "Le launcher Epic s'ouvre sur le jeu : il demande le dossier et télécharge lui-même.",
+    opened: (title: string) => `Launcher Epic ouvert pour ${title}`,
+    noLauncher: "Le launcher Epic Games n'est pas installé sur ce PC : installe-le pour télécharger ces jeux.",
+    emptyTitle: "Tous tes jeux Epic sont installés",
+    emptyBody: "Les jeux Epic installés sur ce PC sont dans ta bibliothèque.",
+    summary: (n: number, owned: number) => `${jeux(n)} à installer sur ${frNum(owned)} élément${s(owned)} de ta bibliothèque Epic.`,
+    allInstalled: (owned: number) => `${frNum(owned)} élément${s(owned)} dans ta bibliothèque Epic, rien à installer.`,
+  },
+
   history: {
     emptyTitle: "Aucun jeu lancé pour l'instant",
     emptyBody: "Les jeux lancés depuis Ludex ou leur launcher apparaîtront ici, le plus récent en haut",

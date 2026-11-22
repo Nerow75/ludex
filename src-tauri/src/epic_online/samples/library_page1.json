@@ -1,0 +1,13 @@
+{
+ "responseMetadata": { "nextCursor": "curseur-page-2", "stateToken": "jeton-d-etat-fabrique" },
+ "records": [
+  { "namespace": "9773aa1aa54f4f7b80e44bef04986cea", "catalogItemId": "530145df28a24424923f5828cc9031a1", "appName": "Sugar", "productId": "9773aa1aa54f4f7b80e44bef04986cea", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION", "acquisitionDate": "2020-09-23T15:00:00.000Z", "dependencies": [] },
+  { "namespace": "fn", "catalogItemId": "4fe75bbc5a674f4f9b356b5c90567da5", "appName": "Fortnite", "productId": "fn", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION", "acquisitionDate": "2018-03-01T10:00:00.000Z", "dependencies": [] },
+  { "namespace": "fn", "catalogItemId": "4fe75bbc5a674f4f9b356b5c90567da5", "appName": "Fortnite", "productId": "fn", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION" },
+  { "namespace": "ue", "catalogItemId": "4c06a1a0b1f2465aa1e0f2c8b9d7e6f5", "appName": "UE_5.3", "productId": "ue", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION" },
+  { "namespace": "a1b2c3d4e5f60718293a4b5c6d7e8f90", "catalogItemId": "0f9e8d7c6b5a49382716a5b4c3d2e1f0", "appName": "JeuPrive", "productId": "x", "sandboxName": "Dev", "sandboxType": "PRIVATE", "recordType": "APPLICATION" },
+  { "namespace": "a1b2c3d4e5f60718293a4b5c6d7e8f90", "catalogItemId": "11111111111111111111111111111111", "productId": "x", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "ENTITLEMENT" },
+  { "namespace": "a1b2c3d4e5f60718293a4b5c6d7e8f90", "catalogItemId": "22222222222222222222222222222222", "appName": "Nom/avec?barre", "productId": "x", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION" },
+  { "namespace": "d5241c76f178492ea1540fce45616757", "catalogItemId": "c04fd6a7cb4e4d06a40a8da1fe4b3e8d", "appName": "9d2d0eb64d5c44529cece33fe2a46482", "productId": "d5241c76f178492ea1540fce45616757", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION" }
+ ]
+}

@@ -7,6 +7,7 @@ import { diagnostic as getDiagnostic, openLog, scanLibrary, type DiagSource, typ
 import { problems, serviceState, sourceDetail, sourceState, sourceTone } from "../lib/diagnostic";
 import { discordState } from "../lib/discord";
 import { gogDiagState } from "../lib/gog";
+import { epicDiagState, steamKeyDiagState } from "../lib/notInstalled";
 import { relativeTime } from "../lib/format";
 import { t } from "../lib/i18n";
 import { ChevronRightIcon } from "./Icons";
@@ -208,6 +209,36 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
                 <span className="diag__dot" aria-hidden="true" />
                 <span className="diag__name">
                   <span>{t.settings.accounts.diagName}</span>
+                  <small>{t.settings.accounts.diagDetail}</small>
+                </span>
+                <span className="diag__state" title={st.text}>{st.text}</span>
+              </div>
+            </li>
+          );
+        })()}
+        {(() => {
+          const st = epicDiagState(diag.epic);
+          return (
+            <li className={`diag__src is-${st.tone}`}>
+              <div className="diag__head is-static">
+                <span className="diag__dot" aria-hidden="true" />
+                <span className="diag__name">
+                  <span>{t.settings.accounts.epicDiagName}</span>
+                  <small>{t.settings.accounts.diagDetail}</small>
+                </span>
+                <span className="diag__state" title={st.text}>{st.text}</span>
+              </div>
+            </li>
+          );
+        })()}
+        {(() => {
+          const st = steamKeyDiagState(diag.steamKey);
+          return (
+            <li className={`diag__src is-${st.tone}`}>
+              <div className="diag__head is-static">
+                <span className="diag__dot" aria-hidden="true" />
+                <span className="diag__name">
+                  <span>{t.settings.accounts.steamDiagName}</span>
                   <small>{t.settings.accounts.diagDetail}</small>
                 </span>
                 <span className="diag__state" title={st.text}>{st.text}</span>

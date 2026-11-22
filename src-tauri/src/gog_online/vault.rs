@@ -1,7 +1,8 @@
-//! Coffre des jetons du compte GOG : `comptes.bin` du dossier de données de l'app, chiffré par
+//! Coffre des comptes (GOG, Epic, clé Web API Steam) : `comptes.bin` du dossier de données de l'app, chiffré par
 //! DPAPI (`CryptProtectData`, portée de l'utilisateur Windows). Jamais de jeton en clair sur le
 //! disque, dans le journal, le Diagnostic, l'export ni le front : `Session` n'est ni `Serialize`
-//! vers le front ni affichable (`Debug` masqué).
+//! vers le front ni affichable (`Debug` masqué). Un compte par case (`Slot`) : enregistrer ou
+//! effacer une case garde les autres ; le fichier disparaît quand toutes sont vides.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ pub const FILE: &str = "comptes.bin";
 /// appellerait `CryptUnprotectData` sur ce fichier sans elle échoue.
 const ENTROPY: &[u8] = b"ludex-comptes-v1";
 
-/// Jetons du compte GOG, gardés en mémoire et dans le coffre seulement.
+/// Jetons d'un compte (GOG ou Epic), gardés en mémoire et dans le coffre seulement.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
@@ -22,7 +23,7 @@ pub struct Session {
     /// Fin de validité du jeton d'accès (secondes Unix).
     pub expires_at: u64,
     pub user_id: String,
-    /// Pseudo GOG, seule donnée du compte montrée (Paramètres).
+    /// Pseudo du compte, seule donnée montrée (Paramètres).
     #[serde(default)]
     pub username: Option<String>,
 }
@@ -41,7 +42,47 @@ struct Vault {
     version: u32,
     #[serde(default)]
     gog: Option<Session>,
+    #[serde(default)]
+    epic: Option<Session>,
+    /// Clé Web API Steam personnelle (facultative), jamais renvoyée au front.
+    #[serde(default)]
+    steam_key: Option<SteamKey>,
 }
+
+/// Clé Web API Steam : 32 chiffres hexadécimaux, gardée seulement en mémoire et dans le coffre.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SteamKey(pub String);
+
+impl std::fmt::Debug for SteamKey {
+    // Jamais la clé, même dans un message de test.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SteamKey(..)")
+    }
+}
+
+/// Case du coffre : un compte par boutique.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Slot {
+    Gog,
+    Epic,
+}
+
+impl Vault {
+    fn slot(&mut self, slot: Slot) -> &mut Option<Session> {
+        match slot {
+            Slot::Gog => &mut self.gog,
+            Slot::Epic => &mut self.epic,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.gog.is_none() && self.epic.is_none() && self.steam_key.is_none()
+    }
+}
+
+/// Une seule lecture-écriture du coffre à la fois (GOG et Epic écrivent chacun leur case).
+static WRITE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub fn path_in(data_dir: &Path) -> PathBuf {
     data_dir.join(FILE)
@@ -50,20 +91,57 @@ pub fn path_in(data_dir: &Path) -> PathBuf {
 /// Lit la session GOG du coffre. `Ok(None)` : pas de coffre ou pas de compte GOG. Une erreur
 /// (fichier d'un autre utilisateur Windows, altéré) n'est jamais montrée avec son contenu.
 pub fn load(path: &Path) -> Result<Option<Session>, String> {
+    load_slot(path, Slot::Gog)
+}
+
+/// Enregistre la session GOG (`None` l'efface), sans toucher aux autres comptes.
+pub fn save(path: &Path, session: Option<&Session>) -> Result<(), String> {
+    save_slot(path, Slot::Gog, session)
+}
+
+/// Lit le coffre entier. `Ok(None)` : pas de coffre.
+fn read_all(path: &Path) -> Result<Option<Vault>, String> {
     let bytes = match std::fs::read(path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(tr!("Coffre des comptes illisible.", "Accounts vault unreadable.")),
     };
     let plain = unprotect(&bytes)?;
-    let vault: Vault = serde_json::from_slice(&plain).map_err(|_| tr!("Coffre des comptes illisible.", "Accounts vault unreadable."))?;
-    Ok(vault.gog)
+    serde_json::from_slice(&plain).map(Some).map_err(|_| tr!("Coffre des comptes illisible.", "Accounts vault unreadable."))
 }
 
-/// Enregistre la session (tmp + renommage). `None` efface le coffre.
-pub fn save(path: &Path, session: Option<&Session>) -> Result<(), String> {
-    let Some(session) = session else { return erase(path) };
-    let plain = serde_json::to_vec(&Vault { version: 1, gog: Some(session.clone()) }).map_err(|_| tr!("Coffre des comptes impossible à écrire.", "Couldn't write the accounts vault."))?;
+/// Session d'une case du coffre.
+pub fn load_slot(path: &Path, slot: Slot) -> Result<Option<Session>, String> {
+    Ok(read_all(path)?.and_then(|mut v| v.slot(slot).take()))
+}
+
+/// Enregistre une case (`None` l'efface) : relit le coffre, garde les autres cases, réécrit
+/// (tmp + renommage). Un coffre illisible est remplacé (ses comptes l'étaient déjà). Toutes les
+/// cases vides : fichier effacé.
+pub fn save_slot(path: &Path, slot: Slot, session: Option<&Session>) -> Result<(), String> {
+    update(path, |vault| *vault.slot(slot) = session.cloned())
+}
+
+/// Clé Web API Steam du coffre. `Ok(None)` : pas de coffre ou pas de clé.
+pub fn load_steam_key(path: &Path) -> Result<Option<SteamKey>, String> {
+    Ok(read_all(path)?.and_then(|v| v.steam_key))
+}
+
+/// Enregistre la clé Web API Steam (`None` l'efface), sans toucher aux comptes.
+pub fn save_steam_key(path: &Path, key: Option<&SteamKey>) -> Result<(), String> {
+    update(path, |vault| vault.steam_key = key.cloned())
+}
+
+/// Relit le coffre, applique `change`, réécrit (ou efface s'il est vide).
+fn update(path: &Path, change: impl FnOnce(&mut Vault)) -> Result<(), String> {
+    let _guard = WRITE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut vault = read_all(path).ok().flatten().unwrap_or_default();
+    change(&mut vault);
+    if vault.is_empty() {
+        return erase(path);
+    }
+    vault.version = 1;
+    let plain = serde_json::to_vec(&vault).map_err(|_| tr!("Coffre des comptes impossible à écrire.", "Couldn't write the accounts vault."))?;
     let sealed = protect(&plain)?;
     let tmp = path.with_extension("bin.tmp");
     let write = std::fs::write(&tmp, &sealed).and_then(|_| std::fs::rename(&tmp, path));
@@ -192,6 +270,46 @@ mod tests {
         let sealed = std::fs::read(&path).unwrap();
         assert!(unprotect(&sealed).is_ok());
         assert!(dpapi_without_entropy(&sealed).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn slots_are_kept_apart() {
+        let dir = temp_dir("cases");
+        let path = path_in(&dir);
+        let mut epic = session();
+        epic.user_id = "0123456789abcdef0123456789abcdef".into();
+        save(&path, Some(&session())).unwrap();
+        save_slot(&path, Slot::Epic, Some(&epic)).unwrap();
+        assert_eq!(load(&path).unwrap(), Some(session()));
+        assert_eq!(load_slot(&path, Slot::Epic).unwrap(), Some(epic.clone()));
+        // Déconnexion de GOG : Epic reste.
+        save(&path, None).unwrap();
+        assert!(path.exists());
+        assert_eq!(load(&path).unwrap(), None);
+        assert_eq!(load_slot(&path, Slot::Epic).unwrap(), Some(epic));
+        save_slot(&path, Slot::Epic, None).unwrap();
+        assert!(!path.exists(), "coffre vide effacé");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn steam_key_lives_beside_accounts() {
+        let dir = temp_dir("cle-steam");
+        let path = path_in(&dir);
+        let key = SteamKey("0123456789ABCDEF0123456789ABCDEF".into());
+        save_steam_key(&path, Some(&key)).unwrap();
+        let raw = std::fs::read(&path).unwrap();
+        assert!(!String::from_utf8_lossy(&raw).contains("0123456789ABCDEF"), "clé en clair dans le coffre");
+        save(&path, Some(&session())).unwrap();
+        assert_eq!(load_steam_key(&path).unwrap(), Some(key.clone()));
+        // Clé retirée : le compte GOG reste ; plus rien = coffre effacé.
+        save_steam_key(&path, None).unwrap();
+        assert_eq!(load_steam_key(&path).unwrap(), None);
+        assert_eq!(load(&path).unwrap(), Some(session()));
+        save(&path, None).unwrap();
+        assert!(!path.exists());
+        assert!(!format!("{key:?}").contains("0123"));
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -971,7 +971,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog" | "epicfree";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog" | "epicfree" | "epic" | "steam";
 export interface DiagService {
   id: DiagServiceId;
   label: string;
@@ -1001,6 +1001,10 @@ export interface Diagnostic {
   discord: DiscordStatus;
   /** Compte GOG connecté ou non (jamais d'identifiant). */
   gog: GogAccountState;
+  /** Compte Epic connecté ou non (jamais d'identifiant). */
+  epic: GogAccountState;
+  /** Clé Web API Steam enregistrée ou non (jamais la clé). */
+  steamKey: GogAccountState;
   /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier, terminé par les
    * 50 dernières lignes du journal d'erreurs. */
   report: string;
@@ -1309,3 +1313,70 @@ export const onGogAccount = (handler: (account: GogAccount) => void): Promise<Un
   listen<GogAccount>("gog-account", (e) => handler(e.payload));
 export const onGogInstall = (handler: (progress: GogProgress) => void): Promise<UnlistenFn> =>
   listen<GogProgress>("gog-install", (e) => handler(e.payload));
+
+// Compte Epic facultatif (`epic_online`) : même modèle que GOG (état et pseudo seulement, aucun
+// jeton). Installation confiée au launcher Epic ; le front n'envoie qu'un `appName` d'Epic.
+export interface EpicGame {
+  /** `appName` d'Epic. */
+  id: string;
+  title: string;
+  /** Vignette 16:9 du CDN d'Epic (`cdn1.epicgames.com`, `cdn2.unrealengine.com`), `null` si absente. */
+  imageUrl: string | null;
+}
+export interface EpicLibrary {
+  account: GogAccount;
+  games: EpicGame[];
+  /** Entrées de la bibliothèque (DLC et contenus compris). */
+  owned: number;
+  checked: number | null;
+  error: string | null;
+  /** Launcher Epic installé (sinon « Installer » ne peut rien ouvrir). */
+  launcher: boolean;
+}
+export const epicAccount = () => invoke<GogAccount>("epic_account");
+export const epicLogin = () => invoke<GogAccount>("epic_login");
+export const epicLogout = () => invoke<GogAccount>("epic_logout");
+export const epicLibrary = (refresh: boolean) => invoke<EpicLibrary>("epic_library", { refresh });
+/** Ouvre le launcher Epic sur l'installation du jeu (URI reconstruite côté Rust). */
+export const epicInstall = (id: string) => invoke<void>("epic_install", { id });
+export const onEpicAccount = (handler: (account: GogAccount) => void): Promise<UnlistenFn> =>
+  listen<GogAccount>("epic-account", (e) => handler(e.payload));
+
+// Jeux Steam possédés pas installés (`steam_owned`) : liste locale sans compte (jeux déjà lancés
+// sur le compte de ce PC), ou liste complète avec une clé Web API Steam facultative. La clé ne
+// revient jamais au front : seulement son état. Le front n'envoie qu'un appid numérique.
+export interface SteamKeyView {
+  state: GogAccountState;
+  error: string | null;
+}
+export interface SteamGame {
+  /** Appid Steam. */
+  id: number;
+  title: string;
+  /** En-tête de la boutique Steam (`header.jpg`). */
+  imageUrl: string;
+}
+export interface SteamOwnedLibrary {
+  key: SteamKeyView;
+  /** `local` : `localconfig.vdf` ; `key` : `GetOwnedGames` avec la clé. */
+  source: "local" | "key";
+  games: SteamGame[];
+  /** Jeux de la liste avant de retirer ceux qui sont installés. */
+  owned: number;
+  /** Dernière lecture de la liste complète, `null` pour la liste locale. */
+  checked: number | null;
+  error: string | null;
+  /** Steam installé et un compte connu sur ce PC. */
+  steam: boolean;
+}
+export const steamOwned = (refresh: boolean) => invoke<SteamOwnedLibrary>("steam_owned", { refresh });
+export const steamKey = () => invoke<SteamKeyView>("steam_key");
+/** Vérifie la clé auprès de Steam puis l'enregistre (chiffrée côté Rust) ; erreur = rien d'enregistré. */
+export const steamKeySave = (key: string) => invoke<SteamOwnedLibrary>("steam_key_save", { key });
+export const steamKeyRemove = () => invoke<SteamOwnedLibrary>("steam_key_remove");
+/** Ouvre la page de Steam où l'utilisateur crée sa clé (adresse fixée côté Rust). */
+export const steamKeyPage = () => invoke<void>("steam_key_page");
+/** Ouvre Steam sur l'installation du jeu (`steam://install/<appid>` reconstruite côté Rust). */
+export const steamInstall = (appid: number) => invoke<void>("steam_install", { appid });
+export const onSteamKey = (handler: (key: SteamKeyView) => void): Promise<UnlistenFn> =>
+  listen<SteamKeyView>("steam-key", (e) => handler(e.payload));

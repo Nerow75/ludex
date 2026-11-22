@@ -222,6 +222,21 @@ pub fn stats_location() -> Option<(PathBuf, u64)> {
     Some((root.join("appcache").join("stats"), account))
 }
 
+/// Section « Pas installés » : SteamID64 du compte retenu pour le temps de jeu et appids que
+/// `localconfig.vdf` connaît pour lui (applications déjà lancées ou ouvertes sur ce compte,
+/// installées ou non ; ni jeux, ni DLC, ni outils triés ici).
+pub fn local_account_apps() -> Option<(u64, Vec<u32>)> {
+    let localconfig = localconfig_path(&steam_root()?)?;
+    let id3 = account_of(&localconfig)?;
+    let apps = playtimes(&localconfig)?.into_keys().filter_map(|k| k.parse::<u32>().ok()).filter(|&a| a > 0).collect();
+    Some((id3.checked_add(STEAMID64_BASE)?, apps))
+}
+
+/// Fichier `appcache/appinfo.vdf` du client Steam (noms et types des applications).
+pub fn appinfo_file() -> Option<PathBuf> {
+    Some(steam_root()?.join("appcache").join("appinfo.vdf"))
+}
+
 /// Temps de jeu d'une application dans `localconfig.vdf`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AppTimes {
