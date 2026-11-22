@@ -164,9 +164,9 @@ describe("mode canapé en anglais", () => {
 
 describe("particules du fond", () => {
   it("sont fixes d'un rendu à l'autre et restent discrètes", () => {
-    const a = dustParticles(18);
-    expect(a).toEqual(dustParticles(18));
-    expect(a).toHaveLength(18);
+    const a = dustParticles(26);
+    expect(a).toEqual(dustParticles(26));
+    expect(a).toHaveLength(26);
     for (const p of a) {
       expect(p.left).toBeGreaterThanOrEqual(0);
       expect(p.left).toBeLessThan(100);
@@ -177,8 +177,8 @@ describe("particules du fond", () => {
       expect(p.delay).toBeGreaterThanOrEqual(0);
       expect(p.delay).toBeLessThan(p.duration);
       expect(Math.abs(p.drift)).toBeLessThanOrEqual(6);
-      expect(p.opacity).toBeGreaterThanOrEqual(0.18);
-      expect(p.opacity).toBeLessThanOrEqual(0.4);
+      expect(p.opacity).toBeGreaterThanOrEqual(0.3);
+      expect(p.opacity).toBeLessThanOrEqual(0.6);
     }
     // Réparties sur la largeur : aucune moitié vide.
     expect(a.filter((p) => p.left < 50).length).toBeGreaterThan(5);

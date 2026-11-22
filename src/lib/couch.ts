@@ -190,7 +190,7 @@ export function dustParticles(count: number): Dust[] {
       duration,
       delay: Math.round(((i * 0.414) % 1) * duration * 10) / 10,
       drift: Math.round((a - 0.5) * 120) / 10,
-      opacity: Math.round((0.18 + b * 0.22) * 100) / 100,
+      opacity: Math.round((0.3 + b * 0.3) * 100) / 100,
     };
   });
 }

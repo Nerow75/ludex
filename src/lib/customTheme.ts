@@ -212,8 +212,11 @@ export function deriveTheme(base: ThemeBase, colors: ThemeColors): DerivedTheme 
   const backs = [bg, surface, surface2];
   const text = ensureContrast(chosenText, backs, T);
   note("text", text, T, chosenText);
-  const text2 = ensureContrast(mix(text.hex, bg, 0.15), backs, T).hex;
-  const muted = ensureContrast(mix(text.hex, bg, 0.45), backs, T);
+  // Textes secondaire et discret jamais plus marqués que le texte principal (texte corrigé au seuil :
+  // tous les trois au seuil plutôt qu'une hiérarchie inversée).
+  const capped = (f: Fixed): Fixed => (minContrast(f.hex, backs) > minContrast(text.hex, backs) ? { ...f, hex: text.hex, ratio: text.ratio } : f);
+  const text2 = capped(ensureContrast(mix(text.hex, bg, 0.15), backs, T)).hex;
+  const muted = capped(ensureContrast(mix(text.hex, bg, 0.45), backs, T));
   note("muted", muted, T, mix(text.hex, bg, 0.45));
   // Contraste élevé : contours visibles à 3:1 comme ceux de la palette d'origine.
   const border = base === "contrast" ? ensureContrast(mix(surface, text.hex, 0.6), backs, 3).hex : mix(surface, text.hex, 0.12);

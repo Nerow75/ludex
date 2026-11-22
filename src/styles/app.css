@@ -1461,12 +1461,12 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 }
 /* Fonds animés (réglage « Fond du mode canapé », CouchBackdrop.tsx) : transform et opacity seulement
    (composés par la carte graphique), en pause page cachée ; la règle commune du mouvement réduit les
-   coupe, les particules disparaissent. Dérive et respiration sous le fondu, particules au-dessus. */
+   coupe, les particules disparaissent. Dérive sous le fondu, respiration (derrière les rangées) et particules au-dessus. */
 .couch__backdrop[data-backdrop="drift"] { overflow: hidden; }
 .couch__backdrop[data-backdrop="drift"] .couch__art { animation: couch-drift 48s ease-in-out infinite alternate; will-change: transform; }
 .couch__breathe {
-  position: absolute; inset: 0; opacity: .2; will-change: opacity;
-  background: radial-gradient(60% 75% at 78% 28%, color-mix(in srgb, var(--lx-ambient) 60%, transparent), transparent 72%);
+  position: absolute; inset: 0; z-index: 1; opacity: .25; will-change: opacity; pointer-events: none;
+  background: radial-gradient(70% 55% at 30% 100%, color-mix(in srgb, var(--lx-ambient) 55%, transparent), transparent 75%);
   animation: couch-breathe 9s ease-in-out infinite alternate;
 }
 .couch__dust { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
@@ -1476,14 +1476,14 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 }
 .couch__backdrop.is-paused :is(.couch__art, .couch__breathe, .couch__dust i) { animation-play-state: paused; }
 @keyframes couch-drift { from { transform: scale(1.06) translate3d(-1.5%, -1%, 0); } to { transform: scale(1.12) translate3d(1.5%, 1%, 0); } }
-@keyframes couch-breathe { to { opacity: .55; } }
+@keyframes couch-breathe { to { opacity: .6; } }
 @keyframes couch-dust {
   10%, 80% { opacity: var(--o); }
   to { transform: translate3d(var(--x), -105vh, 0); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .couch__dust { display: none; }
-  .couch__breathe { opacity: .35; }
+  .couch__breathe { opacity: .4; }
 }
 .couch__top { display: flex; align-items: center; gap: 24px; padding: clamp(20px, 2.2vw, 48px) var(--couch-gutter) 0; }
 .couch__brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 600; font-size: 1.1em; }
@@ -1820,6 +1820,9 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 }
 .swatch:hover { border-color: var(--lx-text-3); }
 .swatch:active { transform: scale(.96); }
+.swatch:disabled { opacity: .4; cursor: default; }
+.swatch:disabled:hover { border-color: var(--lx-border); }
+.swatch:disabled:active { transform: none; }
 .swatch[aria-checked="true"] { border: 2px solid var(--lx-text); }
 .swatch:focus-visible { outline-offset: 3px; }
 .swatch > span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--lx-accent); color: var(--lx-on-accent); }

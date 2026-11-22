@@ -89,6 +89,9 @@ describe("thème calculé", () => {
     expectReadable("dark", d.vars);
     const text = d.checks.find((c) => c.key === "text")!;
     expect(text).toMatchObject({ status: "fixed", from: "#555555" });
+    // Hiérarchie gardée : secondaire et discret jamais plus marqués que le texte.
+    const backs = [d.vars["--lx-bg"], d.vars["--lx-surface"], d.vars["--lx-surface-2"]];
+    for (const v of ["--lx-text-2", "--lx-text-3"]) expect(minContrast(d.vars[v], backs)).toBeLessThanOrEqual(minContrast(d.vars["--lx-text"], backs));
     expect(d.checks.find((c) => c.key === "accent")!.status).toBe("fixed");
     // Papier clair, accent jaune pâle.
     const paper = deriveTheme("light", { bg: "#F5F0E6", surface: "#EAE3D6", text: "#3A3A3A", accent: "#F5D76E" });
