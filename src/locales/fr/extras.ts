@@ -141,7 +141,7 @@ export default {
     errorTitle: "Vitrine indisponible",
     errorText: "Les succès n'ont pas pu être lus. Réessaie après un rescan (F5)",
     emptyTitle: "Aucun succès pour l'instant",
-    emptyText: "Les succès des jeux Steam déjà lancés apparaîtront ici",
+    emptyText: "Les succès des jeux Steam déjà lancés, et ceux des jeux GOG avec le compte GOG connecté, apparaîtront ici",
     title: "Vitrine",
     unlocked: "Succès débloqués",
     progress: "Progression",

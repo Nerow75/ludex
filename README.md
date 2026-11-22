@@ -9,7 +9,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 ## Principes
 
 - **Lecture locale** : Ludex lit les fichiers et le registre des launchers installés, en lecture seule. Le jeu est toujours lancé par son launcher d'origine (ou par son exécutable quand il n'en a pas).
-- **Aucun compte** : aucune connexion à Steam, Epic, GOG ou autre. Ludex ne demande ni identifiant ni jeton.
+- **Aucun compte obligatoire** : rien à connecter pour trouver et lancer tes jeux. Seul le compte GOG peut être connecté, si tu le veux (jeux pas encore installés, succès GOG) ; Ludex ne voit jamais ton mot de passe.
 - **Aucune télémétrie** : ni statistiques d'usage, ni rapport de plantage envoyé. Les quelques services publics contactés (images, fiches, durées de vie, mises à jour) sont listés plus bas, avec ce qui leur est envoyé.
 - **Tes données restent chez toi** : favoris, collections, notes, temps de jeu mesuré et réglages sont dans `%APPDATA%\com.ludex.app`. Tu peux les exporter dans une archive pour changer de PC.
 
@@ -34,7 +34,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 
 - Bibliothèque en grille ou en liste, tris, filtres par launcher, genre, tag et ambiance, recherche tolérante aux fautes (« gta5 », « fm20 », « rocet »).
 - Accueil « Pour toi » : jeu du soir, parties à reprendre, idées par ambiance, pile de jeux pas encore lancés.
-- Fiche de chaque jeu : temps de jeu, sessions, succès Steam, captures, sauvegardes, configuration requise comparée à ton PC, actualités, mods, performances.
+- Fiche de chaque jeu : temps de jeu, sessions, succès Steam et GOG, captures, sauvegardes, configuration requise comparée à ton PC, actualités, mods, performances.
 - Temps de jeu mesuré par Ludex pour les launchers qui n'en gardent pas (Epic, Ubisoft, Riot, Xbox…), historique, journal, récap de la semaine, du mois et de l'année, statistiques.
 - Copie automatique des sauvegardes en fin de partie (emplacements de la base communautaire Ludusavi) et restauration.
 - Mode canapé pour la TV, entièrement à la manette.
@@ -110,7 +110,7 @@ Ludex vérifie les nouvelles versions 8 secondes après son ouverture, puis tout
 
 ## Confidentialité
 
-Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulement les services publics ci-dessous, sans identifiant, et toujours depuis ton PC (aucun serveur de Ludex au milieu). Chaque service voit ton adresse IP, comme pour toute connexion. Le détail, requête par requête, est dans [PRIVACY.md](PRIVACY.md).
+Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulement les services ci-dessous, sans identifiant (sauf le compte GOG si tu le connectes), et toujours depuis ton PC (aucun serveur de Ludex au milieu). Chaque service voit ton adresse IP, comme pour toute connexion. Le détail, requête par requête, est dans [PRIVACY.md](PRIVACY.md).
 
 | Service | Pourquoi | Ce qui est envoyé |
 | --- | --- | --- |
@@ -121,6 +121,7 @@ Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulem
 | `displaycatalog.mp.microsoft.com` | Jaquettes des jeux absents de Steam | Titres de ces jeux |
 | `howlongtobeat.com` | Durée de vie | Titres des jeux |
 | CDN d'images de Steam et du Microsoft Store | Jaquettes, images, vignettes | Adresse de chaque image |
+| `auth.gog.com`, `embed.gog.com`, `api.gog.com`, `gameplay.gog.com` (compte GOG connecté seulement) | Jeux GOG pas installés, installation, succès GOG | Jeton du compte, numéros GOG des jeux |
 
 Jamais envoyés : nom d'utilisateur Windows, chemins de dossiers, identifiant de compte Steam, temps de jeu, favoris, notes, collections, contenu de tes fichiers. Le journal d'erreurs et le rapport de diagnostic restent sur ton PC (le rapport n'est copié que si tu cliques sur « Copier le rapport », et il est anonymisé).
 

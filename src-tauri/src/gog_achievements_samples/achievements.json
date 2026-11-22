@@ -1,0 +1,75 @@
+{
+  "total_count": 6,
+  "limit": 1000,
+  "page_token": "",
+  "items": [
+    {
+      "achievement_id": "53851467093591290",
+      "achievement_key": "FIRST_BLOOD",
+      "visible": true,
+      "name": "Premier sang",
+      "description": "Gagner le premier combat.",
+      "image_url_unlocked": "https://images-1.gog-statics.com/0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0_gac_60.png",
+      "image_url_locked": "https://images.gog-statics.com/aaaa_gac_60.png",
+      "date_unlocked": "2019-10-23T14:55:25+00:00",
+      "rarity": 62.5,
+      "rarity_level_description": "Common",
+      "rarity_level_slug": "common"
+    },
+    {
+      "achievement_id": "53851467093591291",
+      "achievement_key": "EXPLORER",
+      "visible": true,
+      "name": "Explorateur",
+      "description": "Visiter toutes les régions.",
+      "image_url_unlocked": "https://evil.example.com/x.png",
+      "image_url_locked": "https://images.gog-statics.com/bbbb.png?track=1",
+      "date_unlocked": "2020-09-13T14:26:40+0200",
+      "rarity": 140,
+      "rarity_level_description": "Rare",
+      "rarity_level_slug": "rare"
+    },
+    {
+      "achievement_id": "53851467093591292",
+      "achievement_key": "SECRET_END",
+      "visible": false,
+      "name": "  Le\u0007   secret ",
+      "description": "Voir la fin cachée.",
+      "image_url_unlocked": "https://images.gog-statics.com/cccc_gac_60.png",
+      "image_url_locked": "https://images.gog-statics.com/dddd_gac_60.png",
+      "date_unlocked": null,
+      "rarity": 1.2,
+      "rarity_level_description": "Ultra rare",
+      "rarity_level_slug": "ultra_rare"
+    },
+    {
+      "achievement_id": "",
+      "achievement_key": "",
+      "visible": true,
+      "name": "Sans clé",
+      "description": "",
+      "image_url_unlocked": "",
+      "image_url_locked": "",
+      "date_unlocked": null,
+      "rarity": 5
+    },
+    {
+      "achievement_id": "53851467093591293",
+      "achievement_key": "FIRST_BLOOD",
+      "visible": true,
+      "name": "Doublon",
+      "description": "",
+      "date_unlocked": null,
+      "rarity": 5
+    },
+    {
+      "achievement_id": 12345,
+      "visible": true,
+      "name": "",
+      "description": null,
+      "date_unlocked": null,
+      "rarity": 30
+    }
+  ],
+  "achievements_mode": "all_visible"
+}

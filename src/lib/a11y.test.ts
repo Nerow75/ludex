@@ -26,7 +26,7 @@ describe("cardLabel", () => {
   });
 
   it("ajoute favori et pourcentage des succès", () => {
-    const g = jeu({ title: "Hades", favorite: true, achievements: { unlocked: 40, total: 50, lastUnlocked: null } });
+    const g = jeu({ title: "Hades", favorite: true, achievements: { store: "steam", unlocked: 40, total: 50, lastUnlocked: null } });
     expect(cardLabel(g, false, "12 h")).toBe("Hades, Steam, favori, 12 h, succès 80 %");
   });
 
@@ -51,7 +51,7 @@ describe("rowLabel", () => {
       favorite: true,
       playtimeMinutes: 720,
       lastPlayed: now - 2 * 86400,
-      achievements: { unlocked: 40, total: 49, lastUnlocked: null },
+      achievements: { store: "steam", unlocked: 40, total: 49, lastUnlocked: null },
     });
     expect(rowLabel(g, false)).toBe("Hades, favori, Steam, temps de jeu 12 h, joué il y a 2 jours, succès 40 / 49");
   });
@@ -61,7 +61,7 @@ describe("rowLabel", () => {
   });
 
   it("partie en cours et succès vides écartés", () => {
-    const g = jeu({ title: "Portal", playtimeMinutes: 0, achievements: { unlocked: 0, total: 0, lastUnlocked: null } });
+    const g = jeu({ title: "Portal", playtimeMinutes: 0, achievements: { store: "steam", unlocked: 0, total: 0, lastUnlocked: null } });
     expect(rowLabel(g, true)).toBe("Portal, en jeu, Steam, jamais lancé");
   });
 });
@@ -118,7 +118,7 @@ describe("en anglais", () => {
   });
   it("cardLabel", () => {
     setLang("en");
-    const g = jeu({ title: "Hades", favorite: true, achievements: { unlocked: 40, total: 50, lastUnlocked: null } });
+    const g = jeu({ title: "Hades", favorite: true, achievements: { store: "steam", unlocked: 40, total: 50, lastUnlocked: null } });
     expect(cardLabel(g, false, "12 h")).toBe("Hades, Steam, favorite, 12 h, achievements 80%");
     expect(cardLabel(jeu({ title: "Hades", platform: "other" }), true, "")).toBe("Hades, Other, in game");
     const apex = jeu({ title: "Apex", installState: { kind: "updating", progress: 42 } });
@@ -131,7 +131,7 @@ describe("en anglais", () => {
       favorite: true,
       playtimeMinutes: 720,
       lastPlayed: now - 2 * 86400,
-      achievements: { unlocked: 40, total: 49, lastUnlocked: null },
+      achievements: { store: "steam", unlocked: 40, total: 49, lastUnlocked: null },
     });
     expect(rowLabel(g, false)).toBe("Hades, favorite, Steam, playtime 12 h, played 2 days ago, achievements 40 / 49");
     expect(rowLabel(jeu({ title: "Portal" }), true)).toBe("Portal, in game, Steam, never launched");

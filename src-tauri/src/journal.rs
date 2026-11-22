@@ -258,6 +258,7 @@ mod tests {
 
     fn ach(api: &str, at: Option<u64>) -> Achievement {
         Achievement {
+            store: crate::library::AchievementStore::Steam,
             api_name: api.into(),
             name: api.to_lowercase(),
             description: None,

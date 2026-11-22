@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { withStore } from "../lib/achievements";
 import { showcase, type Showcase, type ShowcaseUnlock } from "../lib/api";
 import { formatAchievements, formatDate, formatPercent, relativeTime } from "../lib/format";
 import { t } from "../lib/i18n";
@@ -15,7 +16,7 @@ function unlockTitle(u: ShowcaseUnlock): string | undefined {
 }
 
 /**
- * Section « Vitrine » : succès Steam débloqués, jeux à 100 %, podium des trois succès les plus rares
+ * Section « Vitrine » : succès Steam et GOG débloqués (boutique nommée sur chaque ligne), jeux à 100 %, podium des trois succès les plus rares
  * puis la suite du top 10, derniers déblocages. Un clic ouvre la fiche du jeu.
  */
 export function ShowcaseView({ games, openGame }: SectionContext) {
@@ -83,7 +84,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
                       <span className="podium__rank">{i + 1}</span>
                       <AchievementIcon src={u.icon} className="ach-icon--l" />
                       <span className="podium__name">{u.name}</span>
-                      <span className="podium__game">{u.gameTitle}</span>
+                      <span className="podium__game">{withStore(u.gameTitle, u.store)}</span>
                       {u.percent !== null && <span className="podium__pct">{formatPercent(u.percent)}</span>}
                     </button>
                   </li>
@@ -119,7 +120,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
                       >
                         {game ? <Cover game={game} className="vitrine__cover" /> : <AchievementIcon src={null} />}
                         <span className="vitrine__name">{p.gameTitle}</span>
-                        <span className="vitrine__meta">{text.count(p.total)}</span>
+                        <span className="vitrine__meta">{withStore(text.count(p.total), p.store)}</span>
                         <span className="vitrine__side">{p.completedAt ? relativeTime(p.completedAt) : ""}</span>
                       </button>
                     </li>
@@ -153,7 +154,7 @@ function UnlockRow({ u, rank, side, onOpen }: { u: ShowcaseUnlock; rank?: number
       {rank !== undefined && <span className="vitrine__rank">{rank}</span>}
       <AchievementIcon src={u.icon} />
       <span className="vitrine__name">{u.name}</span>
-      <span className="vitrine__meta">{u.gameTitle}</span>
+      <span className="vitrine__meta">{withStore(u.gameTitle, u.store)}</span>
       <span className="vitrine__side">{side}</span>
     </button>
   );

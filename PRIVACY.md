@@ -2,7 +2,7 @@
 
 **Français** · [English](PRIVACY.en.md)
 
-Ludex est un lanceur de jeux local. Il n'a ni compte, ni serveur, ni télémétrie : aucune statistique d'usage, aucun rapport de plantage, aucun identifiant de ton PC n'est envoyé. Ce document liste tout ce que Ludex contacte sur Internet et ce qu'il y envoie. Il est tenu à jour à partir du code (version 0.2.0).
+Ludex est un lanceur de jeux local. Il n'a ni serveur ni télémétrie, et aucun compte n'est demandé (seul le compte GOG, facultatif, peut être connecté) : aucune statistique d'usage, aucun rapport de plantage, aucun identifiant de ton PC n'est envoyé. Ce document liste tout ce que Ludex contacte sur Internet et ce qu'il y envoie. Il est tenu à jour à partir du code (version 0.2.0).
 
 ## Ce que Ludex lit sur ton PC
 
@@ -51,6 +51,19 @@ Toutes les requêtes partent directement de ton PC vers le service, en HTTPS, sa
 | Hôte | Quand | Envoyé |
 | --- | --- | --- |
 | `howlongtobeat.com` | Après un scan, une requête toutes les 1,2 s, chaque titre gardé 30 jours | Une demande de jeton de recherche (`init`), puis les mots du titre du jeu ; si l'adresse de recherche a changé, lecture de la page d'accueil et de ses scripts pour la retrouver |
+
+### Compte GOG (facultatif, coupé par défaut)
+
+Seulement si tu connectes ton compte GOG dans les Paramètres (section « Comptes »). Ta connexion se fait dans une fenêtre de GOG : Ludex ne voit jamais ton mot de passe. Les jetons de GOG restent chiffrés sur ton PC (DPAPI de Windows) et ne sont envoyés qu'à GOG ; « Se déconnecter » les efface.
+
+| Hôte | Quand | Envoyé |
+| --- | --- | --- |
+| `auth.gog.com` | À la connexion, puis quand le jeton expire | Code de connexion donné par GOG, puis jeton de rafraîchissement ; identifiant public du client GOG Galaxy |
+| `embed.gog.com` | Section « Pas installés », relue après 6 h ou par « Relire » | Jeton du compte |
+| `api.gog.com` | Fiches des jeux possédés (gardées 30 jours) ; installeur d'un jeu quand tu cliques sur « Installer » | Numéros GOG des jeux ; jeton du compte pour le lien de téléchargement |
+| CDN de GOG (`*.gog.com`) | Téléchargement d'un installeur que tu as demandé | Adresse donnée par GOG |
+| `gameplay.gog.com` | Succès des jeux GOG installés : après un scan, une fois par jour au plus par jeu (plus tôt si tu y as joué depuis), et à l'ouverture de l'onglet Succès s'ils ont plus de 10 min | Jeton du compte, ton numéro de compte GOG, numéro GOG du jeu, langue |
+| `images.gog-statics.com`, `images.gog.com` | Vignettes des jeux et icônes des succès | Adresse de l'image |
 
 ### Images
 

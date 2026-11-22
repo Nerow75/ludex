@@ -346,7 +346,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
     const lines: { font: string; color: string; text: string; size: number }[] = [
       { font: `500 32px ${c.body}`, color: c.accent, text: t.activity.story.rarest, size: 32 },
       { font: `600 46px ${c.body}`, color: c.onArt, text: rare.name, size: 46 },
-      { font: `400 34px ${c.body}`, color: c.onArt2, text: rarityText(rare.percent), size: 34 },
+      { font: `400 34px ${c.body}`, color: c.onArt2, text: rarityText(rare.percent, rare.store), size: 34 },
       ...(gameTitle ? [{ font: `400 34px ${c.body}`, color: c.onArt2, text: gameTitle, size: 34 }] : []),
     ];
     const textH = lines.reduce((h, l) => h + l.size * 1.3, 0);

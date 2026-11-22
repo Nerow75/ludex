@@ -119,11 +119,11 @@ describe("selectGames : tri", () => {
     expect(titres(selectGames([sansFiche, ancien, sansDate, recent], "all", "year", ""))).toEqual(["Récent", "Ancien", "A sans date", "B sans fiche"]);
   });
   it("Avancement des succès : le plus avancé d'abord, plus de succès à égalité, sans succès en dernier", () => {
-    const moitie = jeu({ title: "Moitié", achievements: { unlocked: 5, total: 10, lastUnlocked: null } });
-    const moitieGrand = jeu({ title: "Moitié grand", achievements: { unlocked: 50, total: 100, lastUnlocked: null } });
-    const fini = jeu({ title: "Fini", achievements: { unlocked: 12, total: 12, lastUnlocked: null } });
-    const zero = jeu({ title: "Zéro", achievements: { unlocked: 0, total: 30, lastUnlocked: null } });
-    const vide = jeu({ title: "A total nul", achievements: { unlocked: 0, total: 0, lastUnlocked: null } });
+    const moitie = jeu({ title: "Moitié", achievements: { store: "steam", unlocked: 5, total: 10, lastUnlocked: null } });
+    const moitieGrand = jeu({ title: "Moitié grand", achievements: { store: "steam", unlocked: 50, total: 100, lastUnlocked: null } });
+    const fini = jeu({ title: "Fini", achievements: { store: "steam", unlocked: 12, total: 12, lastUnlocked: null } });
+    const zero = jeu({ title: "Zéro", achievements: { store: "steam", unlocked: 0, total: 30, lastUnlocked: null } });
+    const vide = jeu({ title: "A total nul", achievements: { store: "steam", unlocked: 0, total: 0, lastUnlocked: null } });
     const aucun = jeu({ title: "B aucun" });
     expect(titres(selectGames([aucun, zero, moitie, vide, fini, moitieGrand], "all", "achievements", ""))).toEqual([
       "Fini",
@@ -192,7 +192,7 @@ describe("selectGames : filtre, facettes et recherche", () => {
 });
 
 describe("achievementPercent et sortMeta", () => {
-  const succes = (unlocked: number, total: number) => ({ unlocked, total, lastUnlocked: null });
+  const succes = (unlocked: number, total: number) => ({ store: "steam" as const, unlocked, total, lastUnlocked: null });
 
   it("pourcentage entier arrondi vers le bas, 100 seulement si tout est débloqué", () => {
     expect(achievementPercent(jeu({ achievements: succes(1, 3) }))).toBe(33);
@@ -320,7 +320,7 @@ describe("en anglais", () => {
     const g = jeu({
       sizeOnDisk: 2.5e9,
       playtimeMinutes: 90,
-      achievements: { unlocked: 3, total: 10, lastUnlocked: null },
+      achievements: { store: "steam", unlocked: 3, total: 10, lastUnlocked: null },
       hltb: { name: "x", main: 600, plus: null, full: null },
       details: fiche({ releaseDate: Date.UTC(2020, 5, 1) / 1000 }),
     });

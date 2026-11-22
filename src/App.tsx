@@ -20,6 +20,7 @@ import {
   onGameSize,
   onGameInstall,
   onGameHltb,
+  onGameAchievements,
   onGameNews,
   onNotificationOpen,
   onWishlistSale,
@@ -579,6 +580,12 @@ export default function App() {
   // Durées de vie (HowLongToBeat) reçues en arrière-plan après le scan.
   useEffect(() => {
     const unlisten = onGameHltb(({ id, hltb }) => patchGame(id, { hltb }));
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [patchGame]);
+
+  // Succès GOG relus en arrière-plan (compte GOG connecté), ou retirés à la déconnexion.
+  useEffect(() => {
+    const unlisten = onGameAchievements(({ id, achievements }) => patchGame(id, { achievements }));
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [patchGame]);
 

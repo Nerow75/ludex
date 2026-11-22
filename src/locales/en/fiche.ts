@@ -175,7 +175,7 @@ export default {
     remove: "Remove from library",
   },
   achievements: {
-    players: (percent: string) => `${percent} of players`,
+    players: (percent: string, store: string) => `${percent} of ${store} players`,
     hidden: "Hidden achievement",
     hiddenDesc: "Its details will show once unlocked",
     unlockedAgo: (when: string) => `Unlocked ${when}`,

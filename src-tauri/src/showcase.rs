@@ -1,4 +1,4 @@
-//! Vitrine des succès Steam : pourcentages mondiaux, liste triée de la fiche, et chiffres de la
+//! Vitrine des succès (Steam et GOG) : pourcentages mondiaux de Steam, liste triée de la fiche, et chiffres de la
 //! section « Vitrine » (total, jeux à 100 %, succès les plus rares, derniers déblocages).
 //!
 //! Pourcentages : API publique sans clé `ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2`
@@ -7,7 +7,7 @@
 //! `achievements-global.json` (dossier de données de l'app), redemandés après 7 jours. Une erreur
 //! réseau arrête la lecture sans rien effacer : les pourcentages manquent, rien d'autre.
 
-use crate::library::{Achievement, Game};
+use crate::library::{AchievementStore, Achievement, Game, Platform, SteamStats};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -174,6 +174,28 @@ pub fn fetch(appids: &[u32]) -> Vec<(u32, Option<Percents>)> {
     results.into_inner().unwrap_or_default()
 }
 
+/// Liste complète des succès d'un jeu, quelle que soit sa boutique : Steam = cache local du client
+/// (`steam` : `None` si Steam est introuvable) avec les pourcentages mondiaux déjà connus ; GOG =
+/// cache des succès lus par le compte GOG, rareté comprise. Aucune requête ici. `None` : rien.
+pub fn details_of(game: &Game, steam: Option<&SteamStats>, global: &GlobalCache) -> Option<Vec<Achievement>> {
+    match game.achievements.as_ref()?.store {
+        AchievementStore::Steam => {
+            if game.platform != Platform::Steam {
+                return None;
+            }
+            let mut list = steam?.details(&game.platform_id)?;
+            if let Ok(appid) = game.platform_id.parse::<u32>() {
+                global.apply(appid, &mut list);
+            }
+            Some(list)
+        }
+        AchievementStore::Gog => {
+            let product = crate::gog_achievements::product_of(game)?;
+            crate::gog_achievements::get()?.with(|c| c.details(product))?
+        }
+    }
+}
+
 /// Pourcentage décroissant, inconnu en dernier.
 fn easiest_first(a: Option<f32>, b: Option<f32>) -> Ordering {
     match (a, b) {
@@ -199,6 +221,8 @@ pub fn sort_for_display(list: &mut [Achievement]) {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Unlock {
+    /// Boutique du succès (Steam, GOG).
+    pub store: AchievementStore,
     pub game_id: String,
     pub game_title: String,
     pub api_name: String,
@@ -213,6 +237,7 @@ pub struct Unlock {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Perfect {
+    pub store: AchievementStore,
     pub game_id: String,
     pub game_title: String,
     pub total: u32,
@@ -224,6 +249,8 @@ pub struct Perfect {
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Showcase {
+    /// Boutiques des jeux comptés (Steam d'abord), pour nommer la provenance.
+    pub stores: Vec<AchievementStore>,
     /// Succès débloqués, tous jeux confondus.
     pub unlocked: u32,
     pub total: u32,
@@ -243,7 +270,7 @@ pub fn build(games: &[Game], details: &[(&Game, Vec<Achievement>)]) -> Showcase 
     let with = || games.iter().filter_map(|g| g.achievements.as_ref().map(|a| (g, a))).filter(|(_, a)| a.total > 0);
     let mut perfect: Vec<Perfect> = with()
         .filter(|(_, a)| a.unlocked >= a.total)
-        .map(|(g, a)| Perfect { game_id: g.id.clone(), game_title: g.title.clone(), total: a.total, completed_at: a.last_unlocked })
+        .map(|(g, a)| Perfect { store: a.store, game_id: g.id.clone(), game_title: g.title.clone(), total: a.total, completed_at: a.last_unlocked })
         .collect();
     perfect.sort_by(|a, b| b.completed_at.cmp(&a.completed_at).then_with(|| a.game_title.cmp(&b.game_title)));
 
@@ -251,6 +278,7 @@ pub fn build(games: &[Game], details: &[(&Game, Vec<Achievement>)]) -> Showcase 
         .iter()
         .flat_map(|(game, list)| {
             list.iter().filter(|a| a.unlocked).map(|a| Unlock {
+                store: a.store,
                 game_id: game.id.clone(),
                 game_title: game.title.clone(),
                 api_name: a.api_name.clone(),
@@ -270,7 +298,9 @@ pub fn build(games: &[Game], details: &[(&Game, Vec<Achievement>)]) -> Showcase 
     recent.sort_by_key(|u| std::cmp::Reverse(u.unlocked_at));
     recent.truncate(TOP);
 
+    let stores = [AchievementStore::Steam, AchievementStore::Gog].into_iter().filter(|s| with().any(|(_, a)| a.store == *s)).collect();
     Showcase {
+        stores,
         unlocked: with().map(|(_, a)| a.unlocked).sum(),
         total: with().map(|(_, a)| a.total).sum(),
         games: with().count() as u32,
@@ -287,6 +317,7 @@ mod tests {
 
     fn ach(api: &str, unlocked: bool, at: Option<u64>, percent: Option<f32>) -> Achievement {
         Achievement {
+            store: crate::library::AchievementStore::Steam,
             api_name: api.into(),
             name: api.to_lowercase(),
             description: None,
@@ -301,7 +332,7 @@ mod tests {
 
     fn game(appid: &str, title: &str, unlocked: u32, total: u32, last: Option<u64>) -> Game {
         let mut g = Game::new(Platform::Steam, appid, title, Launch::Uri(String::new()));
-        g.achievements = Some(Achievements { unlocked, total, last_unlocked: last, unlock_times: Vec::new() });
+        g.achievements = Some(Achievements { unlocked, total, last_unlocked: last, ..Default::default() });
         g
     }
 
@@ -359,6 +390,23 @@ mod tests {
         let recent: Vec<&str> = s.recent.iter().map(|u| u.api_name.as_str()).collect();
         assert_eq!(recent, ["A2", "B1", "B2", "A3", "A1"]);
         assert_eq!(build(&[], &[]), Showcase::default());
+    }
+
+    #[test]
+    fn mixes_steam_and_gog_with_their_store() {
+        let steam = game("10", "Alpha", 1, 2, Some(100));
+        let mut gog = Game::new(Platform::Gog, "77", "Gamma", Launch::Uri(String::new()));
+        gog.achievements = Some(Achievements { store: AchievementStore::Gog, unlocked: 2, total: 2, last_unlocked: Some(300), ..Default::default() });
+        let mut g1 = ach("G1", true, Some(300), Some(0.2));
+        g1.store = AchievementStore::Gog;
+        let s = build(&[steam.clone(), gog.clone()], &[(&steam, vec![ach("S1", true, Some(100), Some(3.0))]), (&gog, vec![g1])]);
+        assert_eq!(s.stores, [AchievementStore::Steam, AchievementStore::Gog]);
+        assert_eq!((s.unlocked, s.total, s.games), (3, 4, 2));
+        assert_eq!((s.perfect[0].game_id.as_str(), s.perfect[0].store), ("gog:77", AchievementStore::Gog));
+        assert_eq!((s.rarest[0].api_name.as_str(), s.rarest[0].store), ("G1", AchievementStore::Gog));
+        assert_eq!(s.rarest[1].store, AchievementStore::Steam);
+        // Seulement Steam : une seule boutique nommée.
+        assert_eq!(build(std::slice::from_ref(&steam), &[]).stores, [AchievementStore::Steam]);
     }
 
     #[test]

@@ -199,9 +199,13 @@ export default {
       hltb: { name: "HowLongToBeat", sent: "Game titles, for the time to beat." },
       saves: { name: "Ludusavi save database (GitHub)", sent: "Nothing: downloads the list of save locations, once a week at most." },
       images: { name: "Steam and Microsoft Store images", sent: "The address of each image shown, nothing else." },
+      gog: {
+        name: "GOG (only with your GOG account connected)",
+        sent: "Account token and GOG numbers of games: games not installed yet, installing, GOG achievements.",
+      },
     },
     servicesNote:
-      "No account, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",
+      "No account required, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",
     notAffiliated:
       "Ludex isn't affiliated with any of the launchers or services mentioned. Their names and logos belong to their respective owners.",
   },

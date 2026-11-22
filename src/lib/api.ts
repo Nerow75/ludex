@@ -46,8 +46,11 @@ export interface Hltb {
   full: number | null;
 }
 
-/** Succès débloqués sur le total, lus dans le cache local de Steam. */
+/** Boutique d'où viennent les succès d'un jeu (cache local de Steam, ou compte GOG connecté). */
+export type AchievementStore = "steam" | "gog";
+/** Succès débloqués sur le total (Steam : cache local ; GOG : compte connecté). */
 export interface Achievements {
+  store: AchievementStore;
   unlocked: number;
   total: number;
   /** Date du dernier succès débloqué (secondes Unix). */
@@ -352,6 +355,7 @@ export interface StatsInfo {
 export const loadStats = () => invoke<StatsInfo>("stats");
 /** Succès le plus rare débloqué pendant une période (pourcentage mondial du cache, aucune requête). */
 export interface RareUnlock {
+  store: AchievementStore;
   gameId: string;
   name: string;
   description: string | null;
@@ -365,21 +369,22 @@ export const recapRarest = (period: RecapPeriod, back: number) => invoke<RareUnl
  * Rust les vérifie et ouvre lui-même le sélecteur d'enregistrement. Renvoie le nom du fichier, `null` si annulé.
  */
 export const saveStoryImage = (png: Uint8Array) => invoke<string | null>("save_story_image", png);
-/** Un succès Steam avec la progression du compte (liste lue à la demande, pas pendant le scan). */
+/** Un succès (Steam ou GOG) avec la progression du compte (liste lue à la demande, pas pendant le scan). */
 export interface Achievement {
+  store: AchievementStore;
   /** Nom interne, clé des pourcentages mondiaux. */
   apiName: string;
   /** Vide pour un succès caché pas encore débloqué (rien ne le dévoile). */
   name: string;
   description: string | null;
-  /** Icône en couleur et grisée, sur le CDN de Steam. */
+  /** Icône en couleur et grisée, sur le CDN de Steam ou de GOG. */
   icon: string | null;
   iconGray: string | null;
   hidden: boolean;
   unlocked: boolean;
   /** Date du déblocage (secondes Unix). */
   unlockedAt: number | null;
-  /** Part des joueurs Steam qui l'ont débloqué, en %. */
+  /** Part des joueurs de la boutique qui l'ont débloqué, en %. */
   globalPercent: number | null;
 }
 /** Succès d'un jeu : non débloqués les plus faciles d'abord, puis débloqués, le plus récent d'abord. */
@@ -455,6 +460,7 @@ export const openModsDir = (id: string) => invoke<void>("open_mods_dir", { id })
 export const openModPage = (id: string, modId: string) => invoke<void>("open_mod_page", { id, modId });
 /** Succès débloqué montré par la vitrine. */
 export interface ShowcaseUnlock {
+  store: AchievementStore;
   gameId: string;
   gameTitle: string;
   apiName: string;
@@ -465,14 +471,17 @@ export interface ShowcaseUnlock {
   unlockedAt: number | null;
 }
 export interface PerfectGame {
+  store: AchievementStore;
   gameId: string;
   gameTitle: string;
   total: number;
   /** Dernier déblocage, donc date du 100 %. */
   completedAt: number | null;
 }
-/** Section « Vitrine » (jeux Steam non masqués). */
+/** Section « Vitrine » (jeux non masqués avec des succès Steam ou GOG). */
 export interface Showcase {
+  /** Boutiques présentes, Steam d'abord. */
+  stores: AchievementStore[];
   unlocked: number;
   total: number;
   /** Jeux avec des succès. */
@@ -651,6 +660,13 @@ export interface HltbEvent {
 }
 export const onGameHltb = (handler: (event: HltbEvent) => void): Promise<UnlistenFn> =>
   listen<HltbEvent>("game-hltb", (e) => handler(e.payload));
+/** Succès GOG relus en arrière-plan (compte GOG connecté) ; `null` = plus de succès (déconnexion). */
+export interface AchievementsEvent {
+  id: string;
+  achievements: Achievements | null;
+}
+export const onGameAchievements = (handler: (event: AchievementsEvent) => void): Promise<UnlistenFn> =>
+  listen<AchievementsEvent>("game-achievements", (e) => handler(e.payload));
 export const onGameSession = (handler: (event: SessionEvent) => void): Promise<UnlistenFn> =>
   listen<SessionEvent>("game-session", (e) => handler(e.payload));
 /** Bibliothèque relue sans demande du front : jeu installé ou désinstallé, ou retour sur la fenêtre

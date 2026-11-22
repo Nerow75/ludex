@@ -1,7 +1,7 @@
 // Story du récap : pages verticales tirées du récap d'une période (fonctions pures, testées par
 // Vitest). Chaque page n'existe que si sa donnée existe ; l'écran (`StoryView`) et l'image exportée
 // (`storyImage.ts`) dessinent les mêmes pages.
-import type { RareUnlock, Recap, RecapPeriod } from "./api";
+import { PLATFORM_LABEL, type AchievementStore, type RareUnlock, type Recap, type RecapPeriod } from "./api";
 import { formatDuration } from "./format";
 import { formatNumber, lang, locale, t } from "./i18n";
 
@@ -335,9 +335,9 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
   return pages.slice(0, MAX_PAGES);
 }
 
-/** « Débloqué par 1,2 % des joueurs Steam ». */
-export const rarityText = (percent: number) =>
-  t.activity.story.rarity(formatNumber(percent < 0.1 ? 0.1 : percent, { maximumFractionDigits: 1 }), percent < 0.1);
+/** « Débloqué par 1,2 % des joueurs Steam » (ou GOG : pourcentage de la boutique du succès). */
+export const rarityText = (percent: number, store: AchievementStore) =>
+  t.activity.story.rarity(formatNumber(percent < 0.1 ? 0.1 : percent, { maximumFractionDigits: 1 }), percent < 0.1, PLATFORM_LABEL[store]);
 
 export type StoryAction = "next" | "prev" | "pause" | "close";
 

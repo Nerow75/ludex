@@ -27,10 +27,11 @@ pub enum Service {
     Workshop,
     Wishlist,
     Gog,
+    GogAchievements,
 }
 
 impl Service {
-    pub const ALL: [Service; 10] = [
+    pub const ALL: [Service; 11] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -41,6 +42,7 @@ impl Service {
         Service::Workshop,
         Service::Wishlist,
         Service::Gog,
+        Service::GogAchievements,
     ];
 
     pub fn label(self) -> &'static str {
@@ -55,6 +57,7 @@ impl Service {
             Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
             Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
             Service::Gog => tr_str!("Compte GOG", "GOG account"),
+            Service::GogAchievements => tr_str!("Succès GOG", "GOG achievements"),
         }
     }
 
@@ -71,6 +74,7 @@ impl Service {
             Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
             Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
             Service::Gog => tr_str!("API de GOG", "GOG API"),
+            Service::GogAchievements => tr_str!("API gameplay de GOG", "GOG gameplay API"),
         }
     }
 
@@ -535,6 +539,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))
         .map(|(s, _)| s)
+        .chain(crate::gog_achievements::get().filter(|g| g.busy()).map(|_| Service::GogAchievements))
         .collect();
         let input = Inputs {
             version: app.package_info().version.to_string(),

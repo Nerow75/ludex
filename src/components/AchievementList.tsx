@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { gameAchievements, type Achievement, type Game } from "../lib/api";
+import { gameAchievements, PLATFORM_LABEL, type Achievement, type Game } from "../lib/api";
 import { formatDate, formatPercent, relativeTime } from "../lib/format";
 import { t } from "../lib/i18n";
 import { TrophyIcon } from "./Icons";
 
-/** Icône d'un succès (CDN de Steam), coupe dessinée si elle manque ou ne charge pas. */
+/** Icône d'un succès (CDN de Steam ou de GOG), coupe dessinée si elle manque ou ne charge pas. */
 export function AchievementIcon({ src, className = "" }: { src: string | null; className?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   return (
@@ -21,7 +21,7 @@ export function AchievementIcon({ src, className = "" }: { src: string | null; c
 /** Ligne d'un succès de la fiche. Caché et pas encore débloqué : rien ne le dévoile. */
 function AchievementRow({ a }: { a: Achievement }) {
   const secret = a.hidden && !a.unlocked;
-  const percent = a.globalPercent !== null ? t.fiche.achievements.players(formatPercent(a.globalPercent)) : null;
+  const percent = a.globalPercent !== null ? t.fiche.achievements.players(formatPercent(a.globalPercent), PLATFORM_LABEL[a.store]) : null;
   return (
     <li className={`ach ${a.unlocked ? "is-unlocked" : ""}`}>
       <AchievementIcon src={a.unlocked ? a.icon : a.iconGray} />

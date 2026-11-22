@@ -2,7 +2,7 @@
 
 [Français](PRIVACY.md) · **English**
 
-Ludex is a local game launcher. It has no account, no server and no telemetry: no usage statistics, no crash report and no identifier of your PC is ever sent. This document lists everything Ludex contacts on the Internet and what it sends there. It is kept up to date from the code (version 0.2.0).
+Ludex is a local game launcher. It has no server and no telemetry, and asks for no account (only the optional GOG account can be connected): no usage statistics, no crash report and no identifier of your PC is ever sent. This document lists everything Ludex contacts on the Internet and what it sends there. It is kept up to date from the code (version 0.2.0).
 
 ## What Ludex reads on your PC
 
@@ -51,6 +51,19 @@ Every request goes straight from your PC to the service, over HTTPS, without coo
 | Host | When | Sent |
 | --- | --- | --- |
 | `howlongtobeat.com` | After a scan, one request every 1.2 s, each title kept 30 days | A request for a search token (`init`), then the words of the game title; if the search address has changed, the home page and its scripts are read to find it again |
+
+### GOG account (optional, off by default)
+
+Only if you connect your GOG account in Settings (« Accounts » section). You sign in in a GOG window: Ludex never sees your password. GOG tokens stay encrypted on your PC (Windows DPAPI) and are only sent to GOG; « Sign out » erases them.
+
+| Host | When | Sent |
+| --- | --- | --- |
+| `auth.gog.com` | When you sign in, then when the token expires | Sign-in code given by GOG, then the refresh token; public client id of GOG Galaxy |
+| `embed.gog.com` | « Not installed » section, read again after 6 h or with « Reload » | Account token |
+| `api.gog.com` | Details of owned games (kept 30 days); a game's installer when you click « Install » | GOG numbers of the games; account token for the download link |
+| GOG CDN (`*.gog.com`) | Download of an installer you asked for | Address given by GOG |
+| `gameplay.gog.com` | Achievements of installed GOG games: after a scan, once a day at most per game (sooner if you played it since), and when you open the Achievements tab if they're older than 10 min | Account token, your GOG account number, the game's GOG number, language |
+| `images.gog-statics.com`, `images.gog.com` | Game thumbnails and achievement icons | The image address |
 
 ### Images
 

@@ -192,10 +192,21 @@ pub enum InstallState {
     Incomplete,
 }
 
+/// Boutique d'où viennent les succès d'un jeu (fiche, vitrine, journal : chaque succès dit sa
+/// boutique). Steam : cache local du client ; GOG : compte GOG connecté (`gog_achievements.rs`).
+#[derive(Clone, Copy, Debug, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AchievementStore {
+    #[default]
+    Steam,
+    Gog,
+}
+
 /// Progression des succès d'un jeu, lue chez le launcher.
 #[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Achievements {
+    pub store: AchievementStore,
     pub unlocked: u32,
     pub total: u32,
     /// Date du dernier succès débloqué (secondes Unix), si le launcher la garde.
