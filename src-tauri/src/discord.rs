@@ -266,6 +266,7 @@ pub fn launcher_line(platform: Platform) -> &'static str {
         Platform::Riot => tr_str!("Sur Riot Games", "On Riot Games"),
         Platform::Amazon => tr_str!("Sur Amazon Games", "On Amazon Games"),
         Platform::Itch => tr_str!("Sur itch.io", "On itch.io"),
+        Platform::Emulation => tr_str!("Sur un émulateur", "On an emulator"),
         Platform::Other => tr_str!("Lancé depuis Ludex", "Launched from Ludex"),
     }
 }

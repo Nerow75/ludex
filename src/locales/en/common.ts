@@ -17,6 +17,7 @@ export default {
     ea: "EA",
     amazon: "Amazon Games",
     itch: "itch.io",
+    emulation: "Emulation",
     other: "Other",
   },
   theme: { dark: "Dark", light: "Light", system: "Match Windows", oled: "OLED black", contrast: "High contrast" },

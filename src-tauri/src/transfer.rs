@@ -507,6 +507,8 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
             out.settings.launch_at_startup = here.launch_at_startup;
             out.settings.welcome_shown = here.welcome_shown.or(Some(true));
             out.settings.tray_hint_shown = here.tray_hint_shown;
+            // Dossiers de ROMs : chemins de ce PC. Le choix d'émulateur par console suit l'archive.
+            out.settings.emulation.rom_dirs = here.emulation.rom_dirs.clone();
             out
         }
         Mode::Merge => {
@@ -945,6 +947,23 @@ mod tests {
 
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(other);
+    }
+
+    #[test]
+    fn emulation_settings_follow_the_rules_of_each_mode() {
+        let mut here = UserData::default();
+        here.settings.emulation.rom_dirs = vec![PathBuf::from(r"E:\Jeux Switch")];
+        here.settings.emulation.choices.insert("gba".into(), "mgba".into());
+        let mut there = UserData::default();
+        there.settings.emulation.rom_dirs = vec![PathBuf::from(r"Z:\ROMs")];
+        there.settings.emulation.choices.insert("gba".into(), "retroarch".into());
+        // Remplacement : dossiers de ce PC gardés, choix de l'archive.
+        let out = combine(&here, there.clone(), Mode::Replace, 0);
+        assert_eq!(out.settings.emulation.rom_dirs, vec![PathBuf::from(r"E:\Jeux Switch")]);
+        assert_eq!(out.settings.emulation.choices["gba"], "retroarch");
+        // Fusion : ce PC l'emporte en tout.
+        let out = combine(&here, there, Mode::Merge, 0);
+        assert_eq!(out.settings.emulation, here.settings.emulation);
     }
 
     #[test]

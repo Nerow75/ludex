@@ -2,12 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { live, t, type Lang, type LanguageSetting } from "./i18n";
 
-export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "amazon" | "itch" | "other";
+export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "amazon" | "itch" | "emulation" | "other";
 export type PlaytimeSource = "launcher" | "ludex";
 /** `detecting` : lancé, le jeu n'est pas encore visible ; `running` : en jeu ; `ended` : terminé. */
 export type SessionPhase = "detecting" | "running" | "ended";
 
-export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "amazon", "itch", "other"];
+export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft", "ea", "battlenet", "rockstar", "xbox", "riot", "amazon", "itch", "emulation", "other"];
 
 /** Ambiance tirée des tags Steam et des catégories de la boutique (`moods.rs`). */
 export type Mood = "chill" | "intense" | "story" | "friends";
@@ -116,6 +116,17 @@ export interface Game {
   launchArgs: string | null;
   /** Pourquoi ce jeu ne peut pas recevoir d'options, `null` s'il le peut. */
   launchArgsRefusal: string | null;
+  /** Jeu d'émulateur : console et émulateur qui le lance ; `null` pour les autres. */
+  emulation: EmuInfo | null;
+}
+
+/** Console et émulateur d'un jeu d'émulateur (`library/emulation`). */
+export interface EmuInfo {
+  /** Identifiant de la console (`gba`, `switch`…). */
+  system: string;
+  systemName: string;
+  emulator: string;
+  emulatorKey: string;
 }
 
 /** Progression d'un jeu : valeur fermée, vérifiée côté Rust. */
@@ -971,7 +982,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog" | "retroart";
 export interface DiagService {
   id: DiagServiceId;
   label: string;
@@ -1276,3 +1287,33 @@ export const onGogAccount = (handler: (account: GogAccount) => void): Promise<Un
   listen<GogAccount>("gog-account", (e) => handler(e.payload));
 export const onGogInstall = (handler: (progress: GogProgress) => void): Promise<UnlistenFn> =>
   listen<GogProgress>("gog-install", (e) => handler(e.payload));
+
+/** Émulation (Paramètres) : émulateurs, consoles et dossiers de ROMs vus au dernier scan. */
+export interface EmulationInfo {
+  /** Faux avant le premier scan complet. */
+  scanned: boolean;
+  emulators: { key: string; name: string; path: string; systems: string[] }[];
+  systems: EmuSystem[];
+  /** Dossiers parcourus : choisis (`user`), déclarés par un émulateur, ou trouvés d'après leur nom. */
+  folders: { path: string; origin: "user" | "emulator" | "folder"; emulator: string | null; found: boolean }[];
+  /** Dossiers choisis dans les Paramètres (texte seulement). */
+  romDirs: string[];
+}
+export interface EmuSystem {
+  id: string;
+  name: string;
+  games: number;
+  /** Émulateurs installés qui lancent cette console. */
+  emulators: { key: string; name: string }[];
+  /** Choix de l'utilisateur, `null` : automatique. */
+  chosen: string | null;
+}
+export interface EmulationUpdate {
+  info: EmulationInfo;
+  scan: ScanResult;
+}
+export const emulationInfo = () => invoke<EmulationInfo>("emulation_info");
+/** Sélecteur de dossier côté Rust ; `null` si annulé. */
+export const addRomDir = () => invoke<EmulationUpdate | null>("add_rom_dir");
+export const removeRomDir = (path: string) => invoke<EmulationUpdate>("remove_rom_dir", { path });
+export const setEmulatorChoice = (system: string, emulator: string | null) => invoke<EmulationUpdate>("set_emulator_choice", { system, emulator });

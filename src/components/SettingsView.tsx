@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { LauncherIcon } from "./LauncherIcon";
 import { AccountsPanel } from "./AccountsPanel";
+import { EmulationPanel } from "./EmulationPanel";
 import {
   ACCENT_LABEL,
   ACCENTS,
@@ -70,7 +71,7 @@ interface Props {
 
 const DEFAULT_SHORTCUT = "Alt+Space";
 /** Services en ligne listés dans « À propos », dans cet ordre (textes dans `settings.about.services`). */
-const ABOUT_SERVICES = ["updates", "steam", "store", "hltb", "saves", "images"] as const;
+const ABOUT_SERVICES = ["updates", "steam", "store", "hltb", "saves", "retro", "images"] as const;
 const MODIFIER_CODES = new Set(["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight", "OSLeft", "OSRight"]);
 
 /** Modificateurs tenus, pour l'aperçu pendant la saisie. */
@@ -564,6 +565,8 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               />
             ))}
           </section>
+
+          <EmulationPanel scan={scan} onScan={onScan} onToast={(title) => onToast({ title })} />
 
           <section className="set__group" aria-labelledby="set-library">
             <h3 id="set-library">{tx.library.title}</h3>

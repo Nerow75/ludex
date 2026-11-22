@@ -331,7 +331,9 @@ pub struct Candidate {
 pub fn candidates(games: &[Game], volumes: &[Volume], now: u64) -> Vec<Candidate> {
     let mut list: Vec<Candidate> = games
         .iter()
-        .filter(|g| !g.hidden && !g.is_tool)
+        // Jeu d'émulateur : sa ROM se supprime à la main, son « dossier » est celui de toutes les
+        // ROMs (la vue « Désinstaller… » le montrerait entier).
+        .filter(|g| !g.hidden && !g.is_tool && g.platform != Platform::Emulation)
         .filter(|g| g.last_played.filter(|&t| t > 0).is_none_or(|t| now.saturating_sub(t) >= IDLE_AFTER))
         .filter_map(|g| {
             let bytes = g.size_on_disk.filter(|&b| b > 0)?;

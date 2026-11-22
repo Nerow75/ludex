@@ -81,6 +81,10 @@ pub fn game_dir(game: &Game) -> String {
 /// URL téléchargeable : `https://`, hôte de la liste blanche, chemin simple (ni `..`, ni caractère
 /// encodé, ni identifiants, ni port), sans requête, sauf la taille demandée au Microsoft Store.
 pub fn allowed(url: &str) -> bool {
+    // Boîtes libretro des jeux d'émulateur : règle à part (noms encodés, `retro_art.rs`).
+    if crate::retro_art::allowed(url) {
+        return true;
+    }
     let Some(rest) = url.strip_prefix("https://") else { return false };
     let Some((host, path)) = rest.split_once('/') else { return false };
     let (path, query) = match path.split_once('?') {

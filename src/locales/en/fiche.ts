@@ -136,6 +136,8 @@ export default {
     controllerFull: "Full",
     controllerPartial: "Partial",
     launcher: "Launcher",
+    console: "Console",
+    emulator: "Emulator",
     options: "Options",
     folder: "Folder",
     noFiche: (customGenres: boolean) => `No Steam page for this game: no description${customGenres ? "" : ", no genres"} and no tags.`,

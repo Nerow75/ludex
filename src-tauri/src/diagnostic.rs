@@ -27,10 +27,11 @@ pub enum Service {
     Workshop,
     Wishlist,
     Gog,
+    RetroArt,
 }
 
 impl Service {
-    pub const ALL: [Service; 10] = [
+    pub const ALL: [Service; 11] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -41,6 +42,7 @@ impl Service {
         Service::Workshop,
         Service::Wishlist,
         Service::Gog,
+        Service::RetroArt,
     ];
 
     pub fn label(self) -> &'static str {
@@ -55,6 +57,7 @@ impl Service {
             Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
             Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
             Service::Gog => tr_str!("Compte GOG", "GOG account"),
+            Service::RetroArt => tr_str!("Jaquettes des jeux d'émulateur", "Emulated game covers"),
         }
     }
 
@@ -71,6 +74,7 @@ impl Service {
             Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
             Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
             Service::Gog => tr_str!("API de GOG", "GOG API"),
+            Service::RetroArt => tr_str!("libretro-thumbnails sur GitHub", "libretro-thumbnails on GitHub"),
         }
     }
 
@@ -194,7 +198,7 @@ pub struct Inputs<'a> {
 }
 
 /// Sources dans l'ordre du scan.
-const PLATFORMS: [Platform; 12] = [
+const PLATFORMS: [Platform; 13] = [
     Platform::Steam,
     Platform::Epic,
     Platform::Gog,
@@ -206,6 +210,7 @@ const PLATFORMS: [Platform; 12] = [
     Platform::Riot,
     Platform::Amazon,
     Platform::Itch,
+    Platform::Emulation,
     Platform::Other,
 ];
 
@@ -531,6 +536,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             (Service::Requirements, &state.requirements_busy),
             (Service::News, &state.news_busy),
             (Service::Workshop, &state.workshop_busy),
+            (Service::RetroArt, &crate::retro_art::BUSY),
         ]
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))
@@ -720,7 +726,7 @@ mod tests {
         assert!(!text.contains('\u{2014}'), "pas de tiret cadratin");
         // La page garde les vrais chemins (affichés sur ce PC seulement).
         assert!(d.data_dir.contains("Anne"));
-        assert_eq!(d.sources.len(), 13);
+        assert_eq!(d.sources.len(), 14); // 13 sources (Émulation comprise) + jeux ajoutés à la main
     }
 
     #[test]

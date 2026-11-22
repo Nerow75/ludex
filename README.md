@@ -28,6 +28,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 | Riot Games | Fichiers du client Riot |
 | Amazon Games | Base locale de l'appli (lecture seule) |
 | itch.io | Base locale de l'appli (lecture seule) |
+| Émulation | Émulateurs installés (Ryujinx, Eden, RetroArch, Dolphin, PCSX2, melonDS…), dossiers de ROMs de leurs réglages ou choisis dans les Paramètres |
 | Autres | Dossiers « Jeux » ou « Games » de tes disques, jeux ajoutés à la main, FiveM, RedM, Roblox, jeux Ankama… |
 
 ## Fonctions principales
@@ -116,6 +117,7 @@ Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulem
 | --- | --- | --- |
 | `github.com` | Mises à jour de Ludex | Rien (lecture de la dernière version, puis téléchargement de l'installeur) |
 | `raw.githubusercontent.com` | Base des sauvegardes Ludusavi | Rien (téléchargement de la liste, une fois par semaine au plus) |
+| `api.github.com`, `raw.githubusercontent.com` | Jaquettes des jeux d'émulateur ([libretro-thumbnails](https://github.com/libretro-thumbnails)) | Nom de la console, puis adresse de la jaquette retenue |
 | `store.steampowered.com` | Jaquettes, configuration requise, liste de souhaits | Titres des jeux à habiller, numéros Steam (appids), texte cherché dans les souhaits |
 | `api.steampowered.com` | Fiches, tags, actualités, rareté des succès, mods | Numéros Steam des jeux et des mods, langue |
 | `displaycatalog.mp.microsoft.com` | Jaquettes des jeux absents de Steam | Titres de ces jeux |
@@ -156,4 +158,4 @@ Ludex est un logiciel libre distribué sous la licence publique générale GNU (
 
 Ludex est un projet indépendant. Il n'est affilié à aucun des launchers ni des services cités (Valve, Epic Games, GOG, Ubisoft, Electronic Arts, Blizzard, Rockstar Games, Microsoft, Riot Games, Amazon, itch.io, HowLongToBeat, Discord…). Leurs noms, logos et marques appartiennent à leurs propriétaires respectifs et ne sont utilisés que pour indiquer d'où vient chaque jeu.
 
-Logos des launchers tirés de [Simple Icons](https://simpleicons.org) (CC0) quand ils y figurent. Emplacements des sauvegardes : [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest). Durées de vie : [HowLongToBeat](https://howlongtobeat.com).
+Logos des launchers tirés de [Simple Icons](https://simpleicons.org) (CC0) quand ils y figurent. Emplacements des sauvegardes : [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest). Durées de vie : [HowLongToBeat](https://howlongtobeat.com). Jaquettes des jeux d'émulateur : [libretro-thumbnails](https://github.com/libretro-thumbnails).

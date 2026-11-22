@@ -89,6 +89,32 @@ pub fn locations(platform: Platform) -> Vec<Location> {
             let root = itch::root_dir();
             vec![path(tr_str!("Appli itch", "itch app"), &root), path(tr_str!("Jeux installés (butler)", "Installed games (butler)"), &itch::database(&root))]
         }
+        Platform::Emulation => {
+            // Émulateurs et dossiers de ROMs du dernier scan (la recherche parcourt les disques).
+            let mut list: Vec<Location> = super::emulation::summary()
+                .map(|s| {
+                    let emulators = s.emulators.into_iter().map(|e| Location { label: e.name.to_string(), path: e.path, found: true });
+                    let folders = s.folders.into_iter().map(|f| Location {
+                        label: match f.emulator {
+                            Some(name) => tr!("Dossier de ROMs ({name})", "ROM folder ({name})"),
+                            None if f.origin == "user" => tr!("Dossier de ROMs choisi", "Chosen ROM folder"),
+                            None => tr!("Dossier de ROMs", "ROM folder"),
+                        },
+                        path: f.path,
+                        found: f.found,
+                    });
+                    emulators.chain(folders).collect()
+                })
+                .unwrap_or_default();
+            if list.is_empty() {
+                list.push(Location {
+                    label: tr!("Émulateurs", "Emulators"),
+                    path: tr!("Aucun émulateur trouvé au dernier scan", "No emulator found in the last scan"),
+                    found: false,
+                });
+            }
+            list
+        }
         Platform::Other => {
             let mut list: Vec<Location> = local::library_dirs().iter().map(|d| path(tr_str!("Dossier de jeux", "Game folder"), d)).collect();
             if list.is_empty() {
@@ -124,6 +150,7 @@ mod tests {
             Platform::Riot,
             Platform::Amazon,
             Platform::Itch,
+            Platform::Emulation,
             Platform::Other,
         ] {
             let list = locations(p);
