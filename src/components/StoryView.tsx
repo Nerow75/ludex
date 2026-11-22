@@ -76,7 +76,7 @@ function Rare({ rare, byId }: { rare: RareUnlock; byId: Map<string, Game> }) {
       <span>
         <small>{t.activity.story.rarest}</small>
         <b>{rare.name}</b>
-        <span>{rarityText(rare.percent)}</span>
+        <span>{rarityText(rare.percent, rare.store)}</span>
         {byId.get(rare.gameId) && <span>{byId.get(rare.gameId)!.title}</span>}
       </span>
     </div>

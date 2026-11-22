@@ -68,6 +68,8 @@ Only if you connect these accounts in Settings > Accounts, for the "Not installe
 | `embed.gog.com/user/data/games` | List of your games, read again after 6 h or with "Reload" | GOG's access token |
 | `api.gog.com/products` | Public pages of owned games (kept 30 days), then a game's installer when you click "Install" | GOG game numbers; the access token only to ask for the download link |
 | `*.gog.com` (GOG download servers) | Installer download, after your click on "Install" | Nothing but the address given by GOG |
+| `gameplay.gog.com` | Achievements of installed GOG games: after a scan, once a day at most per game (sooner if you played it since), and when you open the Achievements tab if they're older than 10 min | Account token, your GOG account number, the game's GOG number, language |
+| `images.gog-statics.com`, `images.gog.com` | Game thumbnails and achievement icons | The image address |
 | `www.epicgames.com` | Sign-in (Epic's page, in its own window) | What you type on Epic's page, which Ludex doesn't read |
 | `account-public-service-prod03.ol.epicgames.com` | Token exchange, renewal and revocation (on sign-out) | The sign-in code given by Epic, then the refresh token; public client id of the Epic launcher |
 | `library-service.live.use1a.on.epicgames.com` | List of your games, read again after 6 h or with "Reload" | Epic's access token |

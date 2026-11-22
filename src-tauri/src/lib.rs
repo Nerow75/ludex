@@ -11,6 +11,7 @@ mod discord;
 mod epic_online;
 mod steam_owned;
 mod footprint;
+mod gog_achievements;
 mod gog_online;
 mod history;
 mod hltb;
@@ -1255,12 +1256,8 @@ async fn journal(app: AppHandle, before: Option<String>, game: Option<String>) -
             let src = journal::Sources { sessions: &sessions, unlocks: &unlocks, shots: &shots };
             let title = |id: &str| games.iter().find(|g| g.id == id).map(|g| g.title.clone());
             journal::compute(&src, before, game.as_deref(), &recap::LocalZone, title, |id| {
-                let g = games.iter().find(|g| g.id == id && g.platform == Platform::Steam)?;
-                let mut list = stats.as_ref()?.details(&g.platform_id)?;
-                if let Ok(appid) = g.platform_id.parse::<u32>() {
-                    cache.apply(appid, &mut list);
-                }
-                Some(list)
+                let g = games.iter().find(|g| g.id == id)?;
+                showcase::details_of(g, stats.as_ref(), &cache)
             })
         };
         // Seules les captures envoyées pourront être servies par le protocole `ludex`.
@@ -1342,6 +1339,8 @@ fn store(state: &AppState, result: &mut ScanResult) -> Result<watch::Changes, St
             covers::apply(g, data.covers.get(&g.id), images.root(), &mut originals);
         });
     }
+    // Succès GOG déjà lus par le compte GOG (aucune requête ici).
+    gog_achievements::apply(&mut result.games);
     let mut games = lock(&state.games)?;
     let changes = watch::changes(&games, &result.games);
     *games = result.games.clone();
@@ -1364,6 +1363,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     resolve_news(app.clone());
     wishlist::resolve(app.clone());
     epic_free::resolve(app.clone());
+    gog_achievements::resolve(app.clone());
     refresh_tray(app, false);
     check_disks(app);
 }
@@ -1562,17 +1562,22 @@ fn refresh_global(state: &AppState, appids: &[u32]) {
 async fn game_achievements(app: AppHandle, id: String) -> Result<Vec<library::Achievement>, String> {
     blocking(move || {
         let state = app.state::<AppState>();
+        // Jeu GOG : liste relue par le compte GOG si elle a plus de 10 minutes (rien sans compte).
+        if gog_achievements::product_of(&find_game(&state, &id)?).is_some() {
+            gog_achievements::refresh_game(&app, &id);
+        }
         let game = find_game(&state, &id)?;
-        if game.platform != Platform::Steam || game.achievements.is_none() {
-            return Ok(Vec::new());
-        }
-        let Some(mut list) = library::SteamStats::locate().and_then(|s| s.details(&game.platform_id)) else { return Ok(Vec::new()) };
-        // Une seule requête, demandée en ouvrant la liste : utile aussi sans succès débloqué
-        // (les plus faciles en tête).
-        if let Ok(appid) = game.platform_id.parse::<u32>() {
+        let Some(store) = game.achievements.as_ref().map(|a| a.store) else { return Ok(Vec::new()) };
+        // Steam : une seule requête des pourcentages, demandée en ouvrant la liste, utile aussi sans
+        // succès débloqué (les plus faciles en tête).
+        if store == library::AchievementStore::Steam
+            && game.platform == Platform::Steam
+            && let Ok(appid) = game.platform_id.parse::<u32>()
+        {
             refresh_global(&state, &[appid]);
-            lock(&state.global)?.apply(appid, &mut list);
         }
+        let steam = library::SteamStats::locate();
+        let Some(mut list) = showcase::details_of(&game, steam.as_ref(), &*lock(&state.global)?) else { return Ok(Vec::new()) };
         showcase::sort_for_display(&mut list);
         Ok(list)
     })
@@ -1718,24 +1723,19 @@ fn open_mod_page(app: tauri::AppHandle, state: State<'_, AppState>, id: String, 
 async fn showcase(app: AppHandle) -> Result<showcase::Showcase, String> {
     blocking(move || {
         let state = app.state::<AppState>();
-        let games: Vec<Game> = lock(&state.games)?
-            .iter()
-            .filter(|g| g.platform == Platform::Steam && !g.hidden && g.achievements.is_some())
-            .cloned()
-            .collect();
+        // Jeux Steam et GOG (succès déjà lus par le compte GOG, aucune requête de plus).
+        let games: Vec<Game> = lock(&state.games)?.iter().filter(|g| !g.hidden && g.achievements.is_some()).cloned().collect();
         let unlocked: Vec<&Game> = games.iter().filter(|g| g.achievements.as_ref().is_some_and(|a| a.unlocked > 0)).collect();
-        let appids: Vec<u32> = unlocked.iter().filter_map(|g| g.platform_id.parse().ok()).collect();
-        refresh_global(&state, &appids);
-        let Some(stats) = library::SteamStats::locate() else { return Ok(showcase::build(&games, &[])) };
-        let cache = lock(&state.global)?;
-        let details: Vec<(&Game, Vec<library::Achievement>)> = unlocked
+        let appids: Vec<u32> = unlocked
             .iter()
-            .filter_map(|&g| {
-                let mut list = stats.details(&g.platform_id)?;
-                cache.apply(g.platform_id.parse().ok()?, &mut list);
-                Some((g, list))
-            })
+            .filter(|g| g.platform == Platform::Steam && g.achievements.as_ref().is_some_and(|a| a.store == library::AchievementStore::Steam))
+            .filter_map(|g| g.platform_id.parse().ok())
             .collect();
+        refresh_global(&state, &appids);
+        let stats = library::SteamStats::locate();
+        let cache = lock(&state.global)?;
+        let details: Vec<(&Game, Vec<library::Achievement>)> =
+            unlocked.iter().filter_map(|&g| Some((g, showcase::details_of(g, stats.as_ref(), &cache)?))).collect();
         Ok(showcase::build(&games, &details))
     })
     .await
@@ -2893,6 +2893,7 @@ pub fn run() {
             // Compte Epic facultatif : même coffre, autre case.
             app.manage(epic_online::Epic::new(&app.state::<AppState>().data_dir));
             app.manage(steam_owned::SteamOwned::new(&app.state::<AppState>().data_dir));
+            gog_achievements::init(&app.state::<AppState>().data_dir);
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             update::spawn_check(app.handle().clone());

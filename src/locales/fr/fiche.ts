@@ -175,7 +175,7 @@ export default {
     remove: "Retirer de la bibliothèque",
   },
   achievements: {
-    players: (percent: string) => `${percent} des joueurs`,
+    players: (percent: string, store: string) => `${percent} des joueurs ${store}`,
     hidden: "Succès caché",
     hiddenDesc: "Ses détails apparaîtront une fois débloqué",
     unlockedAgo: (when: string) => `Débloqué ${when}`,

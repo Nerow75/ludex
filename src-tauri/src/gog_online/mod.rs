@@ -272,6 +272,16 @@ impl Gog {
         }
     }
 
+    /// Requête au compte pour un autre module de Ludex (succès GOG, `gog_achievements.rs`) : même
+    /// jeton, rafraîchi au besoin. `None` sans compte connecté. La session ne sort jamais de Rust.
+    pub fn call<T>(&self, app: &AppHandle, call: impl Fn(&ureq::Agent, &Session) -> Result<T, Failure>) -> Option<Result<T, String>> {
+        if self.state() != AccountState::Connected {
+            return None;
+        }
+        let agent = api::agent();
+        Some(self.with_token(app, &agent, |session| call(&agent, session)))
+    }
+
     fn refresh(&self, app: &AppHandle, agent: &ureq::Agent, session: &Session) -> Result<Session, String> {
         match api::token(agent, &self.ends, Grant::Refresh(&session.refresh_token), now(), Some(session)) {
             Ok(fresh) => {
@@ -419,6 +429,8 @@ pub fn gog_logout(app: AppHandle) -> Result<AccountView, String> {
     *lock(&gog.cache)? = Cache { version: CACHE_VERSION, ..Default::default() };
     let _ = std::fs::remove_file(&gog.cache_path);
     *lock(&gog.job)? = None;
+    // Succès lus par ce compte : oubliés avec lui.
+    crate::gog_achievements::forget(&app);
     log::info!("Compte GOG déconnecté");
     let view = gog.view();
     let _ = app.emit(ACCOUNT_EVENT, view.clone());

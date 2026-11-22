@@ -18,7 +18,7 @@
 //! haché, servi par le CDN de Steam sous `steamcommunity/public/images/apps/<appid>/`).
 
 use super::kvbin::{self, Kv};
-use super::Achievements;
+use super::{AchievementStore, Achievements};
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
@@ -27,6 +27,8 @@ use std::path::Path;
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Achievement {
+    /// Boutique du succès.
+    pub store: AchievementStore,
     /// Nom interne du schéma : clé des pourcentages mondiaux.
     pub api_name: String,
     /// Nom affiché (français si le schéma le traduit, sinon anglais). Vide pour un succès caché
@@ -122,6 +124,7 @@ fn list(schema: &Kv, user: &Kv, appid: &str) -> Vec<Achievement> {
             // Succès caché pas encore débloqué : rien qui le dévoile ne sort d'ici.
             let secret = hidden && !unlocked;
             out.push(Achievement {
+                store: AchievementStore::Steam,
                 name: if secret { String::new() } else { text("name").unwrap_or_else(|| api_name.clone()) },
                 description: if secret { None } else { text("desc") },
                 icon: if secret { None } else { icon("icon") },
@@ -188,7 +191,7 @@ fn progress(bits: &[(String, Vec<u32>)], user: &Kv) -> Option<Achievements> {
         }
     }
     unlock_times.sort_unstable();
-    Some(Achievements { unlocked, total, last_unlocked: unlock_times.last().copied(), unlock_times })
+    Some(Achievements { store: AchievementStore::Steam, unlocked, total, last_unlocked: unlock_times.last().copied(), unlock_times })
 }
 
 /// Succès d'un jeu pour un compte. `None` : pas de succès, fichier absent ou illisible.
@@ -250,6 +253,7 @@ mod tests {
         assert_eq!(bits, vec![("1".to_string(), vec![0, 1, 3]), ("2".to_string(), vec![0])]);
         let got = progress(&bits, &kvbin::parse(&user()).unwrap());
         assert_eq!(got, Some(Achievements {
+            store: crate::library::AchievementStore::Steam,
             unlocked: 2,
             total: 4,
             last_unlocked: Some(1_700_000_000),

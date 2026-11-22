@@ -9,7 +9,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 ## Principles
 
 - **Local reading**: Ludex reads the files and registry entries of the installed launchers, read only. A game is always started by its own launcher (or by its executable when it has none).
-- **No account required**: the library is read without signing in to Steam, Epic, GOG or anything else. Only the "Not installed" section can use, if you choose, your GOG or Epic Games account (off by default, sign-in on the store's own page: Ludex never sees your password) or your Steam Web API key.
+- **No account required**: the library is read without signing in to Steam, Epic, GOG or anything else. Only the "Not installed" section and GOG achievements can use, if you choose, your GOG or Epic Games account (off by default, sign-in on the store's own page: Ludex never sees your password) or your Steam Web API key.
 - **No telemetry**: no usage statistics, no crash report sent. The few public services contacted (images, game details, time to beat, updates) are listed below, with what is sent to them.
 - **Your data stays with you**: favorites, collections, notes, measured playtime and settings live in `%APPDATA%\com.ludex.app`. You can export them to an archive to move to another PC.
 
@@ -34,7 +34,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 
 - Library as a grid or a list, sorting, filters by launcher, genre, tag and mood, typo-tolerant search ("gta5", "fm20", "rocet").
 - "For you" home: tonight's game, games to resume, ideas by mood, backlog of games never started.
-- A page for every game: playtime, sessions, Steam achievements, screenshots, saves, system requirements compared with your PC, news, mods, performance.
+- A page for every game: playtime, sessions, Steam and GOG achievements, screenshots, saves, system requirements compared with your PC, news, mods, performance.
 - Playtime measured by Ludex for launchers that don't keep it (Epic, Ubisoft, Riot, Xbox…), history, journal, weekly, monthly and yearly recap, stats.
 - Automatic save backups at the end of a session (locations from the community Ludusavi database) and restore.
 - Couch mode for the TV, fully usable with a controller.
@@ -135,7 +135,7 @@ Ludex creates no account and sends no telemetry. It only contacts the public ser
 | `howlongtobeat.com` | Time to beat | Game titles |
 | `store-site-backend-static.ak.epicgames.com` | Epic free games | Language and country only |
 | Steam, Microsoft Store and Epic image CDNs | Covers, artwork, thumbnails | The address of each image |
-| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`), only with the account connected | GOG games not installed, installer | GOG's tokens (encrypted on your PC), GOG game numbers |
+| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`, `gameplay.gog.com`), only with the account connected | GOG games not installed, installer, GOG achievements | GOG's tokens (encrypted on your PC), GOG game numbers |
 | Epic Games (`*.epicgames.com`), only with the account connected | Epic games not installed | Epic's tokens (encrypted on your PC), game catalog numbers |
 | Steam Web API (`api.steampowered.com`), only with a key saved | Full list of owned Steam games | Your Web API key (encrypted on your PC), the account's Steam ID |
 

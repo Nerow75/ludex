@@ -30,10 +30,11 @@ pub enum Service {
     EpicFree,
     Epic,
     Steam,
+    GogAchievements,
 }
 
 impl Service {
-    pub const ALL: [Service; 13] = [
+    pub const ALL: [Service; 14] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -47,6 +48,7 @@ impl Service {
         Service::EpicFree,
         Service::Epic,
         Service::Steam,
+        Service::GogAchievements,
     ];
 
     pub fn label(self) -> &'static str {
@@ -64,6 +66,7 @@ impl Service {
             Service::EpicFree => tr_str!("Jeux gratuits d'Epic", "Epic free games"),
             Service::Epic => tr_str!("Compte Epic Games", "Epic Games account"),
             Service::Steam => tr_str!("Jeux Steam possédés", "Owned Steam games"),
+            Service::GogAchievements => tr_str!("Succès GOG", "GOG achievements"),
         }
     }
 
@@ -83,6 +86,7 @@ impl Service {
             Service::EpicFree => tr_str!("boutique Epic Games", "Epic Games Store"),
             Service::Epic => tr_str!("API d'Epic Games", "Epic Games API"),
             Service::Steam => tr_str!("API Web de Steam (clé personnelle)", "Steam Web API (personal key)"),
+            Service::GogAchievements => tr_str!("API gameplay de GOG", "GOG gameplay API"),
         }
     }
 
@@ -559,6 +563,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))
         .map(|(s, _)| s)
+        .chain(crate::gog_achievements::get().filter(|g| g.busy()).map(|_| Service::GogAchievements))
         .collect();
         let input = Inputs {
             version: app.package_info().version.to_string(),

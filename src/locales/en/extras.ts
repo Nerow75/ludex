@@ -131,7 +131,7 @@ export default {
     errorTitle: "Showcase unavailable",
     errorText: "Achievements couldn't be read. Try again after a rescan (F5)",
     emptyTitle: "No achievements yet",
-    emptyText: "Achievements from Steam games you've launched will show up here",
+    emptyText: "Achievements from Steam games you've launched, and from GOG games with your GOG account connected, will show up here",
     title: "Showcase",
     unlocked: "Achievements unlocked",
     progress: "Progress",

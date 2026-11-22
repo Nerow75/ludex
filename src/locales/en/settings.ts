@@ -231,11 +231,11 @@ export default {
       images: { name: "Steam, Microsoft Store and Epic images", sent: "The address of each image shown, nothing else." },
       accounts: {
         name: "GOG and Epic Games accounts, Steam Web API key (optional, off by default)",
-        sent: "Only with an account connected or a key saved: the store's tokens or the Steam key (encrypted on this PC), the Steam account ID and game numbers, to list games not installed.",
+        sent: "Only with an account connected or a key saved: the store's tokens or the Steam key (encrypted on this PC), the Steam account ID and game numbers, to list games not installed; GOG account: GOG achievements.",
       },
     },
     servicesNote:
-      "No account, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",
+      "No account required, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",
     notAffiliated:
       "Ludex isn't affiliated with any of the launchers or services mentioned. Their names and logos belong to their respective owners.",
   },

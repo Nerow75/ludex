@@ -5,7 +5,7 @@
 //! l'appel, jamais un chemin), vérifie que c'est bien un PNG de 1080 × 1920 de taille raisonnable,
 //! ouvre lui-même le sélecteur d'enregistrement natif puis écrit le fichier (tmp + renommage).
 
-use crate::library::{Achievement, Platform, SteamStats};
+use crate::library::{AchievementStore, Achievement, Game, SteamStats};
 use crate::recap::{self, Period, Zone};
 use crate::{AppState, blocking, lock};
 use serde::Serialize;
@@ -96,6 +96,8 @@ pub async fn save_story_image(window: WebviewWindow, request: Request<'_>) -> Re
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rare {
+    /// Boutique du succès (« des joueurs Steam », « des joueurs GOG »).
+    pub store: AchievementStore,
     pub game_id: String,
     pub name: String,
     pub description: Option<String>,
@@ -121,6 +123,7 @@ pub fn rarest(lists: &[(String, Vec<Achievement>)], first: i64, last: i64, zone:
             let better = best.as_ref().is_none_or(|b| percent < b.percent || (percent == b.percent && at > b.unlocked_at));
             if better {
                 best = Some(Rare {
+                    store: a.store,
                     game_id: game_id.clone(),
                     name: a.name.clone(),
                     description: a.description.clone(),
@@ -145,25 +148,19 @@ pub async fn recap_rarest(app: AppHandle, period: Period, back: Option<u32>) -> 
         let zone = recap::LocalZone;
         let (first, last) = recap::span(period, now, back.unwrap_or(0), &zone);
         let in_period = |t: u64| (first..=last).contains(&recap::local_day(i64::try_from(t).unwrap_or(i64::MAX / 2), &zone));
-        let wanted: Vec<(String, String)> = lock(&state.games)?
+        // Steam et GOG : détail lu dans les caches seulement.
+        let wanted: Vec<Game> = lock(&state.games)?
             .iter()
-            .filter(|g| g.platform == Platform::Steam)
             .filter(|g| g.achievements.as_ref().is_some_and(|a| a.unlock_times.iter().any(|&t| in_period(t))))
-            .map(|g| (g.id.clone(), g.platform_id.clone()))
+            .cloned()
             .collect();
         if wanted.is_empty() {
             return Ok(None);
         }
-        let Some(stats) = SteamStats::locate() else { return Ok(None) };
+        let stats = SteamStats::locate();
         let cache = lock(&state.global)?;
-        let lists: Vec<(String, Vec<Achievement>)> = wanted
-            .into_iter()
-            .filter_map(|(id, appid)| {
-                let mut list = stats.details(&appid)?;
-                cache.apply(appid.parse().ok()?, &mut list);
-                Some((id, list))
-            })
-            .collect();
+        let lists: Vec<(String, Vec<Achievement>)> =
+            wanted.iter().filter_map(|g| Some((g.id.clone(), crate::showcase::details_of(g, stats.as_ref(), &cache)?))).collect();
         Ok(rarest(&lists, first, last, &zone))
     })
     .await
@@ -236,6 +233,7 @@ mod tests {
 
     fn succes(name: &str, at: Option<u64>, percent: Option<f32>) -> Achievement {
         Achievement {
+            store: crate::library::AchievementStore::Steam,
             api_name: name.into(),
             name: name.into(),
             description: None,

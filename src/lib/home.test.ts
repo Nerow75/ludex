@@ -129,10 +129,10 @@ describe("downloads", () => {
 
 describe("lastAchievement", () => {
   it("le plus récent des jeux non masqués", () => {
-    const a = jeu({ achievements: { unlocked: 1, total: 10, lastUnlocked: 100 } });
-    const b = jeu({ achievements: { unlocked: 2, total: 10, lastUnlocked: 300 } });
-    const masque = jeu({ hidden: true, achievements: { unlocked: 2, total: 10, lastUnlocked: 999 } });
-    const sans = jeu({ achievements: { unlocked: 0, total: 10, lastUnlocked: null } });
+    const a = jeu({ achievements: { store: "steam", unlocked: 1, total: 10, lastUnlocked: 100 } });
+    const b = jeu({ achievements: { store: "steam", unlocked: 2, total: 10, lastUnlocked: 300 } });
+    const masque = jeu({ hidden: true, achievements: { store: "steam", unlocked: 2, total: 10, lastUnlocked: 999 } });
+    const sans = jeu({ achievements: { store: "steam", unlocked: 0, total: 10, lastUnlocked: null } });
     expect(lastAchievement([a, b, masque, sans, jeu()])).toEqual({ game: b, at: 300 });
     expect(lastAchievement([sans, jeu()])).toBeNull();
   });

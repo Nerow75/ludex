@@ -68,6 +68,8 @@ Seulement si tu connectes ces comptes dans Paramètres > Comptes, pour la sectio
 | `embed.gog.com/user/data/games` | Liste de tes jeux, relue après 6 h ou par « Relire » | Le jeton d'accès de GOG |
 | `api.gog.com/products` | Fiches publiques des jeux possédés (gardées 30 jours), puis l'installeur d'un jeu quand tu cliques sur « Installer » | Numéros GOG des jeux ; le jeton d'accès seulement pour demander le lien de téléchargement |
 | `*.gog.com` (serveurs de téléchargement de GOG) | Téléchargement de l'installeur, après ton clic sur « Installer » | Rien d'autre que l'adresse donnée par GOG |
+| `gameplay.gog.com` | Succès des jeux GOG installés : après un scan, une fois par jour au plus par jeu (plus tôt si tu y as joué depuis), et à l'ouverture de l'onglet Succès s'ils ont plus de 10 min | Jeton du compte, ton numéro de compte GOG, numéro GOG du jeu, langue |
+| `images.gog-statics.com`, `images.gog.com` | Vignettes des jeux et icônes des succès | Adresse de l'image |
 | `www.epicgames.com` | Connexion (page d'Epic, dans sa fenêtre) | Ce que tu saisis sur la page d'Epic, que Ludex ne lit pas |
 | `account-public-service-prod03.ol.epicgames.com` | Échange, renouvellement et fin des jetons (à la déconnexion) | Le code de connexion donné par Epic, puis le jeton de renouvellement ; identifiant public du client du launcher Epic |
 | `library-service.live.use1a.on.epicgames.com` | Liste de tes jeux, relue après 6 h ou par « Relire » | Le jeton d'accès d'Epic |

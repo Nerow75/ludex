@@ -233,11 +233,11 @@ export default {
       images: { name: "Images de Steam, du Microsoft Store et d'Epic", sent: "Adresse de chaque image affichée, rien d'autre." },
       accounts: {
         name: "Comptes GOG et Epic Games, clé Web API Steam (facultatifs, coupés par défaut)",
-        sent: "Seulement compte connecté ou clé enregistrée : jetons de la boutique ou clé Steam (chiffrés sur ce PC), identifiant Steam du compte et numéros des jeux, pour lister les jeux pas installés.",
+        sent: "Seulement compte connecté ou clé enregistrée : jetons de la boutique ou clé Steam (chiffrés sur ce PC), identifiant Steam du compte et numéros des jeux, pour lister les jeux pas installés ; compte GOG : succès des jeux GOG.",
       },
     },
     servicesNote:
-      "Aucun compte, aucune télémétrie : ni nom d'utilisateur, ni chemin, ni identifiant de ce PC n'est envoyé. Comme pour toute connexion, chaque service voit ton adresse IP.",
+      "Aucun compte obligatoire, aucune télémétrie : ni nom d'utilisateur, ni chemin, ni identifiant de ce PC n'est envoyé. Comme pour toute connexion, chaque service voit ton adresse IP.",
     notAffiliated:
       "Ludex n'est affilié à aucun des launchers ni des services cités. Leurs noms et logos appartiennent à leurs propriétaires respectifs.",
   },

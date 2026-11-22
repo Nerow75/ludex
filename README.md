@@ -9,7 +9,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 ## Principes
 
 - **Lecture locale** : Ludex lit les fichiers et le registre des launchers installés, en lecture seule. Le jeu est toujours lancé par son launcher d'origine (ou par son exécutable quand il n'en a pas).
-- **Aucun compte obligatoire** : la bibliothèque se lit sans connexion à Steam, Epic, GOG ou autre. Seule la section « Pas installés » peut utiliser, si tu le choisis, ton compte GOG ou Epic Games (coupés par défaut, connexion sur la page de la boutique : Ludex ne voit jamais ton mot de passe) ou ta clé Web API Steam.
+- **Aucun compte obligatoire** : la bibliothèque se lit sans connexion à Steam, Epic, GOG ou autre. Seuls la section « Pas installés » et les succès GOG peuvent utiliser, si tu le choisis, ton compte GOG ou Epic Games (coupés par défaut, connexion sur la page de la boutique : Ludex ne voit jamais ton mot de passe) ou ta clé Web API Steam.
 - **Aucune télémétrie** : ni statistiques d'usage, ni rapport de plantage envoyé. Les quelques services publics contactés (images, fiches, durées de vie, mises à jour) sont listés plus bas, avec ce qui leur est envoyé.
 - **Tes données restent chez toi** : favoris, collections, notes, temps de jeu mesuré et réglages sont dans `%APPDATA%\com.ludex.app`. Tu peux les exporter dans une archive pour changer de PC.
 
@@ -34,7 +34,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 
 - Bibliothèque en grille ou en liste, tris, filtres par launcher, genre, tag et ambiance, recherche tolérante aux fautes (« gta5 », « fm20 », « rocet »).
 - Accueil « Pour toi » : jeu du soir, parties à reprendre, idées par ambiance, pile de jeux pas encore lancés.
-- Fiche de chaque jeu : temps de jeu, sessions, succès Steam, captures, sauvegardes, configuration requise comparée à ton PC, actualités, mods, performances.
+- Fiche de chaque jeu : temps de jeu, sessions, succès Steam et GOG, captures, sauvegardes, configuration requise comparée à ton PC, actualités, mods, performances.
 - Temps de jeu mesuré par Ludex pour les launchers qui n'en gardent pas (Epic, Ubisoft, Riot, Xbox…), historique, journal, récap de la semaine, du mois et de l'année, statistiques.
 - Copie automatique des sauvegardes en fin de partie (emplacements de la base communautaire Ludusavi) et restauration.
 - Mode canapé pour la TV, entièrement à la manette.
@@ -135,7 +135,7 @@ Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulem
 | `howlongtobeat.com` | Durée de vie | Titres des jeux |
 | `store-site-backend-static.ak.epicgames.com` | Jeux gratuits d'Epic | Langue et pays seulement |
 | CDN d'images de Steam, du Microsoft Store et d'Epic | Jaquettes, images, vignettes | Adresse de chaque image |
-| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`), seulement compte connecté | Jeux GOG pas installés, installeur | Jetons de GOG (chiffrés sur ton PC), numéros GOG des jeux |
+| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`, `gameplay.gog.com`), seulement compte connecté | Jeux GOG pas installés, installeur, succès GOG | Jetons de GOG (chiffrés sur ton PC), numéros GOG des jeux |
 | Epic Games (`*.epicgames.com`), seulement compte connecté | Jeux Epic pas installés | Jetons d'Epic (chiffrés sur ton PC), numéros de catalogue des jeux |
 | API Web de Steam (`api.steampowered.com`), seulement clé enregistrée | Liste complète des jeux Steam possédés | Ta clé Web API (chiffrée sur ton PC), identifiant Steam du compte |
 

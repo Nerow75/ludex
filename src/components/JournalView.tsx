@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { journal, type Achievement, type JournalDay, type JournalGame, type JournalSession } from "../lib/api";
+import { journal, PLATFORM_LABEL, type Achievement, type JournalDay, type JournalGame, type JournalSession } from "../lib/api";
 import { formatClock, formatDay, formatDuration, formatPercent, relativeDay } from "../lib/format";
 import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
@@ -22,7 +22,7 @@ function sessionText(s: JournalSession): string {
 
 /** Infobulle d'un succès : nom, description et part des joueurs. */
 function achievementTitle(a: Achievement): string {
-  const percent = a.globalPercent !== null ? t.activity.journal.ofPlayers(formatPercent(a.globalPercent)) : null;
+  const percent = a.globalPercent !== null ? t.activity.journal.ofPlayers(formatPercent(a.globalPercent), PLATFORM_LABEL[a.store]) : null;
   const when = a.unlockedAt ? t.activity.journal.unlockedAt(formatClock(a.unlockedAt)) : null;
   return [a.name, a.description, [when, percent].filter(Boolean).join(" · ")].filter(Boolean).join("\n");
 }

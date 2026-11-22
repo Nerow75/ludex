@@ -70,7 +70,7 @@ const pleine = recap({
   ],
 });
 
-const rare: RareUnlock = { gameId: "steam:2", name: "Cœur de cristal", description: null, icon: null, percent: 1.24, unlockedAt: 0 };
+const rare: RareUnlock = { store: "steam", gameId: "steam:2", name: "Cœur de cristal", description: null, icon: null, percent: 1.24, unlockedAt: 0 };
 
 describe("pages de la story", () => {
   it("aucune story sans temps de jeu", () => {
@@ -222,8 +222,9 @@ describe("textes et touches", () => {
   });
 
   it("rareté", () => {
-    expect(rarityText(1.24)).toBe("Débloqué par 1,2 % des joueurs Steam");
-    expect(rarityText(0.02)).toBe("Débloqué par 0,1 % des joueurs Steam ou moins");
+    expect(rarityText(1.24, "steam")).toBe("Débloqué par 1,2 % des joueurs Steam");
+    expect(rarityText(0.02, "steam")).toBe("Débloqué par 0,1 % des joueurs Steam ou moins");
+    expect(rarityText(12.5, "gog")).toBe("Débloqué par 12,5 % des joueurs GOG");
   });
 
   it("touches et pages", () => {
@@ -254,7 +255,7 @@ describe("story en anglais", () => {
     expect(pages[4]).toMatchObject({ eyebrow: "Your streak", value: "4 days", title: "of play in a row", detail: "Your longest streak that week" });
     expect(pages[5]).toMatchObject({ eyebrow: "Discoveries", value: "1", title: "new game started" });
     expect(pages[5].items[0].value).toBe("November 12");
-    expect(pages[6]).toMatchObject({ eyebrow: "Steam achievements", value: "7", title: "achievements unlocked", detail: "including 5 in Hades" });
+    expect(pages[6]).toMatchObject({ eyebrow: "Achievements", value: "7", title: "achievements unlocked", detail: "including 5 in Hades" });
     expect(pages[7].eyebrow).toBe("Your player profile");
     expect(pages[8]).toMatchObject({ title: "End of recap", detail: "8 sessions · 3 games" });
   });
@@ -326,7 +327,8 @@ describe("story en anglais", () => {
     expect(storyComparison(recap({ totalSecs: H, previousSecs: H }))).toBe("Same as the previous week");
     expect(storyComparison(recap({ period: "month", totalSecs: 3 * H, previousSecs: 2 * H }))).toBe("+50% vs. the previous month");
     expect(storyComparison(recap({ period: "year", totalSecs: 30 * H, previousSecs: 2 * H }))).toBe("+1,400% vs. the previous year");
-    expect(rarityText(1.24)).toBe("Unlocked by 1.2% of Steam players");
-    expect(rarityText(0.02)).toBe("Unlocked by 0.1% of Steam players or fewer");
+    expect(rarityText(1.24, "steam")).toBe("Unlocked by 1.2% of Steam players");
+    expect(rarityText(0.02, "steam")).toBe("Unlocked by 0.1% of Steam players or fewer");
+    expect(rarityText(12.5, "gog")).toBe("Unlocked by 12.5% of GOG players");
   });
 });
