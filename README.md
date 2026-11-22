@@ -41,6 +41,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 - Recherche rapide de n'importe où (Alt+Espace par défaut), zone de notification, Jump List et raccourcis sur le Bureau.
 - Stockage : place des jeux par disque et jeux à désinstaller.
 - Liste de souhaits Steam avec alertes de promo, sans compte.
+- Jeux gratuits de la semaine sur l'Epic Games Store (en cours et à venir), avec une notification à chaque nouvelle fournée ; Ludex ne récupère jamais le jeu à ta place.
 - Thèmes sombre, clair, noir OLED et contraste élevé, cinq couleurs d'accent, interface en français et en anglais.
 
 <table>
@@ -131,7 +132,8 @@ Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulem
 | `api.steampowered.com` | Fiches, tags, actualités, rareté des succès, mods | Numéros Steam des jeux et des mods, langue |
 | `displaycatalog.mp.microsoft.com` | Jaquettes des jeux absents de Steam | Titres de ces jeux |
 | `howlongtobeat.com` | Durée de vie | Titres des jeux |
-| CDN d'images de Steam et du Microsoft Store | Jaquettes, images, vignettes | Adresse de chaque image |
+| `store-site-backend-static.ak.epicgames.com` | Jeux gratuits d'Epic | Langue et pays seulement |
+| CDN d'images de Steam, du Microsoft Store et d'Epic | Jaquettes, images, vignettes | Adresse de chaque image |
 
 Jamais envoyés : nom d'utilisateur Windows, chemins de dossiers, identifiant de compte Steam, temps de jeu, favoris, notes, collections, contenu de tes fichiers. Le journal d'erreurs et le rapport de diagnostic restent sur ton PC (le rapport n'est copié que si tu cliques sur « Copier le rapport », et il est anonymisé).
 

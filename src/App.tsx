@@ -23,6 +23,7 @@ import {
   onGameNews,
   onNotificationOpen,
   onWishlistSale,
+  onEpicFreeNew,
   onGameSession,
   onLibraryChanged,
   onUpdateAvailable,
@@ -65,6 +66,7 @@ import {
 } from "./lib/api";
 import { newsToast } from "./lib/news";
 import { saleToast } from "./lib/wishlist";
+import { freeToast } from "./lib/freeGames";
 import { ambientFromImage, titleColor } from "./lib/color";
 import { useGamepad, type PadAction } from "./lib/gamepad";
 import { COUCH_KEY, COUCH_VALUES, couchPadAction, type CouchAction } from "./lib/couch";
@@ -942,6 +944,15 @@ export default function App() {
     const unlisten = onWishlistSale((sales) => {
       const sale = saleToast(sales);
       if (sale) showToast({ ...sale, action: { label: t.app.toast.see, run: () => live.current.goTo("wishlist") } }, 8000);
+    });
+    return () => void unlisten.then((stop) => stop()).catch(() => {});
+  }, [showToast]);
+
+  // Nouvelle fournée de jeux gratuits d'Epic, quand aucune notification Windows n'est partie.
+  useEffect(() => {
+    const unlisten = onEpicFreeNew((titles) => {
+      const free = freeToast(titles);
+      if (free) showToast({ ...free, action: { label: t.app.toast.see, run: () => live.current.goTo("wishlist") } }, 8000);
     });
     return () => void unlisten.then((stop) => stop()).catch(() => {});
   }, [showToast]);

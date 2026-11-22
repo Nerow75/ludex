@@ -907,7 +907,7 @@ export interface SettingsInfo {
   discordAvailable: boolean;
 }
 /** Types de notifications Windows (`notify.rs`). */
-export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError" | "sale";
+export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError" | "sale" | "freeGames";
 export type NotificationPrefs = Record<NotificationKind, boolean>;
 export const settings = () => invoke<SettingsInfo>("settings");
 export const setNotification = (kind: NotificationKind, value: boolean) => invoke<SettingsInfo>("set_notification", { kind, value });
@@ -971,7 +971,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog" | "epicfree";
 export interface DiagService {
   id: DiagServiceId;
   label: string;
@@ -1218,6 +1218,39 @@ export const onWishlistChanged = (handler: (list: Wishlist) => void): Promise<Un
   listen<Wishlist>("wishlist-changed", (e) => handler(e.payload));
 export const onWishlistSale = (handler: (sales: WishSale[]) => void): Promise<UnlistenFn> =>
   listen<WishSale[]>("wishlist-sale", (e) => handler(e.payload));
+
+/** Jeu gratuit de l'Epic Games Store (`epic_free.rs`), maintenant ou bientôt. */
+export interface FreeOffer {
+  /** Id de l'offre dans la boutique Epic. */
+  id: string;
+  title: string;
+  /** Début et fin de la gratuité, secondes Unix. */
+  start: number;
+  end: number;
+  /** Gratuit maintenant (sinon : bientôt). */
+  current: boolean;
+  /** Image large vérifiée côté Rust (CDN d'Epic). */
+  imageUrl: string | null;
+  /** Id du jeu dans la bibliothèque : « Déjà à toi ». */
+  owned: string | null;
+}
+export interface FreeGames {
+  /** Gratuits maintenant (fin la plus proche d'abord), puis à venir. */
+  items: FreeOffer[];
+  /** Dernière lecture réussie. */
+  checked: number | null;
+  /** Une lecture tourne (`epic-free-changed` à la fin). */
+  loading: boolean;
+}
+/** Jeux gratuits d'Epic depuis le cache ; relecture en fond si elle est due. */
+export const epicFreeGames = () => invoke<FreeGames>("epic_free_games");
+/** Page du jeu dans le launcher Epic (ou la boutique web), adresse reconstruite côté Rust. */
+export const openEpicFree = (id: string) => invoke<void>("open_epic_free", { id });
+export const onEpicFreeChanged = (handler: (free: FreeGames) => void): Promise<UnlistenFn> =>
+  listen<FreeGames>("epic-free-changed", (e) => handler(e.payload));
+/** Nouvelle fournée (titres), quand aucune notification Windows n'est partie. */
+export const onEpicFreeNew = (handler: (titles: string[]) => void): Promise<UnlistenFn> =>
+  listen<string[]>("epic-free-new", (e) => handler(e.payload));
 
 // Compte GOG facultatif (`gog_online`) : connexion par la page de GOG, jeux possédés pas installés,
 // installation par l'installeur hors ligne officiel. Aucun jeton ne vient jusqu'ici ; le front

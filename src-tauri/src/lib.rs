@@ -6,6 +6,7 @@ mod corrections;
 mod covers;
 mod deeplink;
 mod diagnostic;
+mod epic_free;
 mod discord;
 mod footprint;
 mod gog_online;
@@ -1360,6 +1361,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
     resolve_sizes(app.clone());
     resolve_news(app.clone());
     wishlist::resolve(app.clone());
+    epic_free::resolve(app.clone());
     refresh_tray(app, false);
     check_disks(app);
 }
@@ -2810,6 +2812,9 @@ pub fn run() {
             i18n::set(i18n::resolve(data.settings.language));
             // Cache des images dans le dossier choisi pour les données lourdes, s'il y en a un.
             let cache = relocate::cache_root(&dir, data.settings.data_dir.as_deref());
+            // Jeux gratuits d'Epic : état à part (cache, fournée en attente), vérification horaire.
+            app.manage(epic_free::State::load(&dir));
+            epic_free::start(app.handle().clone());
             app.manage(AppState {
                 games: Mutex::default(),
                 data: Mutex::new(data),
@@ -2934,6 +2939,7 @@ pub fn run() {
                 if window.label() == MAIN_WINDOW {
                     flush_news(window.app_handle());
                     wishlist::flush(window.app_handle());
+                    epic_free::flush(window.app_handle());
                 }
                 if window.app_handle().try_state::<AppState>().is_some_and(|s| is_stale(&s)) {
                     let app = window.app_handle().clone();
@@ -2989,6 +2995,8 @@ pub fn run() {
             wishlist::wishlist_add,
             wishlist::wishlist_remove,
             wishlist::open_store_page,
+            epic_free::epic_free_games,
+            epic_free::open_epic_free,
             showcase,
             storage,
             uninstall_game,

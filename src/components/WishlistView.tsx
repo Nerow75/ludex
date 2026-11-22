@@ -13,6 +13,7 @@ import {
 import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { addedText, checkedText, hitPrice, lowestText, priceView, wishLabel, wishSummary } from "../lib/wishlist";
+import { FreeGamesPanel } from "./FreeGamesPanel";
 import { SearchIcon } from "./Icons";
 import { EmptyState } from "./States";
 
@@ -38,7 +39,8 @@ function Owned({ id, ctx }: { id: string; ctx: SectionContext }) {
 
 /**
  * Section « Souhaits » : liste de souhaits locale (aucun compte Steam). Recherche dans la boutique
- * Steam et ajout sur place, prix relus par Ludex une fois par jour, promos signalées.
+ * Steam et ajout sur place, prix relus par Ludex une fois par jour, promos signalées. En tête, les
+ * jeux gratuits de la semaine sur l'Epic Games Store (`FreeGamesPanel`).
  */
 export function WishlistView(ctx: SectionContext) {
   const [list, setList] = useState<Wishlist | null>(null);
@@ -145,6 +147,8 @@ export function WishlistView(ctx: SectionContext) {
           )}
         </h2>
       </div>
+
+      <FreeGamesPanel ctx={ctx} />
 
       <form className="wishes__search" role="search" onSubmit={search}>
         <label className="search wishes__field">
