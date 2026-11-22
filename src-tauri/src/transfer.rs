@@ -402,6 +402,8 @@ fn sanitize(mut data: UserData) -> UserData {
     data.playtime.retain(|id, _| valid_id(id));
     data.status.retain(|id, _| valid_id(id));
     data.exes.retain(|id, exe| valid_id(id) && valid_exe(exe));
+    // Jeux déplacés : deux ids « Autres » valides, jamais un id qui renvoie à lui-même.
+    data.moved_ids.retain(|new, old| valid_id(new) && valid_id(old) && new != old && new.starts_with("other:") && old.starts_with("other:"));
     data.titles = std::mem::take(&mut data.titles)
         .into_iter()
         .filter(|(id, _)| valid_id(id))
@@ -528,6 +530,7 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
                 }
             }
             fill(&mut out.exes, incoming.exes);
+            fill(&mut out.moved_ids, incoming.moved_ids);
             fill(&mut out.titles, incoming.titles);
             fill(&mut out.aliases, incoming.aliases);
             fill(&mut out.genres, incoming.genres);
@@ -1181,5 +1184,21 @@ mod tests {
         let len = fs::metadata(&path).unwrap().len();
         assert!(read_archive(fs::File::open(&path).unwrap(), len).is_ok());
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn moved_games_follow_the_archive_and_this_pc_wins() {
+        let mut there = UserData::default();
+        there.moved_ids.insert("other:d-games-x".into(), "other:e-jeux-x".into());
+        there.moved_ids.insert("other:d-games-y".into(), "other:e-jeux-y".into());
+        there.moved_ids.insert("steam:1".into(), "other:e-jeux-z".into());
+        there.moved_ids.insert("other:same".into(), "other:same".into());
+        let there = sanitize(there);
+        assert_eq!(there.moved_ids.len(), 2, "ids hors « Autres » et boucles écartés");
+        let mut here = UserData::default();
+        here.moved_ids.insert("other:d-games-x".into(), "other:c-jeux-x".into());
+        let out = combine(&here, there, Mode::Merge, 0);
+        assert_eq!(out.moved_ids["other:d-games-x"], "other:c-jeux-x", "ce PC l'emporte");
+        assert_eq!(out.moved_ids["other:d-games-y"], "other:e-jeux-y");
     }
 }

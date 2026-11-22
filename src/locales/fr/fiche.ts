@@ -1,6 +1,8 @@
 // Textes français (langue de référence) de l'espace « fiche » : fiche à onglets d'un jeu et ses
 // panneaux (succès, actualités, mods, performances, configuration, sauvegardes, désinstallation).
 // Voir `src/lib/i18n.ts`.
+import { frNum } from "../fmt";
+
 export default {
   tabs: {
     overview: "Aperçu",
@@ -367,5 +369,52 @@ export default {
     hintFolder: (launcher: string) => `Aucun désinstalleur trouvé : désinstalle-le depuis ${launcher}, ou supprime son dossier à la main.`,
     notFound: "Dossier du jeu introuvable.",
     day: (y: string, m: string, d: string) => `${d}/${m}/${y}`,
+  },
+
+  /** Déplacer un jeu vers un autre disque (`MovePanel.tsx`, `src/lib/gameMove.ts`). */
+  move: {
+    action: "Déplacer vers un autre disque…",
+    storageAction: "Déplacer…",
+    storageHint: "Déplacer ce jeu vers un autre disque",
+    close: "Fermer",
+    title: (title: string) => `Déplacer ${title}`,
+    loading: "Lecture des disques…",
+    current: (path: string, size: string) => `Dossier actuel : ${path}, ${size}`,
+    steam: "Steam déplace ses jeux lui-même, sans rien retélécharger : dans ses Paramètres, page Stockage, choisis le jeu puis « Déplacer ».",
+    steamButton: "Déplacer avec Steam",
+    windows: "Jeu du Microsoft Store : Windows le déplace lui-même. Dans Applications installées, ouvre le menu « … » du jeu puis « Déplacer ».",
+    windowsButton: "Ouvrir Applications installées",
+    launcher: (launcher: string) => `${launcher} garde l'emplacement du jeu dans ses propres fichiers : Ludex ne le déplace pas, pour ne pas casser ${launcher}. Désinstalle-le puis réinstalle-le sur l'autre disque.`,
+    ubisoft: "Ubisoft Connect : déplace le dossier du jeu à la main, puis, sur la page du jeu dans Ubisoft Connect, « Localiser le jeu installé ».",
+    battlenet: "Battle.net : déplace le dossier du jeu à la main, puis, dans Battle.net, « Localiser ce jeu » sous le bouton d'installation.",
+    itch: "Dans l'appli itch, menu du jeu « Gérer » puis « Déplacer » : elle le déplace elle-même.",
+    folderButton: "Ouvrir le dossier du jeu",
+    intro: "Ludex copie le jeu, vérifie la copie, puis te demande confirmation avant de supprimer l'ancien dossier. Ferme le jeu avant.",
+    choose: "Destination",
+    noTarget: "Aucune autre destination : Ludex ne déplace que vers un dossier « Jeux » ou « Games » d'un disque de ce PC.",
+    pick: "Autre dossier…",
+    free: (free: string) => `${free} libres`,
+    sameDrive: "Même disque : instantané",
+    create: (dir: string) => `${dir} sera créé`,
+    notEnough: "Pas assez de place",
+    taken: "Un dossier du même nom existe déjà",
+    start: "Déplacer",
+    preparing: "Préparation de la copie…",
+    copying: (copied: string, total: string) => `Copie : ${copied} sur ${total}`,
+    verifying: "Vérification de la copie…",
+    ready: (from: string) => `Copie vérifiée. Supprimer l'ancien dossier ${from} et finir le déplacement ?`,
+    finish: "Finir le déplacement",
+    cancel: "Annuler",
+    finishing: "Finalisation…",
+    done: (to: string) => `Déplacé dans ${to}.`,
+    cancelled: "Déplacement annulé : le jeu n'a pas bougé.",
+    failed: (error: string) => `Déplacement impossible : ${error}`,
+    ok: "OK",
+    otherGame: (title: string) => `Un déplacement est en cours (${title}) : attends sa fin.`,
+    running: (title: string) => `Déplacement de ${title}`,
+    progress: (title: string) => `Progression du déplacement de ${title}`,
+    diskGames: (n: number) => `Jeux de ce disque (${frNum(n)})`,
+    unknownSize: "Taille inconnue",
+    hidden: "masqué",
   },
 };

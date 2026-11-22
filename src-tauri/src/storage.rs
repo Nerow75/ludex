@@ -259,6 +259,8 @@ pub struct DiskUsage {
     pub platforms: Vec<PlatformShare>,
     /// Moins de 10 % d'espace libre.
     pub low: bool,
+    /// Jeux de ce disque (masqués compris), pour la liste « Jeux de ce disque » et « Déplacer… ».
+    pub ids: Vec<String>,
 }
 
 /// Disques qui contiennent au moins un jeu, avec la place des jeux par launcher. Les jeux masqués
@@ -281,12 +283,14 @@ pub fn disks(games: &[Game], volumes: &[Volume]) -> Vec<DiskUsage> {
                     unknown: 0,
                     platforms: Vec::new(),
                     low: v.total > 0 && v.free < v.total / 10,
+                    ids: Vec::new(),
                 });
                 out.len() - 1
             }
         };
         let disk = &mut out[i];
         disk.games += 1;
+        disk.ids.push(g.id.clone());
         let Some(bytes) = g.size_on_disk.filter(|&b| b > 0) else {
             disk.unknown += 1;
             continue;

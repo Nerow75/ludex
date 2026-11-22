@@ -703,6 +703,7 @@ mod tests {
             unknown: 0,
             platforms: Vec::new(),
             low: true,
+            ids: Vec::new(),
         };
         let fine = DiskUsage { letter: "C:".into(), free: 1_500_000_000_000, low: false, ..disk.clone() };
         let notes = low_disk_notes(&[disk.clone(), fine], "2026-11-20");

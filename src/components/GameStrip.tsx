@@ -54,7 +54,8 @@ import { AchievementList } from "./AchievementList";
 import { Art, Logo } from "./Art";
 import { gameSummary } from "./JournalView";
 import { ScreenshotViewer, ShotTile } from "./ScreenshotViewer";
-import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, SearchIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
+import { MovePanel } from "./MovePanel";
+import { CloseIcon, EyeOffIcon, FileIcon, FolderIcon, ImageIcon, JournalIcon, MoveIcon, NoteIcon, PencilIcon, PlayIcon, PlusIcon, SearchIcon, ShortcutIcon, SlidersIcon, StarIcon, TrashIcon, UndoIcon, WideImageIcon } from "./Icons";
 import { InlineInput } from "./InlineInput";
 import { NewsTab, useNews } from "./NewsPanel";
 import { newNewsCount } from "../lib/news";
@@ -729,6 +730,8 @@ export function GameStrip({
   onEditStarted,
 }: Props) {
   const [renaming, setRenaming] = useState(false);
+  // Panneau « Déplacer vers un autre disque » ouvert sous les actions.
+  const [moving, setMoving] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [showCollections, setShowCollections] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -1028,6 +1031,19 @@ export function GameStrip({
               <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.shortcut} title={t.fiche.actions.shortcut} onClick={() => onShortcut(game)}>
                 <ShortcutIcon />
               </button>
+              {game.installDir && (
+                <button
+                  type="button"
+                  className="btn-icon"
+                  data-nav
+                  aria-pressed={moving}
+                  aria-label={t.fiche.move.action}
+                  title={t.fiche.move.action}
+                  onClick={() => setMoving((v) => !v)}
+                >
+                  <MoveIcon />
+                </button>
+              )}
               {game.platform === "other" && (
                 <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.changeExe} title={t.fiche.actions.changeExe} onClick={() => onChangeExe(game)}>
                   <FileIcon />
@@ -1073,6 +1089,7 @@ export function GameStrip({
                 </button>
               )}
             </div>
+            {moving && game.installDir && <MovePanel key={`move-${game.id}`} id={game.id} title={game.title} />}
           </div>
         </aside>
       </div>

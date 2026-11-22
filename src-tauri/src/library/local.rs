@@ -79,10 +79,23 @@ pub fn candidates() -> Vec<PathBuf> {
     // Dossier d'un jeu GOG en cours d'installation : jamais pris pour un jeu « Autres » à moitié
     // écrit (la surveillance voit le dossier apparaître pendant l'installation).
     let installing = INSTALLING.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    // Copie en cours ou ancien dossier d'un jeu déplacé (`game_move.rs`) : jamais un jeu.
+    let list = list.into_iter().filter(|d| !is_move_leftover(d));
     match installing {
-        Some(dir) => list.into_iter().filter(|d| !same_dir(d, &dir)).collect(),
-        None => list,
+        Some(dir) => list.filter(|d| !same_dir(d, &dir)).collect(),
+        None => list.collect(),
     }
+}
+
+/// Suffixes des dossiers de travail d'un déplacement de jeu : copie en cours, ancien dossier.
+pub const MOVE_SUFFIXES: [&str; 2] = [".ludex-tmp", ".ludex-old"];
+
+/// Dossier de travail d'un déplacement (nom qui finit par un suffixe de `MOVE_SUFFIXES`).
+pub fn is_move_leftover(dir: &Path) -> bool {
+    dir.file_name()
+        .and_then(|n| n.to_str())
+        .map(str::to_ascii_lowercase)
+        .is_some_and(|n| MOVE_SUFFIXES.iter().any(|s| n.ends_with(s)))
 }
 
 /// Dossier d'installation en cours (installeur GOG lancé par Ludex).

@@ -168,3 +168,7 @@ export const SlidersIcon = () => (
 export const ExternalIcon = () => (
   <svg {...base}><path d="M14 5h5v5M19 5l-8 8M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10" /></svg>
 );
+/** Déplacer un jeu vers un autre disque : un disque et une flèche. */
+export const MoveIcon = () => (
+  <svg {...base}><path d="M4 15h16v4.5H4zM17 17.25h.01M5 9.5h11m-3.5-3.5L16 9.5 12.5 13" /></svg>
+);
