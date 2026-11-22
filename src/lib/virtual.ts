@@ -91,3 +91,15 @@ export function plan(rows: Rows, [first, last]: [number, number], keep: readonly
   if (end < rows.count - 1) out.push({ kind: "space", size: totalHeight(rows) - rowEnd(rows, end) - gap });
   return out;
 }
+
+/**
+ * Défilement qui montre un bloc (jaquette et fiche dépliée dessous) : `top` et `bottom` dans le contenu
+ * de l'ancêtre qui défile, `view` sa hauteur visible, `padTop` et `padBottom` ses marges de défilement.
+ * Bloc déjà entier à l'écran = défilement inchangé ; sinon haut du bloc aligné en haut de l'écran, d'où
+ * qu'il vienne : la fiche a toute la place dessous, et une fiche qui grandit ensuite (onglets lus après
+ * coup) ne fait plus bouger la jaquette. Jamais négatif.
+ */
+export function revealScroll(scroll: number, top: number, bottom: number, view: number, padTop = 0, padBottom = 0): number {
+  if (top >= scroll + padTop && bottom <= scroll + view - padBottom) return scroll;
+  return Math.max(0, top - padTop);
+}

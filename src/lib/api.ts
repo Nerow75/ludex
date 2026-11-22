@@ -682,6 +682,8 @@ export interface TrayLaunchEvent {
   title: string;
   lastPlayed: number | null;
   error: string | null;
+  /** Fenêtre principale à l'écran (affichée, pas réduite) au moment du lancement. */
+  shown: boolean;
 }
 export const onTrayLaunch = (handler: (event: TrayLaunchEvent) => void): Promise<UnlistenFn> =>
   listen<TrayLaunchEvent>("tray-launch", (e) => handler(e.payload));

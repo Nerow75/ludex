@@ -35,7 +35,8 @@ export function titleOrder(): Intl.Collator {
   }
   return c;
 }
-const byTitle = (a: Game, b: Game) => titleOrder().compare(cleanTitle(a.title), cleanTitle(b.title));
+/** Ordre des titres (sans ®/™, accents ni casse), partagé par la bibliothèque, « Pour toi », la recherche rapide, Progression. */
+export const byTitle = (a: Game, b: Game) => titleOrder().compare(cleanTitle(a.title), cleanTitle(b.title));
 
 /** Compare deux valeurs : celle qui manque (`null`) va toujours en fin de liste. */
 function known(a: number | null, b: number | null, desc: boolean): number {

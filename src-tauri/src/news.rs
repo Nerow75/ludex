@@ -577,23 +577,26 @@ impl Builder {
 
 /// Convertit le BBCode d'une annonce en blocs, avec les adresses des liens permis (numérotés).
 pub fn parse_bbcode(source: &str) -> (Vec<Block>, Vec<String>) {
-    let source = source.replace("\r\n", "\n").replace("\\]", "]");
+    const BACKSLASH: char = '\u{5C}';
+    let source = source.replace("\r\n", "\n");
     let mut b = Builder::default();
     let mut rest = source.as_str();
-    while !rest.is_empty() {
-        let Some(open) = rest.find('[') else {
-            b.text(rest);
-            break;
-        };
-        // `\[` : crochet échappé (notes de mise à jour de CS2), jamais une balise.
-        if let Some(before) = rest[..open].strip_suffix('\\') {
-            b.text(before);
-            b.text("[");
-            rest = &rest[open + 1..];
+    while let Some(at) = rest.find(['[', BACKSLASH]) {
+        b.text(&rest[..at]);
+        rest = &rest[at..];
+        // Barre oblique inverse devant `[`, `]` ou une autre barre : caractère échappé (notes de mise à
+        // jour de CS2, appid 286160), écrit tel quel et jamais lu comme une balise ; devant autre chose,
+        // la barre reste.
+        if let Some(after) = rest.strip_prefix(BACKSLASH) {
+            if after.starts_with(['[', ']', BACKSLASH]) {
+                b.text(&after[..1]);
+                rest = &after[1..];
+            } else {
+                b.text(&rest[..1]);
+                rest = after;
+            }
             continue;
         }
-        b.text(&rest[..open]);
-        rest = &rest[open..];
         match read_tag(rest) {
             Some((tag, len)) => {
                 b.tag(&tag);
@@ -605,6 +608,7 @@ pub fn parse_bbcode(source: &str) -> (Vec<Block>, Vec<String>) {
             }
         }
     }
+    b.text(rest);
     b.finish()
 }
 
@@ -1019,6 +1023,13 @@ mod tests {
         // Crochets échappés : du texte, jamais une balise.
         let (escaped, _) = parse_bbcode(r"[p]\[ MAPS \] \[b]non[/b][/p]");
         assert!(matches!(&escaped[0], Block::Paragraph { spans } if text(spans) == "[ MAPS ] [b]non"), "{escaped:?}");
+        // Barre oblique inverse échappée (appid 286160) : une seule affichée, même devant une balise ;
+        // une barre seule devant autre chose reste telle quelle (`~` = barre oblique inverse ici).
+        let slash = |s: &str| s.replace('~', "\u{5C}");
+        let (slashes, _) = parse_bbcode(&slash("[p]C:~~Jeux~~Save ~~[b]gras[/b] a~b fin~[/p]"));
+        let Block::Paragraph { spans } = &slashes[0] else { panic!("{slashes:?}") };
+        assert_eq!(text(spans), slash("C:~Jeux~Save ~gras a~b fin[/p]"));
+        assert!(spans.iter().any(|s| s.bold && s.text == "gras"), "{spans:?}");
         // Crochets inconnus : du texte.
         assert!(matches!(&blocks[4], Block::Paragraph { spans } if text(spans) == "[PC] Correctif"));
     }

@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanTitle } from "./format";
+import { setLang } from "./i18n";
+import { byTitle } from "./library";
 import { quickResults } from "./quick";
 import { jeu } from "../test/jeu";
 
@@ -23,5 +26,27 @@ describe("quickResults : recherche rapide", () => {
   it("avec recherche : même classement que la bibliothèque, jeux masqués exclus", () => {
     expect(titres(quickResults(tous, "h"))).toEqual(["Hades"]);
     expect(titres(quickResults(tous, "ba"))).toEqual(["Baba Is You"]);
+  });
+});
+
+describe("byTitle : ordre partagé des titres", () => {
+  afterEach(() => setLang("fr"));
+  const noms = ["Élite Dangerous", "elden ring", "Ori", "œuvre", "Zelda", "ÆON", "DOOM®", "Doom 3", "Doom Eternal", "Assassin’s Creed", "assassin's creed", "Ábzu", "Baba Is You", "2048", "Ys VIII", "Éclipse", "eclipse"];
+  const jeux = noms.map((title) => jeu({ title }));
+  // Ordre d'avant (`localeCompare` avec options, un collateur recréé à chaque comparaison) : inchangé.
+  const avant = (lang: string) => [...jeux].sort((a, b) => cleanTitle(a.title).localeCompare(cleanTitle(b.title), lang, { sensitivity: "base" }));
+
+  it("même ordre que localeCompare, en français et en anglais", () => {
+    expect(titres([...jeux].sort(byTitle))).toEqual(titres(avant("fr-FR")));
+    setLang("en");
+    expect(titres([...jeux].sort(byTitle))).toEqual(titres(avant("en-US")));
+  });
+  it("ignore accents, casse et ®", () => {
+    expect(byTitle(jeu({ title: "Éclipse" }), jeu({ title: "eclipse" }))).toBe(0);
+    expect(byTitle(jeu({ title: "DOOM®" }), jeu({ title: "doom" }))).toBe(0);
+  });
+  it("trie aussi les jeux jamais joués de la recherche rapide", () => {
+    const sans = quickResults(jeux, "");
+    expect(titres(sans)).toEqual(titres(avant("fr-FR")).slice(0, sans.length));
   });
 });

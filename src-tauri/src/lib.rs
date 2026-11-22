@@ -539,10 +539,7 @@ fn sweep_news(app: &tauri::AppHandle, state: &AppState) {
 /// le retour sur la fenêtre (Ludex dans la zone de notification).
 fn flush_news<R: Runtime>(app: &AppHandle<R>) {
     let Some(state) = app.try_state::<AppState>() else { return };
-    let shown = app
-        .get_webview_window(MAIN_WINDOW)
-        .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false));
-    if !shown {
+    if !main_shown(app) {
         return;
     }
     let alerts = match lock(&state.pending_news) {
@@ -2164,7 +2161,7 @@ fn launch_game(app: AppHandle, window: tauri::Window, state: State<'_, AppState>
     if window.label() == quick::LABEL {
         quick::hide(&app);
         let title = find_game(&state, &id).map(|g| g.title).unwrap_or_default();
-        let event = TrayLaunchEvent { id, title, last_played: Some(launched), error: None };
+        let event = TrayLaunchEvent { id, title, last_played: Some(launched), error: None, shown: main_shown(&app) };
         let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
     }
     Ok(launched)
@@ -2236,6 +2233,9 @@ struct TrayLaunchEvent {
     title: String,
     last_played: Option<u64>,
     error: Option<String>,
+    /// Fenêtre principale à l'écran au moment du lancement : le front y montre alors l'écran de
+    /// lancement, comme pour un clic sur Jouer (fenêtre cachée ou réduite : rien).
+    shown: bool,
 }
 
 const TRAY_LAUNCH_EVENT: &str = "tray-launch";
@@ -2254,6 +2254,12 @@ fn show_main<R: Runtime>(app: &AppHandle<R>) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// Fenêtre principale à l'écran : affichée et pas réduite (qu'elle ait le focus ou non).
+fn main_shown<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.get_webview_window(MAIN_WINDOW)
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
 }
 
 /// État de la fenêtre principale, pour décider d'une notification Windows.
@@ -2410,11 +2416,11 @@ fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
             let Some(state) = app.try_state::<AppState>() else { return };
             let title = find_game(&state, &game).map_or_else(|_| this_game(), |g| g.title);
             let event = match launch(app, &state, &game) {
-                Ok(ts) => TrayLaunchEvent { id: game, title, last_played: Some(ts), error: None },
+                Ok(ts) => TrayLaunchEvent { id: game, title, last_played: Some(ts), error: None, shown: main_shown(app) },
                 Err(e) => {
                     // L'erreur s'affiche dans la fenêtre : elle doit être visible.
                     show_main(app);
-                    TrayLaunchEvent { id: game, title, last_played: None, error: Some(e) }
+                    TrayLaunchEvent { id: game, title, last_played: None, error: Some(e), shown: true }
                 }
             };
             let _ = app.emit(TRAY_LAUNCH_EVENT, event);
@@ -2478,7 +2484,7 @@ fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
     let refuse = |id: String, error: String| {
         log::warn!("Lien {link} refusé : {error}");
         if app.get_webview_window(MAIN_WINDOW).is_some_and(|w| w.is_visible().unwrap_or(false)) {
-            let event = TrayLaunchEvent { id, title: this_game(), last_played: None, error: Some(error) };
+            let event = TrayLaunchEvent { id, title: this_game(), last_played: None, error: Some(error), shown: true };
             let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
         }
     };
@@ -2499,10 +2505,10 @@ fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
         );
     };
     let event = match launch(app, &state, &id) {
-        Ok(ts) => TrayLaunchEvent { id, title: game.title, last_played: Some(ts), error: None },
+        Ok(ts) => TrayLaunchEvent { id, title: game.title, last_played: Some(ts), error: None, shown: main_shown(app) },
         Err(e) => {
             show_main(app);
-            TrayLaunchEvent { id, title: game.title, last_played: None, error: Some(e) }
+            TrayLaunchEvent { id, title: game.title, last_played: None, error: Some(e), shown: true }
         }
     };
     let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
