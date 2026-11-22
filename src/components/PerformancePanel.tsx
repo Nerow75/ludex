@@ -1,11 +1,17 @@
 import { useState } from "react";
-import type { PerfSeries, SessionPerf } from "../lib/api";
+import type { FpsSeries, PerfSeries, SessionPerf } from "../lib/api";
 import { t } from "../lib/i18n";
 import {
   METRIC_LABEL,
   areaPath,
   chartSegments,
+  formatFps,
   formatMetric,
+  fpsAverageText,
+  fpsLowText,
+  fpsNote,
+  fpsScaleMax,
+  fpsSummary,
   lacksGpu,
   linePath,
   perfHeadline,
@@ -61,7 +67,43 @@ function MetricChart({ perf, series }: { perf: SessionPerf; series: PerfSeries }
   );
 }
 
-/** Onglet « Performances » : processeur, mémoire et carte graphique des dernières parties. */
+/** Images par seconde : moyenne et 1 % low, chaque courbe une valeur par point. */
+function FpsChart({ perf, fps }: { perf: SessionPerf; fps: FpsSeries }) {
+  const max = fpsScaleMax(fps);
+  const avg = chartSegments(perf, fps.points, max, W, H);
+  const low = chartSegments(perf, fps.lowPoints, max, W, H);
+  const p = t.fiche.perf.fps;
+  return (
+    <figure className="perf__card" data-nav tabIndex={-1} aria-label={fpsSummary(fps)}>
+      <h3 className="perf__title">{p.title}</h3>
+      <dl className="perf__stats" aria-hidden="true">
+        <div>
+          <dt><span className="perf__key is-game" />{p.averageKey}</dt>
+          <dd>{fpsAverageText(fps)}</dd>
+        </div>
+        <div>
+          <dt><span className="perf__key is-pc" />{p.lowKey}</dt>
+          <dd>{fpsLowText(fps)}</dd>
+        </div>
+      </dl>
+      <div className="perf__plot" aria-hidden="true">
+        <span className="perf__max">{formatFps(max)}</span>
+        <svg className="perf__svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" focusable="false">
+          <line className="perf__grid" x1="0" x2={W} y1={H / 2} y2={H / 2} />
+          <path className="perf__area" d={areaPath(avg, H)} />
+          <path className="perf__line is-pc" d={linePath(low)} />
+          <path className="perf__line is-game" d={linePath(avg)} />
+        </svg>
+        <span className="perf__axis">
+          <span>0</span>
+          <span>{sessionLength(perf)}</span>
+        </span>
+      </div>
+    </figure>
+  );
+}
+
+/** Onglet « Performances » : images par seconde, processeur, mémoire et carte graphique des dernières parties. */
 export function PerformancePanel({ sessions }: Props) {
   const [chosen, setChosen] = useState(0);
   const index = Math.min(chosen, sessions.length - 1);
@@ -94,12 +136,14 @@ export function PerformancePanel({ sessions }: Props) {
         </p>
       )}
       <div className="perf__grid-list">
+        {perf.fps && <FpsChart key={`${perf.start}-fps`} perf={perf} fps={perf.fps} />}
         {perf.series.map((s) => (
           <MetricChart key={`${perf.start}-${s.metric}`} perf={perf} series={s} />
         ))}
       </div>
+      {fpsNote(perf) && <p className="fiche__note">{fpsNote(perf)}</p>}
       {lacksGpu(perf) && <p className="fiche__note">{t.fiche.perf.noGpu}</p>}
-      <p className="fiche__note">{t.fiche.perf.noFps}</p>
+      <p className="fiche__note">{t.fiche.perf.noTemps}</p>
     </div>
   );
 }
