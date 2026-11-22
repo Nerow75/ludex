@@ -4,7 +4,7 @@
 
 Ludex brings the games installed on your Windows PC into a single library, whatever their launcher, and starts them with one click or one controller button. It reads what the launchers already keep on disk: no account to link, no password, nothing to set up.
 
-<!-- Planned screenshot: docs/captures/pour-toi.png ("For you" home) -->
+![Ludex "For you" home: "Tonight" banner with Terraria, games to jump back into and ideas by mood](docs/captures/en/pour-toi.png)
 
 ## Principles
 
@@ -43,7 +43,23 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 - Steam wishlist with sale alerts, without an account.
 - Dark, light, OLED black and high contrast themes, five accent colors, interface in English and French.
 
-<!-- Planned screenshots: docs/captures/bibliotheque.png, docs/captures/fiche.png, docs/captures/mode-canape.png -->
+<table>
+  <tr>
+    <td width="50%"><img src="docs/captures/en/bibliotheque.png" alt="All games in a grid: covers, achievement progress and launcher filters"><br><sub>Library grid, filters by launcher, genre, tag and mood</sub></td>
+    <td width="50%"><img src="docs/captures/en/fiche.png" alt="Rocket League game page, Overview tab: playtime, achievements, time to beat, tags and system requirements"><br><sub>Game page (Overview tab)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/en/mode-canape.png" alt="Couch mode: large covers in rows over the selected game's artwork"><br><sub>Couch mode for the TV, with a controller</sub></td>
+    <td width="50%"><img src="docs/captures/en/statistiques.png" alt="Stats: most played games, playtime by launcher and by genre"><br><sub>Play stats</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/en/vitrine.png" alt="Steam achievements showcase: rarest achievements, games at 100% and latest unlocks"><br><sub>Steam achievements showcase</sub></td>
+    <td width="50%"><img src="docs/captures/en/theme-clair.png" alt="Terraria game page in the light theme"><br><sub>Light theme</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/en/recherche-rapide.png" alt="Quick search: floating window finding the Football Manager games after typing “foot”"><br><sub>Quick search (Alt+Space)</sub></td>
+  </tr>
+</table>
 
 ## Installation
 

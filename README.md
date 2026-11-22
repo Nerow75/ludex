@@ -4,7 +4,7 @@
 
 Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Windows, quel que soit leur launcher, et les lance d'un clic ou d'un bouton de manette. Il lit ce que les launchers enregistrent déjà sur le disque : pas de compte à relier, pas de mot de passe, rien à configurer.
 
-<!-- Capture prévue : docs/captures/pour-toi.png (accueil « Pour toi ») -->
+![Accueil « Pour toi » de Ludex : bannière « Ce soir » avec Terraria, parties à reprendre et idées par ambiance](docs/captures/fr/pour-toi.png)
 
 ## Principes
 
@@ -43,7 +43,23 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 - Liste de souhaits Steam avec alertes de promo, sans compte.
 - Thèmes sombre, clair, noir OLED et contraste élevé, cinq couleurs d'accent, interface en français et en anglais.
 
-<!-- Captures prévues : docs/captures/bibliotheque.png, docs/captures/fiche.png, docs/captures/mode-canape.png -->
+<table>
+  <tr>
+    <td width="50%"><img src="docs/captures/fr/bibliotheque.png" alt="Tous les jeux en grille : jaquettes, avancement des succès et filtres par launcher"><br><sub>Bibliothèque en grille, filtres par launcher, genre, tag et ambiance</sub></td>
+    <td width="50%"><img src="docs/captures/fr/fiche.png" alt="Fiche de Rocket League, onglet Aperçu : temps de jeu, succès, durée de vie, tags et configuration requise"><br><sub>Fiche d'un jeu (onglet Aperçu)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/fr/mode-canape.png" alt="Mode canapé : grandes jaquettes en rangées sur l'image du jeu choisi"><br><sub>Mode canapé pour la TV, à la manette</sub></td>
+    <td width="50%"><img src="docs/captures/fr/statistiques.png" alt="Statistiques : jeux les plus joués, temps par launcher et par genre"><br><sub>Statistiques de jeu</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/fr/vitrine.png" alt="Vitrine des succès Steam : succès les plus rares, jeux à 100 % et derniers déblocages"><br><sub>Vitrine des succès Steam</sub></td>
+    <td width="50%"><img src="docs/captures/fr/theme-clair.png" alt="Fiche de Terraria dans le thème clair"><br><sub>Thème clair</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/captures/fr/recherche-rapide.png" alt="Recherche rapide : fenêtre flottante qui trouve les jeux Football Manager en tapant « foot »"><br><sub>Recherche rapide (Alt+Espace)</sub></td>
+  </tr>
+</table>
 
 ## Installation
 
