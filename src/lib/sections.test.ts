@@ -116,6 +116,7 @@ describe("en anglais", () => {
       "Saves",
       "Storage",
       "Wishlist",
+      "Not installed",
     ]);
     expect(section("favorites").empty).toContain("Ctrl+D");
     expect(section("journal").group).toBe(ACTIVITY_GROUP);

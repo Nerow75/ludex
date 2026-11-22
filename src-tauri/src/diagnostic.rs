@@ -26,10 +26,11 @@ pub enum Service {
     News,
     Workshop,
     Wishlist,
+    Gog,
 }
 
 impl Service {
-    pub const ALL: [Service; 9] = [
+    pub const ALL: [Service; 10] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -39,6 +40,7 @@ impl Service {
         Service::News,
         Service::Workshop,
         Service::Wishlist,
+        Service::Gog,
     ];
 
     pub fn label(self) -> &'static str {
@@ -52,6 +54,7 @@ impl Service {
             Service::News => tr_str!("Actualités des jeux", "Game news"),
             Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
             Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
+            Service::Gog => tr_str!("Compte GOG", "GOG account"),
         }
     }
 
@@ -67,6 +70,7 @@ impl Service {
             Service::News => tr_str!("annonces Steam", "Steam announcements"),
             Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
             Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
+            Service::Gog => tr_str!("API de GOG", "GOG API"),
         }
     }
 
@@ -163,6 +167,8 @@ pub struct Diagnostic {
     pub services: Vec<ServiceDiag>,
     /// Statut Discord (client local, aucun réseau).
     pub discord: crate::discord::Status,
+    /// Compte GOG connecté ou non (jamais d'identifiant).
+    pub gog: crate::gog_online::AccountState,
     /// Rapport texte anonymisé, prêt à copier.
     pub report: String,
 }
@@ -183,6 +189,8 @@ pub struct Inputs<'a> {
     pub busy: Vec<Service>,
     /// État du fil du statut Discord.
     pub discord: crate::discord::Status,
+    /// État du compte GOG.
+    pub gog: crate::gog_online::AccountState,
 }
 
 /// Sources dans l'ordre du scan.
@@ -289,6 +297,7 @@ pub fn build(input: Inputs, locations: impl Fn(Platform) -> Vec<Location>, when:
         sources,
         services,
         discord: input.discord,
+        gog: input.gog,
         report: String::new(),
     };
     diag.report = report(&diag, privacy, when);
@@ -501,6 +510,7 @@ pub fn report(d: &Diagnostic, privacy: &Privacy, when: &dyn Fn(u64) -> String) -
     }
     out.push(String::new());
     out.push(tr!("Statut Discord : {}", "Discord status: {}", d.discord.text()));
+    out.push(tr!("Compte GOG : {}", "GOG account: {}", d.gog.text()));
     anonymize(&(out.join("\n") + "\n"), privacy)
 }
 
@@ -536,6 +546,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             manual,
             busy,
             discord: app.try_state::<crate::discord::Presence>().map(|p| p.status()).unwrap_or_default(),
+            gog: crate::gog_online::diag_state(&app),
         };
         let privacy = Privacy::of_this_pc();
         let mut diag = build(input, crate::library::locations, &local_time, &privacy);
@@ -674,6 +685,7 @@ mod tests {
             manual: vec![("Titre très perso".into(), true), ("Autre titre perso".into(), false)],
             busy: vec![Service::Art],
             discord: crate::discord::Status { state: crate::discord::State::Absent, error: Some("Discord n'est pas ouvert.".into()) },
+            gog: crate::gog_online::AccountState::Connected,
         };
         let locations = |p: Platform| match p {
             Platform::Steam => vec![
@@ -727,6 +739,7 @@ mod tests {
                 manual: vec![("Titre très perso".into(), false)],
                 busy: Vec::new(),
                 discord: crate::discord::Status::default(),
+                gog: crate::gog_online::AccountState::default(),
             };
             let locations = |p: Platform| match p {
                 Platform::Steam => vec![Location { label: "Account playtime".into(), path: r"E:\Steam\userdata\52870646\config\localconfig.vdf".into(), found: false }],
@@ -775,6 +788,7 @@ mod tests {
             manual: Vec::new(),
             busy: Vec::new(),
             discord: crate::discord::Status::default(),
+            gog: crate::gog_online::AccountState::default(),
         };
         let d = build(input, crate::library::locations, &local_time, &Privacy::of_this_pc());
         println!("{}", d.report);

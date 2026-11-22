@@ -969,7 +969,7 @@ export interface DiagSource {
   /** Applis masquées d'office. */
   tools: string[];
 }
-export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "workshop";
+export type DiagServiceId = "images" | "art" | "details" | "hltb" | "saves" | "requirements" | "news" | "workshop" | "wishlist" | "gog";
 export interface DiagService {
   id: DiagServiceId;
   label: string;
@@ -997,6 +997,8 @@ export interface Diagnostic {
   services: DiagService[];
   /** Statut Discord (client Discord de ce PC, aucun réseau). */
   discord: DiscordStatus;
+  /** Compte GOG connecté ou non (jamais d'identifiant). */
+  gog: GogAccountState;
   /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier, terminé par les
    * 50 dernières lignes du journal d'erreurs. */
   report: string;
@@ -1212,3 +1214,61 @@ export const onWishlistChanged = (handler: (list: Wishlist) => void): Promise<Un
   listen<Wishlist>("wishlist-changed", (e) => handler(e.payload));
 export const onWishlistSale = (handler: (sales: WishSale[]) => void): Promise<UnlistenFn> =>
   listen<WishSale[]>("wishlist-sale", (e) => handler(e.payload));
+
+// Compte GOG facultatif (`gog_online`) : connexion par la page de GOG, jeux possédés pas installés,
+// installation par l'installeur hors ligne officiel. Aucun jeton ne vient jusqu'ici ; le front
+// n'envoie qu'un id de produit GOG numérique.
+export type GogAccountState = "off" | "connected" | "expired";
+export interface GogAccount {
+  state: GogAccountState;
+  /** Pseudo GOG (Paramètres seulement). */
+  username: string | null;
+  /** Fenêtre de connexion de GOG ouverte. */
+  loginOpen: boolean;
+  /** Dernière connexion ratée. */
+  error: string | null;
+}
+export type GogPhase = "preparing" | "downloading" | "paused" | "verifying" | "installing" | "done" | "failed" | "cancelled";
+export interface GogProgress {
+  id: number;
+  title: string;
+  phase: GogPhase;
+  /** Octets reçus et total de l'installeur. */
+  received: number;
+  total: number;
+  /** Octets par seconde, `null` si inconnu. */
+  speed: number | null;
+  error: string | null;
+  /** `gog:<id>` une fois le jeu vu par la source GOG. */
+  gameId: string | null;
+}
+export interface GogGame {
+  id: number;
+  title: string;
+  /** Vignette 16:9 de GOG (`images.gog-statics.com`), `null` si absente. */
+  imageUrl: string | null;
+}
+export interface GogLibrary {
+  account: GogAccount;
+  games: GogGame[];
+  /** Jeux possédés au total (DLC et lots compris). */
+  owned: number;
+  /** Dernière relecture de la liste (secondes Unix). */
+  checked: number | null;
+  error: string | null;
+  job: GogProgress | null;
+}
+export const gogAccount = () => invoke<GogAccount>("gog_account");
+export const gogLogin = () => invoke<GogAccount>("gog_login");
+export const gogLogout = () => invoke<GogAccount>("gog_logout");
+export const gogLibrary = (refresh: boolean) => invoke<GogLibrary>("gog_library", { refresh });
+/** Ouvre le sélecteur de dossier côté Rust ; `false` si annulé. */
+export const gogInstall = (id: number) => invoke<boolean>("gog_install", { id });
+export const gogInstallPause = (id: number) => invoke<void>("gog_install_pause", { id });
+export const gogInstallResume = (id: number) => invoke<void>("gog_install_resume", { id });
+export const gogInstallCancel = (id: number) => invoke<void>("gog_install_cancel", { id });
+export const gogInstallDismiss = (id: number) => invoke<void>("gog_install_dismiss", { id });
+export const onGogAccount = (handler: (account: GogAccount) => void): Promise<UnlistenFn> =>
+  listen<GogAccount>("gog-account", (e) => handler(e.payload));
+export const onGogInstall = (handler: (progress: GogProgress) => void): Promise<UnlistenFn> =>
+  listen<GogProgress>("gog-install", (e) => handler(e.payload));

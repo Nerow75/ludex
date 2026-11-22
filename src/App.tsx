@@ -1308,7 +1308,7 @@ export default function App() {
   });
   const showPadHints = padConnected && padHints;
   const journalGame = (journalGameId && games.find((g) => g.id === journalGameId)) || null;
-  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, showGenre, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null), showUndo };
+  const sectionContext: SectionContext = { games, partial: !!scan?.partial, playing, openGame, play, showTag, showMood, showGenre, setStatus: changeStatus, journalGame, showWholeJournal: () => setJournalGameId(null), showUndo, openSettings: () => goTo(SETTINGS_ID) };
   const changeStatusFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setOpen(false);

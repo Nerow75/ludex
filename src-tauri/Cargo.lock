@@ -2323,6 +2323,7 @@ dependencies = [
  "tauri-plugin-updater",
  "time",
  "ureq",
+ "url",
  "windows",
  "winreg 0.55.0",
  "zip",

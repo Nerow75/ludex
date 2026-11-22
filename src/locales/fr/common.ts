@@ -161,6 +161,7 @@ export default {
     saves: "Sauvegardes",
     storage: "Stockage",
     wishlist: "Souhaits",
+    gog: "Pas installés",
     favoritesEmpty: "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné",
     mineEmpty: "Ouvre la fiche d'un jeu et choisis « Collections » pour l'ajouter ici",
     steamEmpty: "Collection lue dans Steam : elle se modifie dans Steam",

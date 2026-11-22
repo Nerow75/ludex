@@ -2,6 +2,7 @@
 // (`settings.rs`) : la page n'envoie que des valeurs fermées, des booléens et le texte d'un raccourci.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { LauncherIcon } from "./LauncherIcon";
+import { AccountsPanel } from "./AccountsPanel";
 import {
   ACCENT_LABEL,
   ACCENTS,
@@ -535,6 +536,8 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               />
             )}
           </section>
+
+          <AccountsPanel onToast={(title) => onToast({ title })} />
 
           <section className="set__group" aria-labelledby="set-sources">
             <h3 id="set-sources">{tx.sources.title}</h3>

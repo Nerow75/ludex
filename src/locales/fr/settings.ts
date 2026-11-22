@@ -100,6 +100,28 @@ export default {
     unknownReason: "raison inconnue",
   },
 
+  accounts: {
+    title: "Comptes",
+    gogName: "GOG",
+    gogHelp: "Facultatif. Liste tes jeux GOG pas installés sur ce PC (section « Pas installés ») et les installe avec l'installeur officiel. La connexion se fait sur la page de GOG : Ludex ne voit jamais ton mot de passe, garde seulement les jetons de GOG chiffrés pour ton compte Windows et ne les montre ni dans le Diagnostic ni dans l'export.",
+    connect: "Se connecter à GOG",
+    reconnect: "Se reconnecter",
+    disconnect: "Se déconnecter",
+    disconnectHint: "Efface les jetons et la liste des jeux. Les jeux déjà installés restent.",
+    showWindow: "Afficher la fenêtre de GOG",
+    off: "Non connecté",
+    loginOpen: "Connexion en cours dans la fenêtre de GOG…",
+    connected: "Connecté",
+    connectedAs: (name: string) => `Connecté en tant que ${name}`,
+    expired: "À reconnecter : GOG a refusé la connexion enregistrée",
+    signedIn: "Compte GOG connecté",
+    signedOut: "Compte GOG déconnecté",
+    diagName: "Compte GOG",
+    diagDetail: "facultatif, jamais d'identifiant dans ce rapport",
+    diagConnected: "Connecté",
+    diagOff: "Non connecté",
+  },
+
   sources: {
     title: "Launchers",
     note: "Un launcher désactivé reste lu, mais ses jeux n'apparaissent plus dans Ludex. Les jeux ajoutés à la main restent.",

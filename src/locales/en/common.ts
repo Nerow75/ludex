@@ -148,6 +148,7 @@ export default {
     saves: "Saves",
     storage: "Storage",
     wishlist: "Wishlist",
+    gog: "Not installed",
     favoritesEmpty: "Open a game's details and click the star, or press Ctrl+D when it's selected",
     mineEmpty: "Open a game's details and pick \"Collections\" to add it here",
     steamEmpty: "Collection read from Steam: edit it in Steam",
