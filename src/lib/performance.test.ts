@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { setLang } from "./i18n";
-import type { PerfSeries, SessionPerf } from "./api";
+import type { FpsSeries, PerfSeries, SessionPerf } from "./api";
 import {
   areaPath,
   chartSegments,
   chartSpan,
+  formatFps,
   formatMetric,
+  fpsAverageText,
+  fpsLowText,
+  fpsNote,
+  fpsScaleMax,
+  fpsSummary,
   lacksGpu,
   linePath,
   perfHeadline,
@@ -37,6 +43,46 @@ const perf = (fields: Partial<SessionPerf> = {}): SessionPerf => ({
   times: [0, 60, 120],
   series: [series()],
   ...fields,
+});
+
+const fps = (fields: Partial<FpsSeries> = {}): FpsSeries => ({
+  avg: 62.4,
+  low: 30.1,
+  points: [60, 97.1, 30],
+  lowPoints: [55, 25, null],
+  ...fields,
+});
+
+describe("images par seconde", () => {
+  it("écrit les images par seconde et l'échelle", () => {
+    expect(formatFps(62.4)).toBe("62 i/s");
+    expect(formatFps(7.46)).toBe("7,5 i/s");
+    expect(fpsScaleMax(fps())).toBe(120);
+    expect(fpsScaleMax(fps({ avg: 20, points: [20], lowPoints: [null] }))).toBe(60);
+    expect(fpsScaleMax(fps({ avg: 144, points: [143.9, 144.2], lowPoints: [120] }))).toBe(150);
+  });
+
+  it("donne les chiffres et le résumé, 1 % low absent compris", () => {
+    expect(fpsAverageText(fps())).toBe("62 i/s en moyenne");
+    expect(fpsLowText(fps())).toBe("30 i/s");
+    expect(fpsLowText(fps({ low: null }))).toBe("trop peu d'images");
+    expect(espaces(fpsSummary(fps()))).toBe("Images par seconde : 62 i/s en moyenne ; 30 i/s pour le 1 % d'images le plus lent (1 % low).");
+    expect(fpsSummary(fps({ low: null }))).toBe("Images par seconde : 62 i/s en moyenne.");
+  });
+
+  it("explique une mesure absente", () => {
+    expect(fpsNote(perf({ fps: fps() }))).toBeNull();
+    expect(fpsNote(perf({ fpsMissing: "denied" }))).toContain("Utilisateurs du journal de performances");
+    expect(fpsNote(perf({ fpsMissing: "unavailable" }))).toContain("n'a pas ouvert leur lecture");
+    expect(fpsNote(perf({ fpsMissing: "noFrames" }))).toContain("Aucune image vue");
+    // Partie mesurée avant l'ajout des images par seconde.
+    expect(fpsNote(perf())).toContain("relevé ajouté depuis");
+  });
+
+  it("trace la moyenne et le 1 % low sur les points de la session", () => {
+    const segs = chartSegments(perf(), fps().lowPoints, 120, 600, 100);
+    expect(segs.map((s) => s.length)).toEqual([2]);
+  });
 });
 
 describe("formatMetric", () => {
@@ -135,5 +181,14 @@ describe("textes en anglais", () => {
       "Measured during the last session launched from Ludex, every 5 seconds: the game compared with the whole PC.",
     );
     expect(perfHeadline([perf(), perf()])).toContain("during the last 2 sessions launched");
+  });
+
+  it("écrit les images par seconde à l'anglaise", () => {
+    setLang("en");
+    expect(formatFps(62.4)).toBe("62 fps");
+    expect(formatFps(7.46)).toBe("7.5 fps");
+    expect(fpsAverageText(fps())).toBe("62 fps on average");
+    expect(fpsSummary(fps())).toBe("Frame rate: 62 fps on average; 30 fps for the slowest 1% of frames (1% low).");
+    expect(fpsNote(perf({ fpsMissing: "denied" }))).toContain("Performance Log Users");
   });
 });

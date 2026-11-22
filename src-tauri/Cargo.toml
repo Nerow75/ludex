@@ -62,7 +62,8 @@ winreg = "0.55"
 # Jump List de la barre des tâches (`jumplist.rs`) : déjà dans l'arbre des dépendances par Tauri.
 # Cartes graphiques, niveau DirectX et mémoire installée (`requirements.rs`) : DXGI, Direct3D 11,
 # SystemInformation. Notifications Windows (`notify.rs`) : toasts WinRT et leur clic. Charge de la
-# carte graphique pendant une partie (`performance.rs`) : compteurs PDH « GPU Engine ». Statut
+# carte graphique pendant une partie (`performance.rs`) : compteurs PDH « GPU Engine » ; images par
+# seconde (`performance/fps.rs`) : session ETW temps réel (Diagnostics_Etw, Time). Statut
 # Discord (`discord.rs`) : octets en attente dans le tube du client Discord (`PeekNamedPipe`), et
 # faux serveur de tube nommé dans ses tests.
 # Boîte de dialogue d'une panique (`logfile.rs`) : MessageBoxW.
@@ -86,10 +87,12 @@ windows = { version = "0.62", features = [
     "Win32_Storage_FileSystem",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_Diagnostics_Etw",
     "Win32_System_Performance",
     "Win32_System_Pipes",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_System_Time",
     "Win32_System_Variant",
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",

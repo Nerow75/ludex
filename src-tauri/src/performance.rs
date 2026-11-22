@@ -12,10 +12,15 @@
 //! `performances.json` du dossier de données (écriture tmp + renommage), `KEEP` sessions par jeu,
 //! sans toucher à `sessions.json`.
 //!
-//! Pas de FPS ni de températures : PresentMon (ETW, droits en plus) et LibreHardwareMonitor
-//! (pilote) demandent des outils ou des droits que Ludex n'a pas.
+//! Images par seconde : session ETW passive (`fps.rs`), seulement avec les droits que Windows exige
+//! (administrateur ou « Utilisateurs du journal de performances ») ; sinon la mesure est absente et
+//! la raison gardée (`SessionPerf.fps_missing`). Pas de températures : LibreHardwareMonitor demande
+//! un pilote que Ludex n'installe pas.
+
+pub mod fps;
 
 use crate::session::Proc;
+use fps::{FrameStats, GameFrames, Missing, Reading};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -27,8 +32,10 @@ use sysinfo::System;
 pub const KEEP: usize = 6;
 /// Points d'une courbe au plus (4 h à une valeur par minute) ; au-delà, les minutes sont regroupées.
 pub const MAX_POINTS: usize = 240;
-/// Version du fichier : une autre version est ignorée (et remplacée à la session suivante).
-const VERSION: u32 = 1;
+/// Version du fichier : 2 depuis les images par seconde (champs `fps` et `fpsMissing` ajoutés,
+/// absents d'un fichier de version 1, relu tel quel). Une version plus récente est ignorée (et
+/// remplacée à la session suivante).
+const VERSION: u32 = 2;
 /// Au-delà de cette durée après le début, plus aucun relevé (plafond d'une session de `session.rs`).
 const MAX_SPAN: u64 = 24 * 3600 + 3600;
 const MIB: f64 = 1024.0 * 1024.0;
@@ -69,6 +76,8 @@ pub struct Sample {
     /// Heure du relevé (secondes Unix).
     pub at: u64,
     pub values: [Option<(f32, f32)>; 4],
+    /// Images du jeu depuis le relevé précédent.
+    pub frames: GameFrames,
 }
 
 /// État du PC à un relevé.
@@ -85,6 +94,8 @@ pub struct PcLoad {
     pub engines: Option<Vec<(String, f64)>>,
     /// Compteurs « GPU Process Memory\Dedicated Usage » : nom d'instance et octets.
     pub vram: Option<Vec<(String, f64)>>,
+    /// Images présentées par processus depuis le relevé précédent, ou pourquoi rien n'est lu.
+    pub frames: Reading,
 }
 
 /// Processus d'un nom d'instance PDH (`pid_1234_luid_0x…_phys_0_eng_3_engtype_3D`) et reste du nom
@@ -141,7 +152,7 @@ pub fn sample(at: u64, game: &[&Proc], pc: &PcLoad) -> Sample {
     values[Metric::Memory.index()] = Some((memory, (pc.used_memory as f64 / MIB) as f32));
     values[Metric::Gpu.index()] = pc.engines.as_deref().map(|items| engine_load(items, &pids));
     values[Metric::Vram.index()] = pc.vram.as_deref().map(|items| vram_use(items, &pids));
-    Sample { at, values }
+    Sample { at, values, frames: fps::game_frames(&pc.frames, pids) }
 }
 
 /// Somme et nombre de valeurs.
@@ -172,14 +183,25 @@ struct Total {
     peak: f32,
 }
 
+/// Une minute (ou un point) : somme par mesure, (jeu, PC), et images du jeu.
+#[derive(Clone, Debug, Default)]
+struct Minute {
+    accs: [[Acc; 2]; 4],
+    frames: FrameStats,
+}
+
 /// Mesures d'une session en cours.
 #[derive(Debug)]
 pub struct Recorder {
     /// Début de la session (secondes Unix) : origine des courbes.
     start: u64,
-    /// Minute depuis le début → somme par mesure, (jeu, PC).
-    minutes: BTreeMap<u64, [[Acc; 2]; 4]>,
+    /// Minute depuis le début.
+    minutes: BTreeMap<u64, Minute>,
     totals: [[Total; 2]; 4],
+    frames: FrameStats,
+    /// La lecture des images a marché au moins une fois / a été refusée faute de droits.
+    traced: bool,
+    denied: bool,
     samples: u32,
     last: u64,
     /// Mémoire installée, en Mo.
@@ -205,6 +227,18 @@ pub struct Series {
     pub pc_points: Vec<Option<f32>>,
 }
 
+/// Images par seconde d'une session : moyenne et « 1 % low », une valeur par point.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FpsSeries {
+    pub avg: f32,
+    /// `null` : trop peu d'images pour un centile.
+    pub low: Option<f32>,
+    /// Une valeur par point de `SessionPerf.times` (`null` : aucune image pendant ce point).
+    pub points: Vec<Option<f32>>,
+    pub low_points: Vec<Option<f32>>,
+}
+
 /// Performances d'une session terminée.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -221,11 +255,32 @@ pub struct SessionPerf {
     pub times: Vec<u32>,
     /// Mesures lues, dans l'ordre de `METRICS` (carte graphique absente si illisible).
     pub series: Vec<Series>,
+    /// Images par seconde (absent : pas mesurées, raison dans `fps_missing` ; tous deux absents
+    /// dans une session enregistrée avant cette mesure).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<FpsSeries>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps_missing: Option<Missing>,
+}
+
+/// Arrondi au dixième d'image par seconde.
+fn fps_round(v: f64) -> f32 {
+    ((v * 10.0).round() / 10.0) as f32
 }
 
 impl Recorder {
     pub fn new(start: u64) -> Self {
-        Recorder { start, minutes: BTreeMap::new(), totals: Default::default(), samples: 0, last: start, total_memory: 0 }
+        Recorder {
+            start,
+            minutes: BTreeMap::new(),
+            totals: Default::default(),
+            frames: FrameStats::default(),
+            traced: false,
+            denied: false,
+            samples: 0,
+            last: start,
+            total_memory: 0,
+        }
     }
 
     /// Ajoute un relevé. Ignoré s'il précède le début ou dépasse le plafond d'une session.
@@ -241,11 +296,22 @@ impl Recorder {
                 if !v.is_finite() {
                     continue;
                 }
-                minute[i][side].add(v);
+                minute.accs[i][side].add(v);
                 let total = &mut self.totals[i][side];
                 total.acc.add(v);
                 total.peak = total.peak.max(v);
             }
+        }
+        match &sample.frames {
+            GameFrames::Frames(times) => {
+                self.traced = true;
+                for &ms in times {
+                    minute.frames.add(ms);
+                    self.frames.add(ms);
+                }
+            }
+            GameFrames::Missing(Missing::Denied) => self.denied = true,
+            GameFrames::Missing(_) => {}
         }
         self.samples += 1;
         self.last = self.last.max(sample.at);
@@ -262,13 +328,14 @@ impl Recorder {
         let span = (last - first + 1) as usize;
         let factor = span.div_ceil(MAX_POINTS).max(1) as u64;
         // Minutes regroupées par `factor` : une valeur par point, moyenne des relevés du point.
-        let mut groups: BTreeMap<u64, [[Acc; 2]; 4]> = BTreeMap::new();
-        for (minute, accs) in &self.minutes {
+        let mut groups: BTreeMap<u64, Minute> = BTreeMap::new();
+        for (minute, m) in &self.minutes {
             let group = groups.entry((minute - first) / factor).or_default();
-            for (i, pair) in accs.iter().enumerate() {
-                group[i][0].merge(pair[0]);
-                group[i][1].merge(pair[1]);
+            for (i, pair) in m.accs.iter().enumerate() {
+                group.accs[i][0].merge(pair[0]);
+                group.accs[i][1].merge(pair[1]);
             }
+            group.frames.merge(&m.frames);
         }
         let times = groups.keys().map(|g| ((first + g * factor) * 60) as u32).collect();
         let series = METRICS
@@ -277,10 +344,25 @@ impl Recorder {
             .filter(|(i, _)| self.totals[*i][0].acc.n > 0 && self.totals[*i][1].acc.n > 0)
             .map(|(i, &metric)| {
                 let stat = |t: Total| Stat { avg: metric.round(t.acc.mean().unwrap_or(0.0)), peak: metric.round(t.peak as f64) };
-                let points = |side: usize| groups.values().map(|g| g[i][side].mean().map(|v| metric.round(v))).collect();
+                let points = |side: usize| groups.values().map(|g| g.accs[i][side].mean().map(|v| metric.round(v))).collect();
                 Series { metric, game: stat(self.totals[i][0]), pc: stat(self.totals[i][1]), game_points: points(0), pc_points: points(1) }
             })
             .collect();
+        let fps = self.frames.average().map(|avg| FpsSeries {
+            avg: fps_round(avg),
+            low: self.frames.low().map(fps_round),
+            points: groups.values().map(|g| g.frames.average().map(fps_round)).collect(),
+            low_points: groups.values().map(|g| g.frames.low().map(fps_round)).collect(),
+        });
+        let fps_missing = if fps.is_some() {
+            None
+        } else if self.traced {
+            Some(Missing::NoFrames)
+        } else if self.denied {
+            Some(Missing::Denied)
+        } else {
+            Some(Missing::Unavailable)
+        };
         Some(SessionPerf {
             start: self.start,
             end: self.last,
@@ -288,6 +370,8 @@ impl Recorder {
             total_memory: self.total_memory,
             times,
             series,
+            fps,
+            fps_missing,
         })
     }
 }
@@ -314,7 +398,7 @@ impl Store {
         let file = fs::read_to_string(&path)
             .ok()
             .and_then(|text| serde_json::from_str::<PerfFile>(&text).ok())
-            .filter(|f| f.version == VERSION)
+            .filter(|f| (1..=VERSION).contains(&f.version))
             .unwrap_or_default();
         Store { path, file: Mutex::new(file) }
     }
@@ -354,6 +438,10 @@ pub struct Probe {
     system: System,
     #[cfg(windows)]
     gpu: Option<pdh::Counters>,
+    /// Session ETW des images par seconde, ouverte au premier appel de `pc`, ou la raison de son
+    /// absence (gardée jusqu'à la fin des parties : aucun nouvel essai à chaque relevé).
+    #[cfg(windows)]
+    fps: Option<Result<fps::Tracer, Missing>>,
     /// Le processeur se mesure entre deux relevés : rien de juste avant le deuxième.
     warm: bool,
 }
@@ -364,6 +452,8 @@ impl Probe {
             system: System::new().ok()?,
             #[cfg(windows)]
             gpu: None,
+            #[cfg(windows)]
+            fps: None,
             warm: false,
         })
     }
@@ -390,6 +480,13 @@ impl Probe {
         };
         #[cfg(not(windows))]
         let (engines, vram) = (None, None);
+        #[cfg(windows)]
+        let frames = match self.fps.get_or_insert_with(fps::Tracer::start) {
+            Ok(tracer) => Reading::Frames(tracer.drain()),
+            Err(missing) => Reading::Missing(*missing),
+        };
+        #[cfg(not(windows))]
+        let frames = Reading::Missing(Missing::Unavailable);
         if !self.warm {
             self.warm = true;
             return None;
@@ -401,6 +498,7 @@ impl Probe {
             cores: self.system.cpus().len(),
             engines,
             vram,
+            frames,
         })
     }
 }
@@ -537,6 +635,7 @@ mod tests {
             cores: 16,
             engines: None,
             vram: None,
+            frames: Reading::Missing(Missing::Denied),
         }
     }
 
@@ -545,7 +644,7 @@ mod tests {
         let mut values = [None; 4];
         values[0] = Some((cpu, pc_cpu));
         values[1] = Some((2048.0, 16384.0));
-        Sample { at: t, values }
+        Sample { at: t, values, frames: GameFrames::Missing(Missing::Denied) }
     }
 
     #[test]
@@ -681,6 +780,95 @@ mod tests {
         assert!(p.series.iter().all(|x| x.metric != Metric::Vram));
     }
 
+    /// Relevé avec des images : `n` images de `ms` millisecondes.
+    fn with_frames(t: u64, n: usize, ms: f32) -> Sample {
+        Sample { frames: GameFrames::Frames(vec![ms; n]), ..at(t, 10.0, 20.0) }
+    }
+
+    #[test]
+    fn frame_rate_has_an_average_a_low_and_one_point_per_minute() {
+        let mut r = Recorder::new(0);
+        // Minute 0 : 60 i/s ; minute 1 : 100 i/s avec 1 % d'images à 40 ms ; minute 2 : rien
+        // (jeu en arrière-plan) ; minute 3 : 30 i/s.
+        for i in 0..12u64 {
+            r.add(&with_frames(i * 5, 300, 1000.0 / 60.0), 0);
+        }
+        for i in 12..24u64 {
+            let mut s = with_frames(i * 5, 495, 10.0);
+            if let GameFrames::Frames(f) = &mut s.frames {
+                f.extend([40.0; 5]);
+            }
+            r.add(&s, 0);
+        }
+        for i in 24..36u64 {
+            r.add(&with_frames(i * 5, 0, 0.0), 0);
+        }
+        for i in 36..48u64 {
+            r.add(&with_frames(i * 5, 150, 1000.0 / 30.0), 0);
+        }
+        let p = r.finish().unwrap();
+        assert_eq!(p.fps_missing, None);
+        let fps = p.fps.unwrap();
+        assert_eq!(fps.points.len(), p.times.len());
+        assert_eq!(fps.points, vec![Some(60.0), Some(97.1), None, Some(30.0)]);
+        assert_eq!(fps.low_points[2], None);
+        // 1 % low de la minute 1 : les images à 40 ms, 25 i/s (case de 1 %).
+        let low = fps.low_points[1].unwrap();
+        assert!((low - 25.0).abs() < 0.3, "{low}");
+        // Partie : 3 600 + 6 000 + 1 800 images en 181,8 s ; 1 % low = les images à 33 ms.
+        assert_eq!(fps.avg, 62.7);
+        let low = fps.low.unwrap();
+        assert!((29.7..=30.3).contains(&low), "{low}");
+    }
+
+    #[test]
+    fn missing_frame_rate_keeps_its_reason() {
+        let finish = |frames: Vec<GameFrames>| {
+            let mut r = Recorder::new(0);
+            for (i, f) in frames.into_iter().enumerate() {
+                r.add(&Sample { frames: f, ..at(i as u64 * 5, 10.0, 10.0) }, 0);
+            }
+            let p = r.finish().unwrap();
+            assert!(p.fps.is_none());
+            p.fps_missing
+        };
+        let denied = GameFrames::Missing(Missing::Denied);
+        let none = GameFrames::Frames(vec![]);
+        assert_eq!(finish(vec![denied.clone(), denied.clone()]), Some(Missing::Denied));
+        assert_eq!(finish(vec![none.clone(), none]), Some(Missing::NoFrames));
+        assert_eq!(finish(vec![GameFrames::default(), GameFrames::default()]), Some(Missing::Unavailable));
+        // Images trop lentes (une par seconde ou moins) : aucune image comptée.
+        assert_eq!(finish(vec![GameFrames::Frames(vec![1500.0]), GameFrames::Frames(vec![2000.0])]), Some(Missing::NoFrames));
+    }
+
+    #[test]
+    fn reads_files_from_before_the_frame_rate() {
+        let dir = std::env::temp_dir().join(format!("ludex-perf-v1-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        // Session de la version 1 : ni `fps` ni `fpsMissing`.
+        let mut old = serde_json::to_value(perf(100)).unwrap();
+        old.as_object_mut().unwrap().remove("fpsMissing");
+        let file = serde_json::json!({ "version": 1, "games": { "steam:1": [old] } });
+        fs::write(dir.join("performances.json"), file.to_string()).unwrap();
+        let store = Store::open(&dir);
+        let read = store.sessions("steam:1");
+        assert_eq!(read.len(), 1);
+        assert_eq!((read[0].fps.as_ref(), read[0].fps_missing), (None, None));
+        // Réécrit en version 2, images comprises.
+        let mut r = Recorder::new(500);
+        r.add(&with_frames(500, 200, 10.0), 0);
+        r.add(&with_frames(505, 200, 10.0), 0);
+        store.record("steam:1", r.finish().unwrap()).unwrap();
+        let text = fs::read_to_string(dir.join("performances.json")).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(json["version"], 2);
+        assert_eq!(json["games"]["steam:1"][0]["fps"]["avg"], 100.0);
+        assert!(json["games"]["steam:1"][1].get("fps").is_none());
+        assert_eq!(Store::open(&dir).sessions("steam:1").len(), 2);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     fn perf(start: u64) -> SessionPerf {
         let mut r = Recorder::new(start);
         r.add(&at(start, 10.0, 20.0), 0);
@@ -724,6 +912,68 @@ mod tests {
         assert_eq!(json["series"][0]["metric"], "cpu");
         assert_eq!(json["series"][0]["gamePoints"][0], 10.0);
         assert_eq!(json["series"][1]["pc"]["peak"], 16384.0);
+        assert!(json.get("fps").is_none());
+        assert_eq!(json["fpsMissing"], "denied");
+        let mut r = Recorder::new(0);
+        r.add(&with_frames(0, 40, 20.0), 0);
+        r.add(&with_frames(5, 40, 20.0), 0);
+        let json = serde_json::to_value(r.finish().unwrap()).unwrap();
+        assert_eq!(json["fps"]["avg"], 50.0);
+        assert_eq!(json["fps"]["low"], serde_json::Value::Null);
+        assert_eq!(json["fps"]["lowPoints"][0], serde_json::Value::Null);
+        assert!(json.get("fpsMissing").is_none());
+    }
+
+    /// Relevé réel des images par seconde : `cargo test fps_this_pc -- --ignored --nocapture`.
+    /// Lecture seule : ouvre la session ETW de Ludex ~12 s (rien d'écrit, aucun réglage touché),
+    /// puis donne les processus qui ont présenté des images, avec leur moyenne et leur 1 % low.
+    /// `LUDEX_PERF_EXE` : ne montre que les processus dont l'exécutable contient ce texte. Sans
+    /// les droits (ni administrateur ni « Utilisateurs du journal de performances »), le dit.
+    #[cfg(windows)]
+    #[test]
+    #[ignore]
+    fn fps_this_pc() {
+        use std::time::{Duration, Instant};
+        let started = Instant::now();
+        let tracer = match fps::Tracer::start() {
+            Ok(t) => t,
+            Err(missing) => {
+                println!("Session ETW refusée : {missing:?} (droits manquants si Denied)");
+                return;
+            }
+        };
+        println!("Session ETW ouverte en {:?}", started.elapsed());
+        let mut probe = Probe::new().expect("sysinfo indisponible");
+        let names: HashMap<u32, String> = probe.processes().into_iter().map(|p| (p.pid, p.exe)).collect();
+        let wanted = std::env::var("LUDEX_PERF_EXE").ok().map(|s| s.to_lowercase());
+        let mut stats: HashMap<u32, FrameStats> = HashMap::new();
+        for tick in 0..6 {
+            std::thread::sleep(Duration::from_secs(2));
+            let started = Instant::now();
+            let drained = tracer.drain();
+            let frames: usize = drained.values().map(Vec::len).sum();
+            println!("  lecture {tick} : {} processus, {frames} images, {:?}", drained.len(), started.elapsed());
+            for (pid, times) in drained {
+                let s = stats.entry(pid).or_default();
+                times.iter().for_each(|&ms| s.add(ms));
+            }
+        }
+        let started = Instant::now();
+        drop(tracer);
+        println!("Session fermée en {:?}", started.elapsed());
+        let mut rows: Vec<(u32, &FrameStats)> = stats.iter().map(|(p, s)| (*p, s)).collect();
+        rows.sort_by(|a, b| b.1.average().unwrap_or(0.0).total_cmp(&a.1.average().unwrap_or(0.0)));
+        for (pid, s) in rows {
+            let exe = names.get(&pid).map_or("(chemin illisible)", String::as_str);
+            if wanted.as_deref().is_some_and(|w| !exe.contains(w)) {
+                continue;
+            }
+            println!(
+                "  {pid} {exe} : {} i/s en moyenne, 1 % low {}",
+                s.average().map_or("-".into(), |v| format!("{v:.1}")),
+                s.low().map_or("-".into(), |v| format!("{v:.1}")),
+            );
+        }
     }
 
     /// Relevé réel : `cargo test performance_this_pc -- --ignored --nocapture`. Lecture seule : suit

@@ -1,5 +1,5 @@
 // Onglet « Performances » de la fiche : textes, échelles et tracés des courbes (fonctions pures).
-import type { PerfMetric, PerfSeries, PerfStat, SessionPerf } from "./api";
+import type { FpsSeries, PerfMetric, PerfSeries, PerfStat, SessionPerf } from "./api";
 import { formatDateTime, formatDuration } from "./format";
 import { live, nf, t } from "./i18n";
 
@@ -105,6 +105,43 @@ export function perfHeadline(perfs: SessionPerf[]): string {
 
 /** La carte graphique manque-t-elle à la session (Windows ne donne pas ses compteurs) ? */
 export const lacksGpu = (perf: SessionPerf) => !perf.series.some((s) => s.metric === "gpu");
+
+/** « 62 i/s », « 7,5 i/s » (anglais : « 62 fps »). */
+export function formatFps(value: number): string {
+  return t.fiche.perf.fps.unit((value < 10 ? oneDecimal() : integer()).format(value));
+}
+
+/** Haut de l'échelle des images par seconde : 60 au moins, sinon le multiple de 30 supérieur. */
+export function fpsScaleMax(fps: FpsSeries): number {
+  const peak = Math.max(fps.avg, ...fps.points.map((v) => v ?? 0), ...fps.lowPoints.map((v) => v ?? 0));
+  return Math.max(60, Math.ceil(peak / 30) * 30);
+}
+
+/** Chiffres de la carte : moyenne, puis 1 % low (absent : trop peu d'images). */
+export const fpsAverageText = (fps: FpsSeries) => t.fiche.perf.fps.average(formatFps(fps.avg));
+export const fpsLowText = (fps: FpsSeries) => (fps.low === null ? t.fiche.perf.fps.lowUnknown : formatFps(fps.low));
+
+/** Résumé de la carte pour les lecteurs d'écran. */
+export function fpsSummary(fps: FpsSeries): string {
+  const p = t.fiche.perf.fps;
+  return p.summary(formatFps(fps.avg), fps.low === null ? null : formatFps(fps.low));
+}
+
+/** Note quand les images par seconde manquent à la session affichée (`null` : mesurées). */
+export function fpsNote(perf: SessionPerf): string | null {
+  if (perf.fps) return null;
+  const p = t.fiche.perf.fps;
+  switch (perf.fpsMissing) {
+    case "denied":
+      return p.denied;
+    case "unavailable":
+      return p.unavailable;
+    case "noFrames":
+      return p.noFrames;
+    default:
+      return p.older;
+  }
+}
 
 /** Sessions qui ont quelque chose à montrer. */
 export const shownSessions = (perfs: SessionPerf[]) => perfs.filter((p) => p.series.length > 0 && p.times.length > 0);

@@ -232,7 +232,22 @@ export default {
     pc: "Whole PC",
     picks: "Session shown",
     noGpu: "Graphics card: Windows didn't provide its counters during this session.",
-    noFps: "No frame rate or temperatures: Windows doesn't provide them without extra tools.",
+    noTemps: "No temperatures: Windows doesn't provide them without an extra driver.",
+    fps: {
+      title: "Frame rate",
+      unit: (value: string) => `${value} fps`,
+      averageKey: "Average",
+      lowKey: "1% low",
+      average: (value: string) => `${value} on average`,
+      lowUnknown: "too few frames",
+      summary: (avg: string, low: string | null) =>
+        `Frame rate: ${avg} on average${low ? `; ${low} for the slowest 1% of frames (1% low)` : ""}.`,
+      denied:
+        "Frame rate not measured: Windows only lets administrators and the \"Performance Log Users\" group read it. The Windows Game Bar (Performance widget) offers to grant this access; Ludex doesn't change this setting.",
+      unavailable: "Frame rate not measured: Windows didn't open it for reading during this session.",
+      noFrames: "No frames seen for this game: it stayed in the background, or it draws in a way Ludex can't read.",
+      older: "Frame rate not measured for this session (added later).",
+    },
   },
   reqs: {
     kind: {

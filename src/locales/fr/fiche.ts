@@ -232,7 +232,23 @@ export default {
     pc: "Tout le PC",
     picks: "Partie affichée",
     noGpu: "Carte graphique : Windows n'a pas donné ses compteurs pendant cette partie.",
-    noFps: "Ni images par seconde ni températures : Windows ne les donne pas sans outil en plus.",
+    noTemps: "Pas de températures : Windows ne les donne pas sans pilote en plus.",
+    fps: {
+      title: "Images par seconde",
+      unit: (value: string) => `${value} i/s`,
+      averageKey: "Moyenne",
+      lowKey: "1 % low",
+      average: (value: string) => `${value} en moyenne`,
+      lowUnknown: "trop peu d'images",
+      summary: (avg: string, low: string | null) =>
+        `Images par seconde : ${avg} en moyenne${low ? ` ; ${low} pour le 1 % d'images le plus lent (1 % low)` : ""}.`,
+      denied:
+        "Images par seconde non mesurées : Windows réserve leur lecture aux administrateurs et au groupe « Utilisateurs du journal de performances ». La Game Bar de Windows (widget Performances) propose d'accorder cet accès ; Ludex ne change pas ce réglage.",
+      unavailable: "Images par seconde non mesurées : Windows n'a pas ouvert leur lecture pendant cette partie.",
+      noFrames:
+        "Aucune image vue pour ce jeu : il est resté en arrière-plan, ou il affiche par une méthode que Ludex ne lit pas.",
+      older: "Images par seconde non mesurées pour cette partie (relevé ajouté depuis).",
+    },
   },
   reqs: {
     kind: {

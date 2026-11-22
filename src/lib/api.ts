@@ -269,7 +269,23 @@ export interface SessionPerf {
   times: number[];
   /** Mesures lues (carte graphique absente si Windows ne la donne pas). */
   series: PerfSeries[];
+  /** Images par seconde (absent : pas mesurées, raison dans `fpsMissing`). */
+  fps?: FpsSeries;
+  /** Pourquoi les images par seconde manquent (absent avec `fps`, et pour une partie mesurée
+   *  avant l'ajout des images par seconde). */
+  fpsMissing?: FpsMissing;
 }
+/** Images par seconde d'une partie : moyenne et « 1 % low » (99ᵉ centile du temps d'image). */
+export interface FpsSeries {
+  avg: number;
+  /** `null` : trop peu d'images pour un centile. */
+  low: number | null;
+  /** Une valeur par point de `SessionPerf.times` (`null` : aucune image pendant ce point). */
+  points: (number | null)[];
+  lowPoints: (number | null)[];
+}
+/** Droits Windows manquants, lecture impossible, ou aucune image vue pour le jeu. */
+export type FpsMissing = "denied" | "unavailable" | "noFrames";
 /** Performances des dernières parties d'un jeu (6 au plus), la plus récente d'abord. */
 export const gamePerformance = (id: string) => invoke<SessionPerf[]>("game_performance", { id });
 /** Dernière session de chaque jeu de l'historique, la plus récente d'abord. */
