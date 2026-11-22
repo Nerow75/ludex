@@ -897,6 +897,12 @@ export interface SettingsInfo {
   notifications: NotificationPrefs;
   /** Windows a coupé les notifications de Ludex (ou toutes) : Ludex ne change pas ce réglage. */
   notificationsBlocked: boolean;
+  /** Statut Discord des parties lancées depuis Ludex (faux par défaut). */
+  discordPresence: boolean;
+  /** Statut Discord sans le nom du jeu (« En jeu »). */
+  discordHideName: boolean;
+  /** Faux tant que cette version de Ludex n'a pas d'identifiant d'application Discord. */
+  discordAvailable: boolean;
 }
 /** Types de notifications Windows (`notify.rs`). */
 export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError" | "sale";
@@ -917,6 +923,8 @@ export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quic
 export const pauseQuickShortcut = (paused: boolean) => invoke<void>("pause_quick_shortcut", { paused });
 export const setLaunchAtStartup = (value: boolean) => invoke<SettingsInfo>("set_launch_at_startup", { value });
 export const setKeepInTray = (value: boolean) => invoke<SettingsInfo>("set_keep_in_tray", { value });
+export const setDiscordPresence = (value: boolean) => invoke<SettingsInfo>("set_discord_presence", { value });
+export const setDiscordHideName = (value: boolean) => invoke<SettingsInfo>("set_discord_hide_name", { value });
 export const setLaunchScreen = (value: boolean) => invoke<SettingsInfo>("set_launch_screen", { value });
 /** Active ou désactive un launcher, puis rescanne : bibliothèque relue. */
 export const setSourceEnabled = (platform: Platform, value: boolean) => invoke<ScanResult>("set_source_enabled", { platform, value });
@@ -972,6 +980,12 @@ export interface DiagService {
   lastError: string | null;
   errorAt: number | null;
 }
+/** État du statut Discord (`discord.rs`). */
+export type DiscordState = "unconfigured" | "off" | "waiting" | "connected" | "absent" | "refused";
+export interface DiscordStatus {
+  state: DiscordState;
+  error: string | null;
+}
 export interface Diagnostic {
   version: string;
   windows: string;
@@ -981,6 +995,8 @@ export interface Diagnostic {
   created: number;
   sources: DiagSource[];
   services: DiagService[];
+  /** Statut Discord (client Discord de ce PC, aucun réseau). */
+  discord: DiscordStatus;
   /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier. */
   report: string;
 }

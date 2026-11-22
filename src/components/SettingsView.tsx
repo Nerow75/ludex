@@ -16,6 +16,8 @@ import {
   PLATFORM_LABEL,
   setAccent,
   setAutoSaves,
+  setDiscordHideName,
+  setDiscordPresence,
   setKeepInTray,
   setLanguage,
   setLaunchAtStartup,
@@ -42,6 +44,7 @@ import {
 import { applyAccent, applyTheme } from "../lib/theme";
 import { CheckIcon } from "./Icons";
 import { NOTIFICATION_ROWS } from "../lib/notifications";
+import { discordHelp } from "../lib/discord";
 import { DiagnosticPanel } from "./DiagnosticPanel";
 import { DataPlace } from "./DataPlace";
 import { previewOrigin, summaryText } from "../lib/transfer";
@@ -512,6 +515,25 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 onChange={(v) => toggle({ notifications: { ...info.notifications, [row.kind]: v } }, () => setNotification(row.kind, v))}
               />
             ))}
+          </section>
+
+          <section className="set__group" aria-labelledby="set-discord">
+            <h3 id="set-discord">Statut Discord</h3>
+            <Switch
+              label="Montrer mes parties dans Discord"
+              detail={discordHelp(info.discordAvailable, info.discordHideName)}
+              checked={info.discordAvailable && info.discordPresence}
+              disabled={!info.discordAvailable}
+              onChange={(v) => toggle({ discordPresence: v }, () => setDiscordPresence(v))}
+            />
+            {info.discordAvailable && info.discordPresence && (
+              <Switch
+                label="Masquer le nom du jeu"
+                detail="Ni titre, ni launcher, ni image : seulement « En jeu »."
+                checked={info.discordHideName}
+                onChange={(v) => toggle({ discordHideName: v }, () => setDiscordHideName(v))}
+              />
+            )}
           </section>
 
           <section className="set__group" aria-labelledby="set-sources">

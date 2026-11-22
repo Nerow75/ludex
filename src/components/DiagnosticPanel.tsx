@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { diagnostic as getDiagnostic, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
 import { problems, serviceState, sourceDetail, sourceState, sourceTone } from "../lib/diagnostic";
+import { discordState } from "../lib/discord";
 import { relativeTime } from "../lib/format";
 import { t } from "../lib/i18n";
 import { ChevronRightIcon } from "./Icons";
@@ -173,6 +174,24 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
             </li>
           );
         })}
+      </ul>
+      <h4 className="diag__title">Applications de ce PC</h4>
+      <ul className="diag__srcs" aria-label="Applications de ce PC">
+        {(() => {
+          const st = discordState(diag.discord);
+          return (
+            <li className={`diag__src is-${st.tone}`}>
+              <div className="diag__head is-static">
+                <span className="diag__dot" aria-hidden="true" />
+                <span className="diag__name">
+                  <span>Statut Discord</span>
+                  <small>client Discord de ce PC, aucun réseau</small>
+                </span>
+                <span className="diag__state" title={st.text}>{st.text}</span>
+              </div>
+            </li>
+          );
+        })()}
       </ul>
       <p className="set__note">
         {d.data} <span className="path" title={diag.dataDir}>{diag.dataDir}</span>
