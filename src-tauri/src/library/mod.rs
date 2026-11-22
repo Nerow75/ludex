@@ -54,7 +54,7 @@ pub enum Launch {
 }
 
 impl Platform {
-    /// Nom du launcher, en français.
+    /// Nom du launcher, dans la langue de Ludex (seul « Autres » change).
     pub fn label(self) -> &'static str {
         match self {
             Platform::Steam => "Steam",
@@ -68,7 +68,7 @@ impl Platform {
             Platform::Ea => "EA",
             Platform::Amazon => "Amazon Games",
             Platform::Itch => "itch.io",
-            Platform::Other => "Dossiers de jeux (Autres)",
+            Platform::Other => tr_str!("Dossiers de jeux (Autres)", "Game folders (Other)"),
         }
     }
 }
@@ -569,7 +569,7 @@ fn combine(reads: Vec<Read>, disabled: &[Platform]) -> (Vec<Game>, Vec<SourceRep
                     let owner = dirs.iter().find(|(d, _, _)| d == &key || is_inside(&key, d) || is_inside(d, &key));
                     match owner {
                         Some((_, by, title)) => {
-                            skipped.push(Skipped { title: g.title.clone(), reason: format!("Même dossier que {title} ({})", by.label()) });
+                            skipped.push(Skipped { title: g.title.clone(), reason: tr!("Même dossier que {title} ({})", "Same folder as {title} ({})", by.label()) });
                             false
                         }
                         None => {

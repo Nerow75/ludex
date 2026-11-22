@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { Footprint, FootprintFolder, FootprintUninstall } from "./api";
 import { actionHint, folderSize, footprintStatus, insideLabel, installDay, mainAction, presentBytes } from "./footprint";
 
@@ -100,5 +101,32 @@ describe("mainAction", () => {
     expect(actionHint(fp({ installed: false }), null)).toBe("");
     expect(installDay("2024-01-15")).toBe("15/01/2024");
     expect(installDay(null)).toBeNull();
+  });
+});
+
+describe("textes en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("états, emplacements et explications", () => {
+    setLang("en");
+    expect(folderSize(folder({ exists: false }))).toBe("Deleted");
+    expect(folderSize(folder({ bytes: null }))).toBe("Measuring");
+    expect(folderSize(folder({ kind: "cache", bytes: null }))).toBe("Unknown size");
+    expect(folderSize(folder({ bytes: 0 }))).toBe("Empty");
+    const f = fp({ folders: [folder(), folder({ item: "save-0", kind: "saves", bytes: 10, inside: "install" })] });
+    expect(insideLabel(f, f.folders[1])).toBe("in the game folder");
+    expect(footprintStatus(fp({ folders: [folder({ bytes: null })] }))).toBe("Installed, size being measured");
+    // La taille vient de `formatSize` (format.ts) : seule la phrase de Ludex est vérifiée ici.
+    expect(footprintStatus(f)).toMatch(/^Installed: .+ on this PC, saves and caches included$/);
+    expect(footprintStatus(fp({ folders: [folder(), folder({ item: "x", kind: "cache", bytes: null })] }))).toMatch(/^Installed: at least /);
+    expect(footprintStatus(fp({ installed: false, leftovers: 0 }))).toBe("Uninstalled: nothing left in the places Ludex knows");
+    expect(footprintStatus(fp({ installed: false, leftovers: 1 }))).toBe("Uninstalled: 1 leftover still on this PC");
+    expect(footprintStatus(fp({ installed: false, leftovers: 3 }))).toBe("Uninstalled: 3 leftovers still on this PC");
+    expect(actionHint(fp(), { kind: "folder" })).toBe("No uninstaller found for this game: delete its folder by hand.");
+    expect(actionHint(fp({ platform: "epic" }), { kind: "folder" })).toBe(
+      "No uninstaller found: uninstall it from Epic Games, or delete its folder by hand.",
+    );
+    expect(actionHint(fp(), null)).toBe("Game folder not found.");
+    expect(installDay("2024-01-15")).toBe("01/15/2024");
   });
 });

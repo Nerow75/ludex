@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { showcase, type Showcase, type ShowcaseUnlock } from "../lib/api";
 import { formatAchievements, formatDate, formatPercent, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { AchievementIcon } from "./AchievementList";
 import { Cover } from "./Cover";
@@ -10,7 +11,7 @@ type Load = { state: "loading" } | { state: "ready"; data: Showcase } | { state:
 
 /** Infobulle d'un succès : description et date complète. */
 function unlockTitle(u: ShowcaseUnlock): string | undefined {
-  return [u.description, u.unlockedAt && `Débloqué le ${formatDate(u.unlockedAt)}`].filter(Boolean).join("\n") || undefined;
+  return [u.description, u.unlockedAt && t.extras.showcase.unlockedOn(formatDate(u.unlockedAt))].filter(Boolean).join("\n") || undefined;
 }
 
 /**
@@ -33,20 +34,21 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
     };
   }, [unlockedSum]);
 
+  const text = t.extras.showcase;
   const open = (id: string) => {
     const game = byId.get(id);
     if (game) openGame(game);
   };
 
   if (load.state === "loading") {
-    return <p className="vitrine__note" aria-busy="true">Lecture des succès…</p>;
+    return <p className="vitrine__note" aria-busy="true">{text.loading}</p>;
   }
   if (load.state === "error") {
-    return <EmptyState title="Vitrine indisponible">Les succès n'ont pas pu être lus. Réessaie après un rescan (F5)</EmptyState>;
+    return <EmptyState title={text.errorTitle}>{text.errorText}</EmptyState>;
   }
   const s = load.data;
   if (s.games === 0) {
-    return <EmptyState title="Aucun succès pour l'instant">Les succès des jeux Steam déjà lancés apparaîtront ici</EmptyState>;
+    return <EmptyState title={text.emptyTitle}>{text.emptyText}</EmptyState>;
   }
   const podium = s.rarest.slice(0, 3);
   const rest = s.rarest.slice(3);
@@ -55,22 +57,22 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
   return (
     <section className="vitrine" aria-labelledby="vitrine-title" data-nav-2d>
       <div className="bar">
-        <h2 id="vitrine-title">Vitrine</h2>
+        <h2 id="vitrine-title">{text.title}</h2>
       </div>
       <dl className="stats vitrine__stats">
-        <div><dt>Succès débloqués</dt><dd>{formatAchievements(s.unlocked, s.total)}</dd></div>
-        <div><dt>Progression</dt><dd>{rate} %</dd></div>
-        <div><dt>Jeux à 100 %</dt><dd>{s.perfect.length}</dd></div>
-        <div><dt>Jeux avec succès</dt><dd>{s.games}</dd></div>
+        <div><dt>{text.unlocked}</dt><dd>{formatAchievements(s.unlocked, s.total)}</dd></div>
+        <div><dt>{text.progress}</dt><dd>{text.percent(rate)}</dd></div>
+        <div><dt>{text.perfect}</dt><dd>{s.perfect.length}</dd></div>
+        <div><dt>{text.withAchievements}</dt><dd>{s.games}</dd></div>
       </dl>
 
       {/* Deux colonnes quand la place le permet : les plus rares, puis le reste. */}
       <div className="vitrine__cols">
         <div className="vitrine__col">
-          <h3 className="vitrine__h">Les plus rares</h3>
+          <h3 className="vitrine__h">{text.rarest}</h3>
           {s.rarest.length === 0 ? (
             <p className="vitrine__note">
-              {s.unlocked === 0 ? "Aucun succès débloqué pour l'instant" : "Pourcentages mondiaux indisponibles (Steam injoignable). Ils reviendront à la prochaine ouverture"}
+              {s.unlocked === 0 ? text.noneUnlocked : text.noPercent}
             </p>
           ) : (
             <>
@@ -102,7 +104,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
         <div className="vitrine__col">
           {s.perfect.length > 0 && (
             <>
-              <h3 className="vitrine__h">Jeux à 100 %<span><span className="sr-only">, </span>{s.perfect.length}</span></h3>
+              <h3 className="vitrine__h">{text.perfect}<span><span className="sr-only">, </span>{s.perfect.length}</span></h3>
               <ol className="vitrine__list">
                 {s.perfect.map((p) => {
                   const game = byId.get(p.gameId);
@@ -113,11 +115,11 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
                         className="vitrine__row"
                         data-nav
                         onClick={() => open(p.gameId)}
-                        title={p.completedAt ? `Terminé le ${formatDate(p.completedAt)}` : undefined}
+                        title={p.completedAt ? text.completedOn(formatDate(p.completedAt)) : undefined}
                       >
                         {game ? <Cover game={game} className="vitrine__cover" /> : <AchievementIcon src={null} />}
                         <span className="vitrine__name">{p.gameTitle}</span>
-                        <span className="vitrine__meta">{p.total} succès</span>
+                        <span className="vitrine__meta">{text.count(p.total)}</span>
                         <span className="vitrine__side">{p.completedAt ? relativeTime(p.completedAt) : ""}</span>
                       </button>
                     </li>
@@ -129,7 +131,7 @@ export function ShowcaseView({ games, openGame }: SectionContext) {
 
           {s.recent.length > 0 && (
             <>
-              <h3 className="vitrine__h">Derniers déblocages</h3>
+              <h3 className="vitrine__h">{text.recent}</h3>
               <ol className="vitrine__list">
                 {s.recent.map((u) => (
                   <li key={`${u.gameId}/${u.apiName}`}>

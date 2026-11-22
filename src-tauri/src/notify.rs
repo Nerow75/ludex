@@ -202,8 +202,12 @@ pub fn download_note(id: &str, title: &str, update: bool) -> Note {
     Note {
         kind: Kind::Download,
         key: format!("download:{id}"),
-        title: format!("{title} est prêt"),
-        body: if update { "Mise à jour Steam terminée." } else { "Téléchargement Steam terminé." }.into(),
+        title: tr!("{title} est prêt", "{title} is ready"),
+        body: if update {
+            tr!("Mise à jour Steam terminée.", "Steam update finished.")
+        } else {
+            tr!("Téléchargement Steam terminé.", "Steam download finished.")
+        },
         target: Target::Game { id: id.into(), tab: None },
     }
 }
@@ -213,8 +217,8 @@ pub fn downloads_note(count: usize) -> Note {
     Note {
         kind: Kind::Download,
         key: "download:plusieurs".into(),
-        title: format!("{count} jeux Steam installés"),
-        body: "Ils sont dans ta bibliothèque.".into(),
+        title: tr!("{count} jeux Steam installés", "{count} Steam games installed"),
+        body: tr!("Ils sont dans ta bibliothèque.", "They're in your library."),
         target: Target::Window,
     }
 }
@@ -229,11 +233,14 @@ pub fn news_note(alerts: &[crate::news::Alert]) -> Option<Note> {
         ids.len()
     };
     let (title, body) = if games > 1 {
-        (format!("Actualités de {games} jeux en cours"), format!("{} : {}", first.game, first.title))
+        (
+            tr!("Actualités de {games} jeux en cours", "News for {games} games you're playing"),
+            tr!("{} : {}", "{}: {}", first.game, first.title),
+        )
     } else if first.update {
-        (format!("Mise à jour de {}", first.game), first.title.clone())
+        (tr!("Mise à jour de {}", "Update for {}", first.game), first.title.clone())
     } else {
-        (format!("Actualité de {}", first.game), first.title.clone())
+        (tr!("Actualité de {}", "News from {}", first.game), first.title.clone())
     };
     Some(Note {
         kind: Kind::News,
@@ -255,9 +262,10 @@ pub fn low_disk_notes(disks: &[crate::storage::DiskUsage], day: &str) -> Vec<Not
             Note {
                 kind: Kind::LowDisk,
                 key: format!("lowDisk:{}@{day}", d.letter),
-                title: format!("Disque {} presque plein", d.letter),
-                body: format!(
+                title: tr!("Disque {} presque plein", "Drive {} almost full", d.letter),
+                body: tr!(
                     "{} libres sur {} ({} %). La section Stockage montre les jeux à désinstaller.",
+                    "{} free of {} ({}%). The Storage section shows games you could uninstall.",
                     gigabytes(d.free),
                     gigabytes(d.total),
                     decimal(percent)
@@ -273,8 +281,8 @@ pub fn update_note(version: &str) -> Note {
     Note {
         kind: Kind::Update,
         key: format!("update:{version}"),
-        title: format!("Ludex {version} est disponible"),
-        body: "Ouvre Ludex pour l'installer et le relancer.".into(),
+        title: tr!("Ludex {version} est disponible", "Ludex {version} is available"),
+        body: tr!("Ouvre Ludex pour l'installer et le relancer.", "Open Ludex to install it and restart."),
         target: Target::Window,
     }
 }
@@ -284,7 +292,7 @@ pub fn saves_error_note(id: &str, title: &str, error: &str) -> Note {
     Note {
         kind: Kind::SavesError,
         key: format!("savesError:{id}"),
-        title: format!("Sauvegardes de {title} non copiées"),
+        title: tr!("Sauvegardes de {title} non copiées", "{title} saves not backed up"),
         body: error.into(),
         target: Target::Game { id: id.into(), tab: Some("saves".into()) },
     }
@@ -293,42 +301,67 @@ pub fn saves_error_note(id: &str, title: &str, error: &str) -> Note {
 /// Promos nouvelles de jeux de la liste de souhaits (`wishlist.rs`).
 pub fn sale_note(sales: &[crate::wishlist::Sale]) -> Option<Note> {
     let first = sales.first()?;
-    let money = |cents: u32, s: &crate::wishlist::Sale| crate::wishlist::money(cents, &s.price.currency);
+    let money = |cents: u32, s: &crate::wishlist::Sale| price(cents, &s.price.currency);
     let (key, title, body) = if sales.len() > 1 {
-        let list: Vec<String> = sales.iter().take(3).map(|s| format!("{} -{}\u{a0}%", s.title, s.price.discount)).collect();
+        let list: Vec<String> = sales.iter().take(3).map(|s| tr!("{} -{}\u{a0}%", "{} -{}%", s.title, s.price.discount)).collect();
         let more = match sales.len() {
-            n if n > 4 => format!(" et {} autres", n - 3),
-            4 => " et 1 autre".to_string(),
+            n if n > 4 => tr!(" et {} autres", " and {} more", n - 3),
+            4 => tr!(" et 1 autre", " and 1 more"),
             _ => String::new(),
         };
-        (format!("sale:plusieurs:{}", today()), format!("{} jeux de ta liste en promo", sales.len()), format!("{}{more}.", list.join(", ")))
+        (
+            format!("sale:plusieurs:{}", today()),
+            tr!("{} jeux de ta liste en promo", "{} wishlist games on sale", sales.len()),
+            format!("{}{more}.", list.join(", ")),
+        )
     } else {
         (
             format!("sale:{}", first.appid),
-            format!("{} en promo : -{}\u{a0}%", first.title, first.price.discount),
-            format!("{} au lieu de {}.", money(first.price.now, first), money(first.price.initial, first)),
+            tr!("{} en promo : -{}\u{a0}%", "{} on sale: -{}%", first.title, first.price.discount),
+            tr!("{} au lieu de {}.", "{} instead of {}.", money(first.price.now, first), money(first.price.initial, first)),
         )
     };
     Some(Note { kind: Kind::Sale, key, title, body, target: Target::Wishlist })
 }
 
-/// « 1 118 Go » : gigaoctets entiers, milliers séparés par une espace insécable.
+/// Prix lisible : « 7,99 € » en français (`wishlist::money`), « €7.99 » en anglais (autre monnaie :
+/// « 7.99 USD »), milliers séparés par une virgule.
+fn price(cents: u32, currency: &str) -> String {
+    if !crate::i18n::english() {
+        return crate::wishlist::money(cents, currency);
+    }
+    let digits = (cents / 100).to_string();
+    let mut units = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            units.push(',');
+        }
+        units.push(c);
+    }
+    let amount = format!("{units}.{:02}", cents % 100);
+    if currency == "EUR" { format!("€{amount}") } else { format!("{amount} {currency}") }
+}
+
+/// « 1 118 Go » : gigaoctets entiers, milliers séparés par une espace insécable (« 1,118 GB » en
+/// anglais).
 fn gigabytes(bytes: u64) -> String {
     let n = (bytes as f64 / 1e9).round() as u64;
     let digits = n.to_string();
+    let english = crate::i18n::english();
     let mut out = String::new();
     for (i, c) in digits.chars().enumerate() {
         if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push('\u{a0}');
+            out.push(if english { ',' } else { '\u{a0}' });
         }
         out.push(c);
     }
-    format!("{out}\u{a0}Go")
+    tr!("{out}\u{a0}Go", "{out}\u{a0}GB")
 }
 
-/// « 8,4 » : une décimale, virgule française.
+/// « 8,4 » : une décimale, virgule française (« 8.4 » en anglais).
 fn decimal(value: f64) -> String {
-    format!("{value:.1}").replace('.', ",")
+    let text = format!("{value:.1}");
+    if crate::i18n::english() { text } else { text.replace('.', ",") }
 }
 
 /// Texte coupé à `max` caractères, sur une ligne.
@@ -754,6 +787,15 @@ mod tests {
         assert_eq!(many.title, "4 jeux de ta liste en promo");
         assert_eq!(many.body, "A -10\u{a0}%, B -20\u{a0}%, C -30\u{a0}% et 1 autre.");
         assert!(sale_note(&[]).is_none());
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            let one = sale_note(&[sale(1426210, "It Takes Two", 80)]).unwrap();
+            assert_eq!(one.title, "It Takes Two on sale: -80%");
+            assert_eq!(one.body, "€7.99 instead of €39.99.");
+            assert_eq!(price(123_456, "USD"), "1,234.56 USD");
+            let many = sale_note(&[sale(1, "A", 10), sale(2, "B", 20), sale(3, "C", 30), sale(4, "D", 40), sale(5, "E", 50)]).unwrap();
+            assert_eq!(many.title, "5 wishlist games on sale");
+            assert_eq!(many.body, "A -10%, B -20%, C -30% and 2 more.");
+        });
         assert!(wanted(Kind::Sale, Presence::Visible) && !wanted(Kind::Sale, Presence::Focused));
     }
 
@@ -765,6 +807,10 @@ mod tests {
         assert_eq!(downloads_note(3).title, "3 jeux Steam installés");
         assert_eq!(update_note("0.3.0").title, "Ludex 0.3.0 est disponible");
         let s = saves_error_note("steam:105600", "Terraria", "Disque plein.");
+        let en = crate::i18n::with(crate::i18n::Lang::En, || download_note("steam:730", "Counter-Strike 2", true));
+        assert_eq!((en.title.as_str(), en.body.as_str()), ("Counter-Strike 2 is ready", "Steam update finished."));
+        let en = crate::i18n::with(crate::i18n::Lang::En, || update_note("0.3.0"));
+        assert_eq!((en.title.as_str(), en.body.as_str()), ("Ludex 0.3.0 is available", "Open Ludex to install it and restart."));
         assert_eq!(s.target, Target::Game { id: "steam:105600".into(), tab: Some("saves".into()) });
         assert_eq!(s.key, "savesError:steam:105600");
     }

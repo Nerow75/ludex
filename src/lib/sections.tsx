@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { CollectionsInfo, Game, Mood, Status } from "./api";
-import type { Filter } from "./library";
+import { t } from "./i18n";
+import { titleOrder, type Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
@@ -65,44 +66,108 @@ export interface Section {
   empty?: string;
 }
 
+
 /** Filtres par launcher seulement : « Favoris » et « Masqués » n'ont pas de sens dans ces sections. */
 const launchersOnly = (f: Filter) => f !== "favorites" && f !== "hidden";
 
-/** Catégories repliables de la barre, pour ne pas montrer quinze entrées d'un coup. */
+/**
+ * Catégories repliables de la barre, pour ne pas montrer quinze entrées d'un coup. Ces noms
+ * français sont des identifiants (`Section.group`, catégories ouvertes gardées dans
+ * `ludex.sideGroups`) : la barre latérale les traduit à l'affichage, ne pas les traduire ici.
+ */
 export const ACTIVITY_GROUP = "Activité";
 export const MEMORIES_GROUP = "Succès et captures";
 export const TOOLS_GROUP = "Outils";
+export const MINE_GROUP = "Mes collections";
+export const STEAM_GROUP = "Collections Steam";
+/** Catégories ouvertes au premier lancement : les collections perso, où l'on crée. */
+export const OPEN_GROUPS_DEFAULT: readonly string[] = [MINE_GROUP];
+
+/** Libellés des sections fixes, relus à chaque accès (langue actuelle). */
+const text = () => t.common.sections;
 
 /**
  * Sections fixes, dans l'ordre de la barre (et des raccourcis Ctrl+1, Ctrl+2…) : quatre entrées
  * toujours visibles, puis les catégories. Nouvelle section : une entrée ici, à côté de sa catégorie.
+ * Libellés et textes en accesseurs : relus dans la langue actuelle, ids inchangés.
  */
 export const SECTIONS: readonly Section[] = [
   // Accueil : bannière « Ce soir », Reprendre, idées par ambiance, pile des jeux pas commencés.
-  { id: "for-you", label: "Pour toi", icon: HomeIcon, render: (ctx) => <HomeView {...ctx} /> },
-  { id: "all", label: "Tous les jeux", icon: GridIcon, filters: (f) => f !== "favorites" },
+  {
+    id: "for-you",
+    get label() { return text().forYou; },
+    icon: HomeIcon,
+    render: (ctx) => <HomeView {...ctx} />,
+  },
+  {
+    id: "all",
+    get label() { return text().all; },
+    icon: GridIcon,
+    filters: (f) => f !== "favorites",
+  },
   {
     id: "favorites",
-    label: "Favoris",
+    get label() { return text().favorites; },
     icon: () => <StarIcon />,
     scope: (g) => g.favorite,
     filters: launchersOnly,
-    empty: "Ouvre la fiche d'un jeu et clique l'étoile, ou appuie sur Ctrl+D quand il est sélectionné",
+    get empty() { return text().favoritesEmpty; },
   },
-  { id: "tags", label: "Explorer", icon: TagIcon, render: (ctx) => <TagsView {...ctx} /> },
-  { id: "progress", label: "Progression", icon: BoardIcon, group: ACTIVITY_GROUP, render: (ctx) => <ProgressBoard {...ctx} /> },
-  { id: "history", label: "Historique", icon: ClockIcon, group: ACTIVITY_GROUP, render: (ctx) => <HistoryList {...ctx} /> },
+  {
+    id: "tags",
+    get label() { return text().tags; },
+    icon: TagIcon,
+    render: (ctx) => <TagsView {...ctx} />,
+  },
+  {
+    id: "progress",
+    get label() { return text().progress; },
+    icon: BoardIcon,
+    group: ACTIVITY_GROUP,
+    render: (ctx) => <ProgressBoard {...ctx} />,
+  },
+  {
+    id: "history",
+    get label() { return text().history; },
+    icon: ClockIcon,
+    group: ACTIVITY_GROUP,
+    render: (ctx) => <HistoryList {...ctx} />,
+  },
   // Frise jour par jour : sessions, succès Steam et captures.
-  { id: "journal", label: "Journal", icon: JournalIcon, group: ACTIVITY_GROUP, render: (ctx) => <JournalView {...ctx} /> },
-  { id: "recap", label: "Récap", icon: ChartIcon, group: ACTIVITY_GROUP, render: (ctx) => <RecapView {...ctx} /> },
+  {
+    id: "journal",
+    get label() { return text().journal; },
+    icon: JournalIcon,
+    group: ACTIVITY_GROUP,
+    render: (ctx) => <JournalView {...ctx} />,
+  },
+  {
+    id: "recap",
+    get label() { return text().recap; },
+    icon: ChartIcon,
+    group: ACTIVITY_GROUP,
+    render: (ctx) => <RecapView {...ctx} />,
+  },
   // Heures par mois, launchers, genres, top 10, séries et succès par mois.
-  { id: "stats", label: "Statistiques", icon: PieIcon, group: ACTIVITY_GROUP, render: (ctx) => <StatsView {...ctx} /> },
+  {
+    id: "stats",
+    get label() { return text().stats; },
+    icon: PieIcon,
+    group: ACTIVITY_GROUP,
+    render: (ctx) => <StatsView {...ctx} />,
+  },
   // Succès Steam : total, jeux à 100 %, les plus rares, derniers déblocages.
-  { id: "showcase", label: "Vitrine", icon: TrophyIcon, group: MEMORIES_GROUP, render: (ctx) => <ShowcaseView {...ctx} /> },
+  {
+    id: "showcase",
+    get label() { return text().showcase; },
+    icon: TrophyIcon,
+    group: MEMORIES_GROUP,
+    render: (ctx) => <ShowcaseView {...ctx} />,
+  },
   // Captures Steam et Xbox Game Bar, jeu par jeu.
   {
     id: "screenshots",
-    label: "Captures",
+    get label() { return text().screenshots; },
     icon: ImageIcon,
     group: MEMORIES_GROUP,
     render: (ctx) => (
@@ -115,14 +180,29 @@ export const SECTIONS: readonly Section[] = [
     ),
   },
   // Copies de sécurité des sauvegardes (base Ludusavi).
-  { id: "saves", label: "Sauvegardes", icon: SaveIcon, group: TOOLS_GROUP, render: () => <SavesPage /> },
-  { id: "storage", label: "Stockage", icon: StorageIcon, group: TOOLS_GROUP, render: (ctx) => <StorageView {...ctx} /> },
+  {
+    id: "saves",
+    get label() { return text().saves; },
+    icon: SaveIcon,
+    group: TOOLS_GROUP,
+    render: () => <SavesPage />,
+  },
+  {
+    id: "storage",
+    get label() { return text().storage; },
+    icon: StorageIcon,
+    group: TOOLS_GROUP,
+    render: (ctx) => <StorageView {...ctx} />,
+  },
   // Liste de souhaits locale : jeux de la boutique Steam suivis, alertes de promo.
-  { id: "wishlist", label: "Souhaits", icon: HeartIcon, group: TOOLS_GROUP, render: (ctx) => <WishlistView {...ctx} /> },
+  {
+    id: "wishlist",
+    get label() { return text().wishlist; },
+    icon: HeartIcon,
+    group: TOOLS_GROUP,
+    render: (ctx) => <WishlistView {...ctx} />,
+  },
 ];
-
-/** Catégories ouvertes au premier lancement : les collections perso, où l'on crée. */
-export const OPEN_GROUPS_DEFAULT: readonly string[] = ["Mes collections"];
 
 /** Ordre des catégories dans la barre : celles des sections fixes, puis les collections. */
 export function sideGroups(sections: readonly Section[]): string[] {
@@ -139,10 +219,7 @@ export function groupOpen(group: string, opened: ReadonlySet<string>, sections: 
   return opened.has(group) || sections.some((s) => s.id === active && s.group === group);
 }
 
-export const MINE_GROUP = "Mes collections";
-export const STEAM_GROUP = "Collections Steam";
-
-const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" });
+const byName = (a: { name: string }, b: { name: string }) => titleOrder().compare(a.name, b.name);
 
 /**
  * Sections des collections, après les sections fixes (leurs raccourcis Ctrl+1… ne bougent donc
@@ -161,7 +238,7 @@ export function collectionSections(info: CollectionsInfo | null, games: Game[]):
       filters: launchersOnly,
       group: MINE_GROUP,
       collection: { id: c.id, kind: "mine" },
-      empty: "Ouvre la fiche d'un jeu et choisis « Collections » pour l'ajouter ici",
+      get empty() { return text().mineEmpty; },
     };
   });
   const present = new Set(games.filter((g) => !g.hidden).map((g) => g.id));
@@ -178,7 +255,7 @@ export function collectionSections(info: CollectionsInfo | null, games: Game[]):
         filters: launchersOnly,
         group: STEAM_GROUP,
         collection: { id: c.id, kind: "steam" },
-        empty: "Collection lue dans Steam : elle se modifie dans Steam",
+        get empty() { return text().steamEmpty; },
       };
     });
   return [...mine, ...steam];

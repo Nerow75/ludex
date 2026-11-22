@@ -1,4 +1,5 @@
 import type { Game } from "./api";
+import { t } from "./i18n";
 
 /*
  * Recherche tolérante. Rang d'un jeu pour une recherche, du meilleur au moins bon :
@@ -8,10 +9,12 @@ import type { Game } from "./api";
  *   3 sous-chaîne, ou chaque mot de la recherche au début d'un mot du titre (« manager football »)
  *   4 une faute de frappe, 5 deux fautes (« rocet », « footbal manger ») : jamais sous 4 lettres,
  *     première lettre juste, nombres jamais changés
- *   6 studio, éditeur, genre ou tag Steam dont un mot commence par la recherche
+ *   6 studio, éditeur, genre ou tag Steam dont un mot commence par la recherche (un genre par son
+ *     nom français, qui l'identifie, ou par son nom dans la langue de l'interface : « racing »)
  * Les alias choisis par l'utilisateur (« cod » pour Call of Duty) sont classés comme le titre ;
  * un alias tapé en entier passe devant tout (`RANK_ALIAS`).
- * Accents, casse, ®/™, apostrophes et ponctuation ignorés. Fonctions pures, sans dépendance.
+ * Accents, casse, ®/™, apostrophes et ponctuation ignorés. Fonctions pures ; seule dépendance, les
+ * noms des genres dans la langue actuelle (`i18n.ts`).
  */
 
 export const RANK_META = 6;
@@ -176,11 +179,23 @@ function rankTitle(t: Prepared, q: Prepared): number | null {
   return typos === null ? null : 3 + typos;
 }
 
-/** Un studio, un éditeur, un genre ou un tag dont un mot commence par la recherche (« ubisoft », « coop », « rpg »). */
+/** Nom affiché d'un genre de Ludex dans la langue actuelle (« Racing » pour « Course »), `null` s'il est inconnu. */
+function shownGenre(name: string): string | null {
+  return Object.prototype.hasOwnProperty.call(t.common.genre, name) ? t.common.genre[name] : null;
+}
+
+/**
+ * Un studio, un éditeur, un genre ou un tag dont un mot commence par la recherche (« ubisoft »,
+ * « coop », « rpg ») ; un genre par son nom français ou par son nom affiché (« racing », « strategy »).
+ */
 function metaMatch(game: Game, q: Prepared): boolean {
   const d = game.details;
   if (!d || !q.joined) return false;
-  return [...d.developers, ...d.publishers, ...d.genres, ...d.tags].some((v) => ` ${prepare(v).joined}`.includes(` ${q.joined}`));
+  const genres = d.genres.flatMap((g) => {
+    const shown = shownGenre(g);
+    return shown && shown !== g ? [g, shown] : [g];
+  });
+  return [...d.developers, ...d.publishers, ...genres, ...d.tags].some((v) => ` ${prepare(v).joined}`.includes(` ${q.joined}`));
 }
 
 export type Query = Prepared;

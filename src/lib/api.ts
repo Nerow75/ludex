@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { live, t, type Lang, type LanguageSetting } from "./i18n";
 
 export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "amazon" | "itch" | "other";
 export type PlaytimeSource = "launcher" | "ludex";
@@ -11,7 +12,8 @@ export const PLATFORMS: readonly Platform[] = ["steam", "epic", "gog", "ubisoft"
 /** Ambiance tirée des tags Steam et des catégories de la boutique (`moods.rs`). */
 export type Mood = "chill" | "intense" | "story" | "friends";
 export const MOODS: readonly Mood[] = ["chill", "intense", "story", "friends"];
-export const MOOD_LABEL: Record<Mood, string> = { chill: "Chill", intense: "Intense", story: "Histoire", friends: "Entre amis" };
+/** Libellés dans la langue actuelle (relus à chaque accès). */
+export const MOOD_LABEL: Record<Mood, string> = live(() => t.common.mood);
 
 /** Prise en charge de la manette annoncée par la boutique Steam. */
 export type ControllerSupport = "full" | "partial";
@@ -120,7 +122,7 @@ export interface Game {
 export type Status = "todo" | "playing" | "done" | "dropped";
 /** Ordre des colonnes de « Progression » et des boutons de la fiche. */
 export const STATUSES: readonly Status[] = ["todo", "playing", "done", "dropped"];
-export const STATUS_LABEL: Record<Status, string> = { todo: "À faire", playing: "En cours", done: "Terminé", dropped: "Abandonné" };
+export const STATUS_LABEL: Record<Status, string> = live(() => t.common.status);
 
 /** Collection : nom et ids des jeux, dans l'ordre d'ajout. */
 export interface Collection {
@@ -162,20 +164,7 @@ export interface SessionEvent {
   playtimeSource: PlaytimeSource | null;
 }
 
-export const PLATFORM_LABEL: Record<Platform, string> = {
-  steam: "Steam",
-  epic: "Epic Games",
-  gog: "GOG",
-  ubisoft: "Ubisoft",
-  rockstar: "Rockstar",
-  xbox: "Xbox",
-  riot: "Riot",
-  battlenet: "Battle.net",
-  ea: "EA",
-  amazon: "Amazon Games",
-  itch: "itch.io",
-  other: "Autres",
-};
+export const PLATFORM_LABEL: Record<Platform, string> = live(() => t.common.platform);
 
 export const scanLibrary = () => invoke<ScanResult>("scan_library");
 /** Renvoie l'heure du lancement (secondes Unix). */
@@ -874,29 +863,21 @@ export const welcomeAgain = () => invoke<WelcomeInfo>("welcome_again");
 /** Thème de l'interface ; `system` suit Windows. */
 export type Theme = "dark" | "light" | "system" | "oled" | "contrast";
 export const THEMES: readonly Theme[] = ["dark", "light", "system", "oled", "contrast"];
-export const THEME_LABEL: Record<Theme, string> = {
-  dark: "Sombre",
-  light: "Clair",
-  system: "Comme Windows",
-  oled: "Noir OLED",
-  contrast: "Contraste élevé",
-};
+export const THEME_LABEL: Record<Theme, string> = live(() => t.common.theme);
 
 /** Couleur d'accent de l'interface ; turquoise (celle du logo) par défaut. */
 export type Accent = "turquoise" | "blue" | "violet" | "pink" | "green";
 export const ACCENTS: readonly Accent[] = ["turquoise", "blue", "violet", "pink", "green"];
-export const ACCENT_LABEL: Record<Accent, string> = {
-  turquoise: "Turquoise",
-  blue: "Bleu",
-  violet: "Violet",
-  pink: "Rose",
-  green: "Vert",
-};
+export const ACCENT_LABEL: Record<Accent, string> = live(() => t.common.accent);
 
 /** Réglages de l'écran Paramètres (`settings.rs`). */
 export interface SettingsInfo {
   theme: Theme;
   accent: Accent;
+  /** Langue choisie (`system` : celle de Windows). */
+  language: LanguageSetting;
+  /** Langue effective, résolue par Rust (Windows en français = `fr`, sinon `en`). */
+  languageResolved: Lang;
   /** Format du plugin (« Alt+Space »), vide si désactivé. */
   quickShortcut: string;
   /** Le même, lisible (« Alt+Espace », « Désactivé »). */
@@ -928,6 +909,8 @@ export const onNotificationOpen = (handler: (target: NotificationTarget) => void
   listen<NotificationTarget>("notification-open", (e) => handler(e.payload));
 export const setTheme = (theme: Theme) => invoke<SettingsInfo>("set_theme", { theme });
 export const setAccent = (accent: Accent) => invoke<SettingsInfo>("set_accent", { accent });
+/** Langue de l'interface, appliquée tout de suite (réglages publiés par `settings-changed`), puis rescan : bibliothèque relue. */
+export const setLanguage = (language: LanguageSetting) => invoke<ScanResult>("set_language", { language });
 /** Texte au format du plugin (`Ctrl+Shift+KeyL`), validé et enregistré côté Rust ; vide : désactivé. */
 export const setQuickShortcut = (text: string) => invoke<SettingsInfo>("set_quick_shortcut", { text });
 /** Coupe le raccourci actuel pendant sa saisie (`true`), puis le remet (`false`). */

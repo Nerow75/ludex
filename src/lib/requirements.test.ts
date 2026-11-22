@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { PcSpecs, RequirementKind, RequirementLine, Requirements, RequirementVerdict } from "./api";
 import { formatGib, pcText, requirementRows, requirementSummary } from "./requirements";
 import { espaces } from "../test/jeu";
@@ -88,5 +89,34 @@ describe("requirementSummary", () => {
   it("n'invente rien sans ligne comparable", () => {
     expect(requirementSummary(req([line("cpu", "unknown")]))).toBe("Rien de comparable automatiquement : à vérifier à la main.");
     expect(requirementSummary(req([line("notes", "unknown")]))).toBeNull();
+  });
+});
+
+describe("textes en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("écrit les tailles et la colonne « Ce PC »", () => {
+    setLang("en");
+    expect(formatGib(0.5 * GIB)).toBe("0.5 GB");
+    expect(formatGib(1118 * GIB)).toBe("1,118 GB");
+    expect(pcText("cpu", pc)).toBe("AMD Ryzen 7 9800X3D, 8 cores, 16 threads");
+    expect(pcText("cpu", { ...pc, cores: 1, threads: 2 })).toBe("AMD Ryzen 7 9800X3D, 1 core, 2 threads");
+    expect(pcText("gpu", pc)).toBe("NVIDIA GeForce RTX 3070 (8 GB) · AMD Radeon Graphics (0.5 GB)");
+    expect(pcText("storage", { ...pc, disk: { letter: "D:", free: 96 * GIB, game: 18 * GIB } })).toBe("96 GB free on D:, game installed: 18 GB");
+  });
+
+  it("donne la synthèse", () => {
+    setLang("en");
+    expect(requirementSummary(req([line("memory", "below"), line("storage", "below"), line("cpu")]))).toBe(
+      "Below the minimum requirements for: Memory and Storage.",
+    );
+    expect(requirementSummary(req([line("memory")], [line("memory", "below"), line("gpu", "below"), line("cpu", "below")]))).toBe(
+      "Minimum met, below the recommended requirements for: Memory, Graphics and Processor.",
+    );
+    expect(requirementSummary(req([line("cpu"), line("memory")]))).toBe("This PC meets the minimum requirements.");
+    expect(requirementSummary(req([line("cpu")], [line("cpu", "unknown"), line("memory"), line("gpu", "unknown"), line("storage")]))).toBe(
+      "This PC meets the recommended requirements on 2 of 4 points. Processor and Graphics: check manually.",
+    );
+    expect(requirementSummary(req([line("cpu", "unknown")]))).toBe("Nothing can be compared automatically: check manually.");
   });
 });

@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { EDGE, gameMenu, placeMenu, placeSubmenu, stepEntry, type MenuEntry } from "./contextMenu";
 import type { Collection } from "./api";
 import { jeu } from "../test/jeu";
+import { setLang } from "./i18n";
+
+afterEach(() => setLang("fr"));
 
 const vue = { width: 1000, height: 800 };
 const menu = { width: 200, height: 300 };
@@ -111,5 +114,29 @@ describe("stepEntry", () => {
   it("que des séparateurs ou rien : -1", () => {
     expect(stepEntry([], -1, 1)).toBe(-1);
     expect(stepEntry([{ kind: "separator", key: "s" }], -1, 1)).toBe(-1);
+  });
+});
+
+describe("gameMenu en anglais", () => {
+  it("libellés, statuts et collections en anglais", () => {
+    setLang("en");
+    const entries = gameMenu(jeu({ favorite: true, hidden: true, installDir: "D:\\Games\\Hades" }), []);
+    const labels = entries.filter((e) => e.kind !== "separator").map((e) => (e as { label: string }).label);
+    expect(labels).toEqual([
+      "Play",
+      "View details",
+      "Remove from favorites",
+      "Status",
+      "Add to collection",
+      "Open folder",
+      "Create desktop shortcut",
+      "Rename",
+      "Unhide",
+    ]);
+    expect(sousMenu(entries, "status").map((e) => (e as { label: string }).label)).toEqual(["Backlog", "Playing", "Finished", "Dropped", "None"]);
+    expect(sousMenu(entries, "collections")).toMatchObject([{ label: "New collection…" }]);
+    const plain = gameMenu(jeu(), []);
+    expect(plain.find((e) => e.key === "favorite")).toMatchObject({ label: "Add to favorites" });
+    expect(plain.find((e) => e.key === "hide")).toMatchObject({ label: "Hide" });
   });
 });

@@ -4,7 +4,8 @@
 // Rust), ou l'emplacement d'origine.
 import { useEffect, useState } from "react";
 import { chooseDataDir, dataLocation, moveData, type DataLocation, type DataTarget, type MoveDone } from "../lib/api";
-import { bytesLabel, currentText, diskOptions, heavyBytes, moveText } from "../lib/dataPlace";
+import { backText, bytesLabel, currentText, diskOptions, heavyBytes, moveText } from "../lib/dataPlace";
+import { t } from "../lib/i18n";
 
 interface Props {
   /** Données déplacées : bibliothèque relue. */
@@ -28,7 +29,8 @@ export function DataPlace({ onMoved, explainKept }: Props) {
       .catch((e) => setMsg({ text: String(e), error: true }));
   }, []);
 
-  if (!loc) return <p className="place__note">{msg ? msg.text : "Mesure des données de Ludex…"}</p>;
+  const p = t.settings.place;
+  if (!loc) return <p className="place__note">{msg ? msg.text : p.measuring}</p>;
 
   const options = diskOptions(loc);
   const choose = (next: Choice) => {
@@ -46,7 +48,7 @@ export function DataPlace({ onMoved, explainKept }: Props) {
   const move = () => {
     if (!choice) return;
     if (loc.preview) {
-      setMsg({ text: "Aperçu de l'écran d'accueil : rien n'est déplacé.", error: false });
+      setMsg({ text: p.previewOnly, error: false });
       setChoice(null);
       return;
     }
@@ -57,26 +59,24 @@ export function DataPlace({ onMoved, explainKept }: Props) {
         setLoc(done.location);
         setChoice(null);
         const warn = done.warnings.length ? ` ${done.warnings.join(" ")}` : "";
-        setMsg({ text: `${bytesLabel(done.moved)} déplacés vers ${done.location.root || "l'emplacement d'origine"}.${warn}`, error: false });
+        setMsg({ text: `${p.moved(bytesLabel(done.moved), done.location.root || p.toOriginal)}${warn}`, error: false });
         onMoved?.(done);
       })
       .catch((e) => setMsg({ text: String(e), error: true }))
       .finally(() => setBusy(null));
   };
-  const original = { cache: loc.defaultCache, copies: loc.defaultCopies };
-
   return (
     <div className="place">
       <dl className="place__now">
         <div>
-          <dt>Cache des images et base des sauvegardes</dt>
+          <dt>{p.cache}</dt>
           <dd>
             <span className="place__size">{bytesLabel(loc.cacheBytes)}</span>
             <code title={loc.cacheDir}>{loc.cacheDir}</code>
           </dd>
         </div>
         <div>
-          <dt>Copies de sauvegardes{loc.copiesSeparate && " (dossier choisi à part)"}</dt>
+          <dt>{p.copies}{loc.copiesSeparate && p.separate}</dt>
           <dd>
             <span className="place__size">{bytesLabel(loc.copiesBytes)}</span>
             <code title={loc.copiesDir}>{loc.copiesDir}</code>
@@ -85,7 +85,7 @@ export function DataPlace({ onMoved, explainKept }: Props) {
       </dl>
       <p className={`place__note ${loc.missing ? "is-warning" : ""}`}>{currentText(loc)}</p>
 
-      <div className="place__disks" role="radiogroup" aria-label="Disque des données de Ludex">
+      <div className="place__disks" role="radiogroup" aria-label={p.disks}>
         {options.map((o) => {
           const picked = choice?.target.kind === "drive" && choice.target.mount === o.disk.mount;
           return (
@@ -97,15 +97,15 @@ export function DataPlace({ onMoved, explainKept }: Props) {
               className={`place__disk ${picked ? "is-picked" : ""} ${o.low ? "is-low" : ""}`}
               data-nav
               disabled={!o.selectable || busy !== null}
-              title={!o.fits ? `Pas assez de place : ${bytesLabel(heavyBytes(loc))} à déplacer` : undefined}
+              title={!o.fits ? p.noRoom(bytesLabel(heavyBytes(loc))) : undefined}
               onClick={() => choose({ target: { kind: "drive", mount: o.disk.mount }, root: o.disk.target })}
             >
               <span className="place__disk-head">
                 <b>{o.label}</b>
-                {o.tags.map((t) => <span key={t} className="place__tag">{t}</span>)}
+                {o.tags.map((tag) => <span key={tag} className="place__tag">{tag}</span>)}
               </span>
               <span className="place__bar" aria-hidden="true"><span style={{ width: `${Math.round(o.used * 100)}%` }} /></span>
-              <small>{o.fits ? o.detail : `${o.detail}, pas assez de place`}</small>
+              <small>{o.fits ? o.detail : p.noRoomShort(o.detail)}</small>
             </button>
           );
         })}
@@ -113,7 +113,7 @@ export function DataPlace({ onMoved, explainKept }: Props) {
 
       <div className="place__acts">
         <button type="button" className="btn-ghost set__small" data-nav disabled={busy !== null} onClick={pick}>
-          {busy === "pick" ? "Choix…" : "Autre dossier…"}
+          {busy === "pick" ? p.picking : p.other}
         </button>
         {loc.root && (
           <button
@@ -123,24 +123,21 @@ export function DataPlace({ onMoved, explainKept }: Props) {
             disabled={busy !== null}
             onClick={() => choose({ target: { kind: "default" }, root: "" })}
           >
-            Revenir à l'emplacement d'origine
+            {p.backToOriginal}
           </button>
         )}
       </div>
 
       {choice && (
-        <div className="place__confirm" role="group" aria-label="Confirmer le déplacement">
+        <div className="place__confirm" role="group" aria-label={p.confirm}>
           <p>
-            {choice.root
-              ? moveText(loc, choice.root)
-              : `${bytesLabel(heavyBytes(loc))} à déplacer. Cache dans ${original.cache}.${loc.copiesSeparate ? "" : ` Copies de sauvegardes dans ${original.copies}.`}`}{" "}
-            Copie, vérification, puis suppression de l'ancien dossier. Impossible pendant une partie.
+            {choice.root ? moveText(loc, choice.root) : backText(loc)} {p.steps}
           </p>
           <div className="place__acts">
             <button type="button" className="btn-ghost set__small is-primary" data-nav autoFocus disabled={busy !== null} onClick={move}>
-              {busy === "move" ? "Déplacement…" : choice.root ? `Déplacer vers ${choice.root}` : "Revenir à l'origine"}
+              {busy === "move" ? p.moving : choice.root ? p.moveTo(choice.root) : p.moveBack}
             </button>
-            <button type="button" className="btn-ghost set__small" data-nav disabled={busy !== null} onClick={() => choose(null)}>Annuler</button>
+            <button type="button" className="btn-ghost set__small" data-nav disabled={busy !== null} onClick={() => choose(null)}>{t.settings.cancel}</button>
           </div>
         </div>
       )}
@@ -148,8 +145,9 @@ export function DataPlace({ onMoved, explainKept }: Props) {
       {msg && <p className={`place__msg ${msg.error ? "is-error" : ""}`} role="status">{msg.text}</p>}
       {explainKept && (
         <p className="place__note">
-          Tes préférences et ton historique ({bytesLabel(loc.keptBytes)}) restent dans <code>{loc.keptDir}</code> : ils sont petits, Ludex les lit dès
-          le démarrage, et ils ne dépendent pas d'un disque qu'on peut débrancher.
+          {p.keptBefore(bytesLabel(loc.keptBytes))}
+          <code>{loc.keptDir}</code>
+          {p.keptAfter}
         </p>
       )}
     </div>

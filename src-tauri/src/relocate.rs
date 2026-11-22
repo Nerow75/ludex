@@ -69,26 +69,26 @@ pub fn root_for(picked: &Path) -> PathBuf {
 pub fn check_root(root: &Path) -> Result<(), String> {
     let text = root.to_string_lossy();
     if text.starts_with(r"\\") || text.starts_with("//") {
-        return Err("Choisis un dossier sur un disque de ce PC (pas un partage réseau).".into());
+        return Err(tr!("Choisis un dossier sur un disque de ce PC (pas un partage réseau).", "Pick a folder on a drive of this PC (not a network share)."));
     }
     if !root.is_absolute() || root.parent().is_none() {
-        return Err("Choisis un dossier complet.".into());
+        return Err(tr!("Choisis un dossier complet.", "Pick a full folder path."));
     }
     if root.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-        return Err("Chemin refusé.".into());
+        return Err(tr!("Chemin refusé.", "Path refused."));
     }
-    let existing = root.ancestors().find(|d| fs::symlink_metadata(d).is_ok()).ok_or_else(|| format!("Le disque de {} est introuvable.", root.display()))?;
+    let existing = root.ancestors().find(|d| fs::symlink_metadata(d).is_ok()).ok_or_else(|| tr!("Le disque de {} est introuvable.", "The drive of {} can't be found.", root.display()))?;
     match fs::symlink_metadata(existing) {
         Ok(m) if m.is_dir() && !m.file_type().is_symlink() => Ok(()),
-        _ => Err(format!("{} n'est pas un dossier utilisable.", existing.display())),
+        _ => Err(tr!("{} n'est pas un dossier utilisable.", "{} can't be used as a folder.", existing.display())),
     }
 }
 
 /// Crée le dossier racine et vérifie que Ludex peut y écrire.
 fn prepare_root(root: &Path) -> Result<(), String> {
-    fs::create_dir_all(root).map_err(|e| format!("Impossible de créer {} : {e}", root.display()))?;
+    fs::create_dir_all(root).map_err(|e| tr!("Impossible de créer {} : {e}", "Couldn't create {}: {e}", root.display()))?;
     let probe = root.join(".ludex-essai");
-    fs::write(&probe, b"").map_err(|e| format!("Ludex ne peut pas écrire dans {} : {e}", root.display()))?;
+    fs::write(&probe, b"").map_err(|e| tr!("Ludex ne peut pas écrire dans {} : {e}", "Ludex can't write to {}: {e}", root.display()))?;
     let _ = fs::remove_file(probe);
     Ok(())
 }
@@ -144,10 +144,15 @@ pub fn plan(from: &Places, to: &Places, copies_follow: bool) -> Result<Vec<Part>
             continue;
         }
         if saves::is_within(&part.to, &part.from) || saves::is_within(&part.from, &part.to) {
-            return Err(format!("{} et {} sont l'un dans l'autre : choisis un autre dossier.", part.from.display(), part.to.display()));
+            return Err(tr!(
+                "{} et {} sont l'un dans l'autre : choisis un autre dossier.",
+                "{} and {} are inside each other: pick another folder.",
+                part.from.display(),
+                part.to.display()
+            ));
         }
         if part.to.exists() && !is_empty_dir(&part.to) {
-            return Err(format!("{} existe déjà et n'est pas vide : choisis un autre dossier.", part.to.display()));
+            return Err(tr!("{} existe déjà et n'est pas vide : choisis un autre dossier.", "{} already exists and isn't empty: pick another folder.", part.to.display()));
         }
         parts.push(part);
     }
@@ -181,36 +186,39 @@ pub fn size_of(dir: &Path) -> u64 {
     files(dir).map(|list| list.iter().map(|(_, n)| n).sum()).unwrap_or(0)
 }
 
-/// « 512 Ko », « 6,3 Mo », « 1,2 Go » (unités de 1 000, comme le reste de Ludex).
+/// « 512 Ko », « 6,3 Mo », « 1,2 Go » (unités de 1 000, comme le reste de Ludex) ; en anglais
+/// « 512 KB », « 6.3 MB », « 1.2 GB ».
 pub fn human(bytes: u64) -> String {
+    let english = crate::i18n::english();
     let (value, unit) = match bytes {
-        b if b >= 1_000_000_000 => (b as f64 / 1e9, "Go"),
-        b if b >= 1_000_000 => (b as f64 / 1e6, "Mo"),
-        b => (b as f64 / 1e3, "Ko"),
+        b if b >= 1_000_000_000 => (b as f64 / 1e9, if english { "GB" } else { "Go" }),
+        b if b >= 1_000_000 => (b as f64 / 1e6, if english { "MB" } else { "Mo" }),
+        b => (b as f64 / 1e3, if english { "KB" } else { "Ko" }),
     };
-    let text = if value < 10.0 { format!("{value:.1}").replace('.', ",") } else { format!("{value:.0}") };
-    format!("{}\u{a0}{unit}", text.trim_end_matches(",0"))
+    let (point, zero) = if english { (".", ".0") } else { (",", ",0") };
+    let text = if value < 10.0 { format!("{value:.1}").replace('.', point) } else { format!("{value:.0}") };
+    format!("{}\u{a0}{unit}", text.trim_end_matches(zero))
 }
 
 /// Place suffisante : les données plus une marge.
 pub fn check_space(needed: u64, free: u64, disk: &str) -> Result<(), String> {
     if needed.saturating_add(MARGIN) > free {
-        return Err(format!("Pas assez de place sur {disk} : {} à déplacer, {} libres.", human(needed), human(free)));
+        return Err(tr!("Pas assez de place sur {disk} : {} à déplacer, {} libres.", "Not enough space on {disk}: {} to move, {} free.", human(needed), human(free)));
     }
     Ok(())
 }
 
 /// Copie un dossier fichier par fichier avec `write` (`fs::copy`, ou un disque plein simulé).
 fn copy_tree(from: &Path, to: &Path, list: &[(PathBuf, u64)], write: &mut dyn FnMut(&Path, &Path) -> io::Result<u64>) -> Result<(), String> {
-    fs::create_dir_all(to).map_err(|e| format!("Impossible de créer {} : {e}", to.display()))?;
+    fs::create_dir_all(to).map_err(|e| tr!("Impossible de créer {} : {e}", "Couldn't create {}: {e}", to.display()))?;
     for (rel, _) in list {
         let target = to.join(rel);
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Impossible de créer {} : {e}", parent.display()))?;
+            fs::create_dir_all(parent).map_err(|e| tr!("Impossible de créer {} : {e}", "Couldn't create {}: {e}", parent.display()))?;
         }
         write(&from.join(rel), &target).map_err(|e| match e.kind() {
-            io::ErrorKind::StorageFull => format!("Disque plein pendant la copie de {}.", rel.display()),
-            _ => format!("Copie de {} impossible : {e}", from.join(rel).display()),
+            io::ErrorKind::StorageFull => tr!("Disque plein pendant la copie de {}.", "Drive full while copying {}.", rel.display()),
+            _ => tr!("Copie de {} impossible : {e}", "Couldn't copy {}: {e}", from.join(rel).display()),
         })?;
     }
     Ok(())
@@ -218,9 +226,13 @@ fn copy_tree(from: &Path, to: &Path, list: &[(PathBuf, u64)], write: &mut dyn Fn
 
 /// Les mêmes fichiers, aux mêmes tailles, des deux côtés.
 fn verify(list: &[(PathBuf, u64)], copy: &Path) -> Result<(), String> {
-    let copied = files(copy).map_err(|e| format!("Vérification de {} impossible : {e}", copy.display()))?;
+    let copied = files(copy).map_err(|e| tr!("Vérification de {} impossible : {e}", "Couldn't check {}: {e}", copy.display()))?;
     if copied != list {
-        return Err(format!("La copie de {} ne correspond pas à l'original : rien n'a été changé.", copy.display()));
+        return Err(tr!(
+            "La copie de {} ne correspond pas à l'original : rien n'a été changé.",
+            "The copy of {} doesn't match the original: nothing was changed.",
+            copy.display()
+        ));
     }
     Ok(())
 }
@@ -241,10 +253,10 @@ pub fn copy_all(parts: &[Part], write: &mut dyn FnMut(&Path, &Path) -> io::Resul
         for part in parts {
             let tmp = tmp_of(&part.to);
             if tmp.exists() {
-                fs::remove_dir_all(&tmp).map_err(|e| format!("Reste d'une copie précédente impossible à effacer ({}) : {e}", tmp.display()))?;
+                fs::remove_dir_all(&tmp).map_err(|e| tr!("Reste d'une copie précédente impossible à effacer ({}) : {e}", "Couldn't delete what's left of a previous copy ({}): {e}", tmp.display()))?;
             }
             tmps.push(tmp.clone());
-            let list = files(&part.from).map_err(|e| format!("Lecture de {} impossible : {e}", part.from.display()))?;
+            let list = files(&part.from).map_err(|e| tr!("Lecture de {} impossible : {e}", "Couldn't read {}: {e}", part.from.display()))?;
             copy_tree(&part.from, &tmp, &list, write)?;
             verify(&list, &tmp)?;
             done.bytes += list.iter().map(|(_, n)| n).sum::<u64>();
@@ -271,7 +283,7 @@ pub fn copy_all(parts: &[Part], write: &mut dyn FnMut(&Path, &Path) -> io::Resul
             for tmp in &tmps {
                 let _ = fs::remove_dir_all(tmp);
             }
-            return Err(format!("Impossible de finaliser {} : {e}", part.to.display()));
+            return Err(tr!("Impossible de finaliser {} : {e}", "Couldn't finish {}: {e}", part.to.display()));
         }
         renamed.push(&part.to);
     }
@@ -292,7 +304,7 @@ pub fn remove_sources(parts: &[Part], prune: &[PathBuf]) -> Vec<String> {
     let mut warnings = Vec::new();
     for part in parts {
         if let Err(e) = fs::remove_dir_all(&part.from) {
-            warnings.push(format!("Ancien dossier {} pas entièrement supprimé : {e}", part.from.display()));
+            warnings.push(tr!("Ancien dossier {} pas entièrement supprimé : {e}", "Old folder {} not fully deleted: {e}", part.from.display()));
         }
     }
     for dir in prune {
@@ -481,7 +493,7 @@ pub async fn data_location(app: AppHandle) -> Result<Location, String> {
 pub async fn choose_data_dir(app: AppHandle, window: tauri::WebviewWindow) -> Result<Option<String>, String> {
     blocking(move || {
         let state = app.state::<AppState>();
-        let mut dialog = window.dialog().file().set_title("Dossier des données de Ludex").set_parent(&window);
+        let mut dialog = window.dialog().file().set_title(tr_str!("Dossier des données de Ludex", "Ludex data folder")).set_parent(&window);
         if let Some(start) = current_cache(&state).ancestors().find(|d| d.is_dir()) {
             dialog = dialog.set_directory(start);
         }
@@ -526,14 +538,14 @@ impl Drop for Held<'_> {
     }
 }
 
-fn hold<'a>(flag: &'a AtomicBool, what: &str) -> Result<Held<'a>, String> {
+fn hold<'a>(flag: &'a AtomicBool, what: String) -> Result<Held<'a>, String> {
     for _ in 0..150 {
         if !flag.swap(true, Ordering::SeqCst) {
             return Ok(Held(flag));
         }
         std::thread::sleep(Duration::from_millis(200));
     }
-    Err(format!("{what} : réessaie dans un instant."))
+    Err(tr!("{what} : réessaie dans un instant.", "{what}: try again in a moment."))
 }
 
 fn same(a: Option<&Path>, b: Option<&Path>) -> bool {
@@ -550,25 +562,25 @@ fn same(a: Option<&Path>, b: Option<&Path>) -> bool {
 pub async fn move_data(app: AppHandle, target: Target) -> Result<MoveDone, String> {
     blocking(move || {
         if preview(&app) {
-            return Err("Aperçu de l'écran d'accueil : rien n'est déplacé.".into());
+            return Err(tr!("Aperçu de l'écran d'accueil : rien n'est déplacé.", "Welcome screen preview: nothing is moved."));
         }
         let state = app.state::<AppState>();
         if !state.tracker.active().is_empty() {
-            return Err("Une partie est en cours : ferme le jeu avant de déplacer les données de Ludex.".into());
+            return Err(tr!("Une partie est en cours : ferme le jeu avant de déplacer les données de Ludex.", "A game is running: close it before moving Ludex data."));
         }
-        let _moving = hold(&state.relocating, "Un déplacement est déjà en cours")?;
+        let _moving = hold(&state.relocating, tr!("Un déplacement est déjà en cours", "A move is already in progress"))?;
         let disks = list_disks();
         let new_root = match target {
             Target::Default => None,
             Target::Drive { mount } => {
-                let disk = disks.iter().find(|d| d.mount == mount).ok_or("Ce disque n'est plus disponible.")?;
+                let disk = disks.iter().find(|d| d.mount == mount).ok_or_else(|| tr!("Ce disque n'est plus disponible.", "This drive is no longer available."))?;
                 Some(Path::new(&disk.mount).join(FOLDER))
             }
-            Target::Picked => Some(lock(&state.picked_data_dir)?.take().ok_or("Choisis d'abord un dossier.")?),
+            Target::Picked => Some(lock(&state.picked_data_dir)?.take().ok_or_else(|| tr!("Choisis d'abord un dossier.", "Pick a folder first."))?),
         };
         let (old_root, saves_dir) = settings_of(&state)?;
         if same(old_root.as_deref(), new_root.as_deref()) {
-            return Err("Les données de Ludex sont déjà à cet endroit.".into());
+            return Err(tr!("Les données de Ludex sont déjà à cet endroit.", "Ludex data is already there."));
         }
         if let Some(root) = &new_root {
             check_root(root)?;
@@ -577,8 +589,8 @@ pub async fn move_data(app: AppHandle, target: Target) -> Result<MoveDone, Strin
         // Plus rien n'écrit dans les dossiers concernés pendant la copie.
         let scanning = wait_scan(&state);
         let _copies = lock(&state.saves_lock)?;
-        let images_held = hold(&state.images_busy, "Des images sont en cours de téléchargement")?;
-        let saves_held = hold(&state.saves_busy, "La base des sauvegardes est en cours de lecture")?;
+        let images_held = hold(&state.images_busy, tr!("Des images sont en cours de téléchargement", "Images are being downloaded"))?;
+        let saves_held = hold(&state.saves_busy, tr!("La base des sauvegardes est en cours de lecture", "The save database is being read"))?;
 
         let from = Places::new(&state.data_dir, old_root.as_deref(), saves_dir.as_deref());
         let to = Places::new(&state.data_dir, new_root.as_deref(), saves_dir.as_deref());
@@ -610,7 +622,7 @@ pub async fn move_data(app: AppHandle, target: Target) -> Result<MoveDone, Strin
                 data.settings.data_dir = before;
                 drop(data);
                 undo(&parts);
-                return Err(format!("Réglage non enregistré, rien n'a été déplacé : {e}"));
+                return Err(tr!("Réglage non enregistré, rien n'a été déplacé : {e}", "Setting not saved, nothing was moved: {e}"));
             }
         }
         *lock(&state.images)? = crate::images::ImageCache::load(to.cache.join("images"));
@@ -802,5 +814,12 @@ mod tests {
         assert_eq!(human(6_300_000), "6,3\u{a0}Mo");
         assert_eq!(human(19_000_000), "19\u{a0}Mo");
         assert_eq!(human(2_000_000_000), "2\u{a0}Go");
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            let err = check_space(2_500_000_000, 1_200_000_000, "D:").unwrap_err();
+            assert_eq!(err, "Not enough space on D:: 2.5\u{a0}GB to move, 1.2\u{a0}GB free.");
+            assert_eq!(human(512), "0.5\u{a0}KB");
+            assert_eq!(human(19_000_000), "19\u{a0}MB");
+            assert_eq!(human(2_000_000_000), "2\u{a0}GB");
+        });
     }
 }

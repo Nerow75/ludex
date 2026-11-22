@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PerfSeries, SessionPerf } from "../lib/api";
+import { t } from "../lib/i18n";
 import {
   METRIC_LABEL,
   areaPath,
@@ -35,11 +36,11 @@ function MetricChart({ perf, series }: { perf: SessionPerf; series: PerfSeries }
       <h3 className="perf__title">{label}</h3>
       <dl className="perf__stats" aria-hidden="true">
         <div>
-          <dt><span className="perf__key is-game" />Jeu</dt>
+          <dt><span className="perf__key is-game" />{t.fiche.perf.game}</dt>
           <dd>{statText(series.metric, series.game)}</dd>
         </div>
         <div>
-          <dt><span className="perf__key is-pc" />Tout le PC</dt>
+          <dt><span className="perf__key is-pc" />{t.fiche.perf.pc}</dt>
           <dd>{statText(series.metric, series.pc)}</dd>
         </div>
       </dl>
@@ -70,7 +71,7 @@ export function PerformancePanel({ sessions }: Props) {
     <div className="perf">
       <p className="fiche__note">{perfHeadline(sessions)}</p>
       {sessions.length > 1 && (
-        <div className="perf__picks" role="radiogroup" aria-label="Partie affichée">
+        <div className="perf__picks" role="radiogroup" aria-label={t.fiche.perf.picks}>
           {sessions.map((s, i) => (
             <button
               key={s.start}
@@ -97,8 +98,8 @@ export function PerformancePanel({ sessions }: Props) {
           <MetricChart key={`${perf.start}-${s.metric}`} perf={perf} series={s} />
         ))}
       </div>
-      {lacksGpu(perf) && <p className="fiche__note">Carte graphique : Windows n'a pas donné ses compteurs pendant cette partie.</p>}
-      <p className="fiche__note">Ni images par seconde ni températures : Windows ne les donne pas sans outil en plus.</p>
+      {lacksGpu(perf) && <p className="fiche__note">{t.fiche.perf.noGpu}</p>}
+      <p className="fiche__note">{t.fiche.perf.noFps}</p>
     </div>
   );
 }

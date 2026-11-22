@@ -3,6 +3,7 @@ import { PLATFORM_LABEL, type Game } from "../lib/api";
 import { installBadge } from "../lib/format";
 import { achievementPercent } from "../lib/library";
 import { cardLabel } from "../lib/a11y";
+import { t, useLang } from "../lib/i18n";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { PlayIcon, StarIcon } from "./Icons";
@@ -23,6 +24,8 @@ interface Props {
 }
 
 export const GameCard = memo(function GameCard({ game, selected, expanded, meta, playing, onSelect, onPlay, onFavorite }: Props) {
+  useLang();
+  const card = t.library.card;
   const badge = installBadge(game.installState);
   const percent = achievementPercent(game);
   return (
@@ -39,8 +42,8 @@ export const GameCard = memo(function GameCard({ game, selected, expanded, meta,
           <Cover game={game} progress />
           <span className="card__plat" title={PLATFORM_LABEL[game.platform]}><LauncherIcon platform={game.platform} size={13} /></span>
           {percent !== null && (
-            <span className={`card__ach ${percent === 100 ? "is-perfect" : ""}`} title={`${game.achievements!.unlocked} / ${game.achievements!.total} succès`}>
-              {percent} %
+            <span className={`card__ach ${percent === 100 ? "is-perfect" : ""}`} title={card.achievements(game.achievements!.unlocked, game.achievements!.total)}>
+              {t.library.percent(percent)}
             </span>
           )}
         </button>
@@ -50,14 +53,14 @@ export const GameCard = memo(function GameCard({ game, selected, expanded, meta,
           className={`card__star${game.favorite ? " is-on" : ""}`}
           tabIndex={-1}
           aria-pressed={game.favorite}
-          aria-label={game.favorite ? `Retirer ${game.title} des favoris` : `Ajouter ${game.title} aux favoris`}
-          title={game.favorite ? "Retirer des favoris (Ctrl+D)" : "Ajouter aux favoris (Ctrl+D)"}
+          aria-label={game.favorite ? card.removeFavorite(game.title) : card.addFavorite(game.title)}
+          title={game.favorite ? card.removeFavoriteHint : card.addFavoriteHint}
           onClick={() => onFavorite(game)}
           onDoubleClick={(e) => e.stopPropagation()}
         >
           <StarIcon filled={game.favorite} badge />
         </button>
-        <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${game.title}`} onClick={() => onPlay(game)}>
+        <button type="button" className="card__play" tabIndex={-1} aria-label={t.library.playGame(game.title)} onClick={() => onPlay(game)}>
           <PlayIcon />
         </button>
       </div>
@@ -65,7 +68,7 @@ export const GameCard = memo(function GameCard({ game, selected, expanded, meta,
       <div className="card__text" aria-hidden="true" onClick={() => onSelect(game)} onDoubleClick={() => onPlay(game)}>
         <span className="card__title">{game.title}</span>
         <span className="card__meta">
-          {playing ? <span className="live">En jeu</span> : badge ? <span className="live is-pending">{badge}</span> : meta}
+          {playing ? <span className="live">{t.library.inGame}</span> : badge ? <span className="live is-pending">{badge}</span> : meta}
         </span>
       </div>
     </div>

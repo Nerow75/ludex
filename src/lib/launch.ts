@@ -1,6 +1,7 @@
 // Écran de lancement « cinéma » (`LaunchScreen.tsx`) : états suivis par l'événement `game-session`,
 // délais de fermeture et textes. Fonctions pures, sans DOM ni horloge : l'heure est passée en argument.
 import { PLATFORM_LABEL, type Game, type SessionEvent } from "./api";
+import { t } from "./i18n";
 
 /** Lancement demandé, jeu vu par Ludex, ou erreur de `launch_game`. */
 export type LaunchPhase = "launching" | "running" | "error";
@@ -44,7 +45,7 @@ export function afterSession(view: LaunchView, e: SessionEvent, now: number): La
 /** Erreur de `launch_game` pour ce jeu : message et bouton Fermer, plus de fermeture automatique. */
 export function afterError(view: LaunchView, id: string, message: string, now: number): LaunchView {
   if (view.id !== id) return view;
-  return { ...view, phase: "error", since: now, error: message.trim() || "Le launcher n'a pas répondu." };
+  return { ...view, phase: "error", since: now, error: message.trim() || t.extras.launch.noAnswer };
 }
 
 /** Fermeture automatique : dans combien de temps et avec quel fondu ; `null` = jamais (erreur). */
@@ -88,11 +89,12 @@ export function relayName(game: Game): string | null {
 
 /** Texte principal et ligne secondaire de l'écran. */
 export function launchText(view: LaunchView, game: Game, now: number): { status: string; detail: string | null } {
-  if (view.phase === "error") return { status: "Impossible de lancer le jeu", detail: view.error };
-  if (view.phase === "running") return { status: "Bonne partie", detail: null };
+  const text = t.extras.launch;
+  if (view.phase === "error") return { status: text.failed, detail: view.error };
+  if (view.phase === "running") return { status: text.running, detail: null };
   const relay = relayName(game);
   const late = now - view.since >= RELAY_HINT_MS;
-  return { status: "Lancement…", detail: late ? (relay ? `${relay} prend le relais…` : "Le jeu démarre…") : null };
+  return { status: text.launching, detail: late ? (relay ? text.relay(relay) : text.starting) : null };
 }
 
 /** Fond de l'écran : image large du jeu, sinon sa jaquette (plus floutée), sinon la teinte du titre. */

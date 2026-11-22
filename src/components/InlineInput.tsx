@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { t } from "../lib/i18n";
 import { markFocus, restoreFocus } from "./focus";
 
 interface Props {
@@ -44,7 +45,7 @@ export function InlineInput({ initial = "", maxLength, label, placeholder, class
       onBlur={onDone}
       aria-label={label}
       placeholder={placeholder}
-      title="Entrée pour valider, Échap pour annuler"
+      title={t.common.inlineInputHint}
       spellCheck={false}
       autoComplete="off"
     />

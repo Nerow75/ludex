@@ -2,14 +2,18 @@
 //! genres, tags, ambiances, développeurs, éditeurs, date de sortie, courte description et prise en
 //! charge de la manette, lus dans l'API publique `IStoreBrowseService/GetItems` de la boutique Steam
 //! (aucun compte). Elle accepte plusieurs appids par requête et donne des dates en secondes Unix ;
-//! les étiquettes votées (tags) n'y sont que des numéros, nommés en français par
-//! `IStoreService/GetTagList` (liste complète, relue tous les 30 jours).
+//! les étiquettes votées (tags) n'y sont que des numéros, nommés dans la langue de Ludex par
+//! `IStoreService/GetTagList` (liste complète, relue tous les 30 jours). La description courte
+//! suit aussi la langue de Ludex ; les genres de Ludex (`GENRES`) gardent leur nom français, qui
+//! sert d'identifiant (le front les traduit).
 //!
-//! Les réponses brutes sont gardées dans `metadata-cache.json` (dossier de données de l'app) : un
-//! appid n'est redemandé qu'au bout de 30 jours, et sa fiche reste affichée en attendant. Genres,
+//! Les réponses brutes sont gardées dans un cache propre à chaque langue (dossier de données de
+//! l'app : `metadata-cache.json` en français, `metadata-cache.en.json` en anglais) : un appid n'est
+//! redemandé qu'au bout de 30 jours, et sa fiche reste affichée en attendant. Genres,
 //! tags et ambiances (`moods.rs`) en sont tirés à chaque application : changer leurs tables ne
 //! demande pas de tout relire.
 
+use crate::i18n::Lang;
 use crate::library::Game;
 use crate::moods::{Mood, moods};
 use serde::{Deserialize, Serialize};
@@ -22,7 +26,7 @@ const REFRESH_AFTER: u64 = 30 * 24 * 3600;
 /// À augmenter quand le contenu du cache change : tout est alors redemandé.
 const CACHE_VERSION: u32 = 2;
 const ITEMS: &str = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/";
-const TAG_LIST: &str = "https://api.steampowered.com/IStoreService/GetTagList/v1/?language=french";
+const TAG_LIST: &str = "https://api.steampowered.com/IStoreService/GetTagList/v1/";
 /// Appids par requête.
 const BATCH: usize = 40;
 /// Étiquettes lues par jeu, parmi lesquelles on garde les genres et les tags affichés.
@@ -68,7 +72,7 @@ pub enum Controller {
 pub struct Details {
     /// Du plus voté au moins voté, trois au plus.
     pub genres: Vec<String>,
-    /// Tags Steam en français, du plus voté au moins voté, dix au plus (genres compris).
+    /// Tags Steam dans la langue de Ludex, du plus voté au moins voté, dix au plus (genres compris).
     pub tags: Vec<String>,
     /// Chill, Intense, Histoire, Entre amis (`moods.rs`).
     pub moods: Vec<Mood>,
@@ -120,7 +124,7 @@ pub struct MetaCache {
     version: u32,
     #[serde(default)]
     apps: BTreeMap<u32, Entry>,
-    /// Noms français des tags, par identifiant.
+    /// Noms des tags dans la langue du cache, par identifiant.
     #[serde(default)]
     tag_names: BTreeMap<u32, String>,
     /// Date de lecture de `tag_names` (secondes Unix).
@@ -128,6 +132,19 @@ pub struct MetaCache {
     names_checked: u64,
     #[serde(skip)]
     path: PathBuf,
+    /// Langue de ce cache (celle de Ludex au chargement), `None` avant `load` : requêtes faites dans
+    /// cette langue, enregistrées dans son fichier.
+    #[serde(skip)]
+    lang: Option<Lang>,
+}
+
+/// Fichier d'un cache propre à une langue : `<nom>.json` en français (fichier d'avant l'anglais,
+/// gardé pour les utilisateurs existants), `<nom>.<code>.json` pour les autres langues.
+pub(crate) fn language_file(dir: &Path, stem: &str, lang: Lang) -> PathBuf {
+    match lang {
+        Lang::Fr => dir.join(format!("{stem}.json")),
+        other => dir.join(format!("{stem}.{}.json", other.code())),
+    }
 }
 
 fn now() -> u64 {
@@ -254,7 +271,7 @@ fn genres(tags: &[u32]) -> Vec<String> {
         .collect()
 }
 
-/// Noms français des étiquettes déjà classées ; une étiquette sans nom connu est sautée.
+/// Noms des étiquettes déjà classées ; une étiquette sans nom connu est sautée.
 fn tag_names(tags: &[u32], names: &BTreeMap<u32, String>) -> Vec<String> {
     tags.iter().filter_map(|t| names.get(t).cloned()).take(MAX_TAGS).collect()
 }
@@ -335,20 +352,32 @@ fn parse_tag_list(body: &str) -> Result<BTreeMap<u32, String>, String> {
         .map(|t| (t.tagid, decode(t.name.trim())))
         .filter(|(_, n)| !n.is_empty())
         .collect();
-    if names.is_empty() { Err("liste des tags vide".into()) } else { Ok(names) }
+    if names.is_empty() { Err(tr!("liste des tags vide", "empty tag list")) } else { Ok(names) }
 }
 
-fn request_tag_list(agent: &ureq::Agent) -> Result<BTreeMap<u32, String>, String> {
-    let body = agent.get(TAG_LIST).call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
+fn request_tag_list(agent: &ureq::Agent, lang: Lang) -> Result<BTreeMap<u32, String>, String> {
+    let body = agent
+        .get(TAG_LIST)
+        .query("language", lang.steam())
+        .call()
+        .map_err(|e| e.to_string())?
+        .into_string()
+        .map_err(|e| e.to_string())?;
     parse_tag_list(&body)
 }
 
-fn request(agent: &ureq::Agent, appids: &[u32]) -> Result<Vec<(u32, Option<Item>)>, String> {
+/// Paramètre `input_json` de `GetItems` (fiches dans la langue `lang`).
+fn items_input(appids: &[u32], lang: Lang) -> String {
     let ids: Vec<String> = appids.iter().map(|id| format!(r#"{{"appid":{id}}}"#)).collect();
-    let input = format!(
-        r#"{{"ids":[{}],"context":{{"language":"french","country_code":"FR"}},"data_request":{{"include_basic_info":true,"include_release":true,"include_tag_count":{TAG_COUNT}}}}}"#,
-        ids.join(",")
-    );
+    format!(
+        r#"{{"ids":[{}],"context":{{"language":"{}","country_code":"FR"}},"data_request":{{"include_basic_info":true,"include_release":true,"include_tag_count":{TAG_COUNT}}}}}"#,
+        ids.join(","),
+        lang.steam()
+    )
+}
+
+fn request(agent: &ureq::Agent, appids: &[u32], lang: Lang) -> Result<Vec<(u32, Option<Item>)>, String> {
+    let input = items_input(appids, lang);
     let body = agent
         .get(ITEMS)
         .query("input_json", &input)
@@ -360,8 +389,13 @@ fn request(agent: &ureq::Agent, appids: &[u32]) -> Result<Vec<(u32, Option<Item>
 }
 
 impl MetaCache {
+    /// Cache de la langue actuelle de Ludex.
     pub fn load(dir: &Path) -> Self {
-        let path = dir.join("metadata-cache.json");
+        Self::load_for(dir, crate::i18n::current())
+    }
+
+    fn load_for(dir: &Path, lang: Lang) -> Self {
+        let path = language_file(dir, "metadata-cache", lang);
         let mut cache: MetaCache = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         if cache.version != CACHE_VERSION {
             cache.apps.clear();
@@ -369,7 +403,18 @@ impl MetaCache {
             cache.version = CACHE_VERSION;
         }
         cache.path = path;
+        cache.lang = Some(lang);
         cache
+    }
+
+    /// Langue des requêtes de ce cache.
+    fn lang(&self) -> Lang {
+        self.lang.unwrap_or_else(crate::i18n::current)
+    }
+
+    /// La langue de Ludex a changé depuis le chargement de ce cache (`lib.rs` en a chargé un autre).
+    fn outdated(&self) -> bool {
+        self.lang.is_some_and(|l| l != crate::i18n::current())
     }
 
     fn save(&self) -> Result<(), String> {
@@ -425,14 +470,20 @@ impl MetaCache {
     /// et enregistre après chaque lot. `on_batch` reçoit le cache à jour après chaque lot. Une erreur
     /// réseau arrête tout sans rien enregistrer pour les appids restants : ils seront demandés au
     /// prochain scan. Renvoie faux dans ce cas.
+    ///
+    /// Requêtes dans la langue du cache. Si la langue de Ludex change pendant la lecture, ce qui a
+    /// été lu est enregistré dans le fichier de la langue du cache (jamais dans l'autre), `on_batch`
+    /// n'est plus appelé (le cache de l'état est déjà celui de la nouvelle langue) et la lecture
+    /// s'arrête en renvoyant vrai : l'appelant reprend avec le cache de la nouvelle langue.
     pub fn fetch(&mut self, appids: Vec<u32>, mut on_batch: impl FnMut(&MetaCache)) -> bool {
+        let lang = self.lang();
         let agent = ureq::AgentBuilder::new()
             .timeout(Duration::from_secs(10))
             .user_agent("Ludex (lanceur de jeux)")
             .build();
         // Les noms d'abord : sans eux, les fiches arriveraient sans tags.
         if self.names_stale() {
-            match request_tag_list(&agent) {
+            match request_tag_list(&agent, lang) {
                 Ok(names) => {
                     crate::diagnostic::ok(crate::diagnostic::Service::Details);
                     self.tag_names = names;
@@ -440,11 +491,11 @@ impl MetaCache {
                 }
                 // Liste connue mais ancienne : on la garde, les tags restent nommés.
                 Err(e) if !self.tag_names.is_empty() => {
-                    crate::diagnostic::failed(crate::diagnostic::Service::Details, format!("noms des tags : {e}"));
+                    crate::diagnostic::failed(crate::diagnostic::Service::Details, tr!("noms des tags : {e}", "tag names: {e}"));
                     eprintln!("Noms des tags non relus : {e}");
                 }
                 Err(e) => {
-                    crate::diagnostic::failed(crate::diagnostic::Service::Details, format!("noms des tags : {e}"));
+                    crate::diagnostic::failed(crate::diagnostic::Service::Details, tr!("noms des tags : {e}", "tag names: {e}"));
                     eprintln!("Lecture des fiches interrompue (noms des tags) : {e}");
                     return false;
                 }
@@ -454,12 +505,18 @@ impl MetaCache {
             if i > 0 {
                 std::thread::sleep(Duration::from_secs(1));
             }
-            match request(&agent, batch) {
+            if self.outdated() {
+                return true;
+            }
+            match request(&agent, batch, lang) {
                 Ok(results) => {
                     crate::diagnostic::ok(crate::diagnostic::Service::Details);
                     self.record(results);
                     if let Err(e) = self.save() {
                         eprintln!("Cache des fiches non enregistré : {e}");
+                    }
+                    if self.outdated() {
+                        return true;
                     }
                     on_batch(self);
                 }
@@ -616,14 +673,48 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn one_cache_per_language() {
+        use crate::i18n::with;
+        let dir = std::env::temp_dir().join(format!("ludex-meta-lang-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(language_file(&dir, "metadata-cache", Lang::Fr), dir.join("metadata-cache.json"));
+        assert_eq!(language_file(&dir, "metadata-cache", Lang::En), dir.join("metadata-cache.en.json"));
+
+        // Fichier français d'avant l'anglais : toujours celui du français.
+        let mut french = MetaCache::load(&dir);
+        french.record(parse(SAMPLE, &[1222670]).unwrap());
+        french.save().unwrap();
+        assert!(dir.join("metadata-cache.json").is_file());
+        assert!(!french.outdated());
+
+        with(Lang::En, || {
+            // Le cache français, chargé avant le changement de langue, est périmé.
+            assert!(french.outdated());
+            let mut english = MetaCache::load(&dir);
+            assert!(english.apps.is_empty(), "le cache anglais ne reprend pas les fiches françaises");
+            assert_eq!(english.lang(), Lang::En);
+            english.record(parse(SAMPLE, &[3932890]).unwrap());
+            english.save().unwrap();
+            // Requêtes dans la langue du cache.
+            assert!(items_input(&[10], english.lang()).contains(r#""language":"english""#));
+            assert!(items_input(&[10], french.lang()).contains(r#""language":"french""#));
+        });
+        assert!(dir.join("metadata-cache.en.json").is_file());
+        assert!(MetaCache::load(&dir).apps.contains_key(&1222670));
+        assert!(!MetaCache::load_for(&dir, Lang::En).apps.contains_key(&1222670));
+        assert!(!dir.join("metadata-cache.en.json.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     /// Requête réelle à la boutique Steam : `cargo test steam_details_online -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn steam_details_online() {
         let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).build();
-        let names = request_tag_list(&agent).unwrap();
+        let names = request_tag_list(&agent, Lang::Fr).unwrap();
         println!("{} noms de tags", names.len());
-        let results = request(&agent, &[1091500, 1222670, 3932890, 271590]).unwrap();
+        let results = request(&agent, &[1091500, 1222670, 3932890, 271590], Lang::Fr).unwrap();
         for (id, item) in &results {
             println!("{id} → {:?}", item.as_ref().map(|i| i.details(&names)));
         }

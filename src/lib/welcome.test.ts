@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { sourceList, STEPS, stepAfter, summarize } from "./welcome";
+import { setLang } from "./i18n";
 import type { Platform, SourceReport } from "./api";
 import { jeu } from "../test/jeu";
 
@@ -82,5 +83,36 @@ describe("stepAfter", () => {
     expect(stepAfter(2, -1)).toBe(1);
     expect(stepAfter(0, -1)).toBeNull();
     expect(stepAfter(STEPS.length - 1, 1)).toBeNull();
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("listes de sources", () => {
+    setLang("en");
+    expect(sourceList(["Steam", "EA"])).toBe("Steam and EA");
+    expect(sourceList(["Steam", "EA", "Riot"])).toBe("Steam, EA and Riot");
+    expect(sourceList(["Steam", "EA", "Riot", "GOG", "Xbox"])).toBe("Steam, EA and 3 others");
+  });
+
+  it("phrase du titre et dossiers de jeux, dans la langue du moment", () => {
+    const games = [...[1, 2, 3].map(() => jeu({ platform: "steam" })), jeu({ platform: "other" }), jeu({ platform: "other" }), jeu({ platform: "riot" }), jeu({ platform: "ea" })];
+    const sources = [source("steam", true, 3), source("riot", true, 1), source("ea", true, 1), source("other", true, 2)];
+    setLang("en");
+    const s = summarize({ games, sources });
+    expect(s.where).toBe("found in Steam, your game folders and 2 others");
+    expect(s.found.map((f) => f.label)).toEqual(["Steam", "Game folders", "EA", "Riot"]);
+    expect(summarize({ games: [jeu({ platform: "gog" })], sources: [source("gog", true, 1)] }).where).toBe("found in GOG");
+    setLang("fr");
+    expect(summarize({ games, sources }).where).toBe("trouvés dans Steam, tes dossiers de jeux et 2 autres");
+  });
+
+  it("noms des étapes", () => {
+    setLang("en");
+    expect(STEPS).toHaveLength(4);
+    expect(STEPS[0]).toBe("What Ludex found");
+    setLang("fr");
+    expect(STEPS[0]).toBe("Ce que Ludex a trouvé");
   });
 });

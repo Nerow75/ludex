@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { RareUnlock, Recap } from "./api";
+import { formatDuration } from "./format";
+import { setLang } from "./i18n";
 import { hasStory, MAX_PAGES, periodTitle, playerProfile, rarityText, stepPage, storyAction, storyComparison, storyPages, type StoryContext } from "./story";
 
 const H = 3600;
@@ -234,5 +236,97 @@ describe("textes et touches", () => {
     expect(stepPage(0, 3, "prev")).toBe(0);
     expect(stepPage(1, 3, "next")).toBe(2);
     expect(stepPage(2, 3, "next")).toBeNull();
+  });
+});
+
+describe("story en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("pages d'une semaine passée", () => {
+    setLang("en");
+    const pages = storyPages(pleine, ctx({ rarest: rare }));
+    expect(pages[0]).toMatchObject({ eyebrow: "November 9 to 15, 2026", value: formatDuration(20 * H), title: "of play that week", detail: "+100% vs. the previous week" });
+    expect(pages[1]).toMatchObject({ eyebrow: "Most played", title: "Your top 3" });
+    expect(pages[2]).toMatchObject({ eyebrow: "Your rhythm", value: "Saturday", title: "Your favorite day to play", detail: "Mostly in the evening, 6 pm to midnight" });
+    expect(pages[2].bars.map((b) => b.label)).toEqual(["M", "T", "W", "T", "F", "S", "S"]);
+    expect(pages[3].eyebrow).toBe("Your longest session");
+    expect(pages[3].detail).toMatch(/^Saturday, November 14, starting at 8:30\sPM$/);
+    expect(pages[4]).toMatchObject({ eyebrow: "Your streak", value: "4 days", title: "of play in a row", detail: "Your longest streak that week" });
+    expect(pages[5]).toMatchObject({ eyebrow: "Discoveries", value: "1", title: "new game started" });
+    expect(pages[5].items[0].value).toBe("November 12");
+    expect(pages[6]).toMatchObject({ eyebrow: "Steam achievements", value: "7", title: "achievements unlocked", detail: "including 5 in Hades" });
+    expect(pages[7].eyebrow).toBe("Your player profile");
+    expect(pages[8]).toMatchObject({ title: "End of recap", detail: "8 sessions · 3 games" });
+  });
+
+  it("période en cours, singuliers et repli", () => {
+    setLang("en");
+    const enCours = recap({ back: 0, elapsedDays: 3, totalSecs: 3 * H, previousToDateSecs: 4 * H, sessions: 2, games: 1, currentStreak: 3, bestStreak: 3 });
+    const pages = storyPages(enCours, ctx());
+    expect(pages[0]).toMatchObject({ title: "of play this week", detail: "−25% vs. the previous week at the same point" });
+    expect(pages.find((p) => p.kind === "streak")?.detail).toBe("Current streak: 3 days");
+    expect(pages[pages.length - 1]).toMatchObject({ title: "See you next week", detail: "2 sessions · 1 game" });
+
+    const news = Array.from({ length: 7 }, (_, i) => ({ gameId: `steam:${i + 1}`, firstPlayed: 1_763_000_000 + i }));
+    const autre = storyPages(
+      recap({ totalSecs: H, sessions: 1, games: 1, top: [{ gameId: "steam:1", secs: H, sessions: 1 }], newGames: news, achievements: 1, achievementGames: [{ gameId: "steam:1", count: 1 }] }),
+      ctx(),
+    );
+    expect(autre[1].title).toBe("Your game that week");
+    expect(autre.find((p) => p.kind === "discoveries")).toMatchObject({ title: "new games started", detail: "The first 5, and 2 more" });
+    expect(autre.find((p) => p.kind === "achievements")).toMatchObject({ title: "achievement unlocked", detail: "in Hades" });
+  });
+
+  it("profils de joueur", () => {
+    setLang("en");
+    const titre = (id: string) => titres[id] ?? "?";
+    expect(playerProfile(recap({ totalSecs: 10 * H, sessions: 5, games: 3, momentSecs: [6 * H, 0, 1 * H, 3 * H] }), titre)).toEqual({
+      id: "night",
+      title: "The night owl",
+      line: "60% of your playtime between midnight and 6 am",
+    });
+    const news = [1, 2, 3].map((i) => ({ gameId: `steam:${i}`, firstPlayed: i }));
+    expect(playerProfile(recap({ totalSecs: 3 * H, sessions: 3, games: 3, newGames: news, momentSecs: [0, 0, H, 2 * H] }), titre)).toMatchObject({
+      title: "The explorer",
+      line: "3 new games started that week",
+    });
+    const fidele = recap({
+      totalSecs: 10 * H,
+      sessions: 6,
+      games: 2,
+      top: [
+        { gameId: "steam:1", secs: 9 * H, sessions: 5 },
+        { gameId: "steam:2", secs: H, sessions: 1 },
+      ],
+      momentSecs: [0, 0, 5 * H, 5 * H],
+    });
+    expect(playerProfile(fidele, titre)).toMatchObject({ title: "The loyal one", line: "90% of your time on Hades" });
+    const marathon = playerProfile(
+      recap({ totalSecs: 9 * H, sessions: 2, games: 2, longest: { gameId: "steam:1", start: 0, secs: 6 * H }, momentSecs: [0, 0, 5 * H, 4 * H] }),
+      titre,
+    );
+    expect(marathon).toMatchObject({ title: "The marathoner", line: `${formatDuration(4.5 * H)} per session on average, ${formatDuration(6 * H)} for the longest` });
+    expect(playerProfile(recap({ totalSecs: H, sessions: 1, achievements: 30 }), titre)).toMatchObject({ title: "The achievement hunter", line: "30 achievements unlocked that week" });
+    expect(playerProfile(recap({ totalSecs: H, sessions: 1, bestStreak: 7 }), titre)).toMatchObject({ title: "The regular", line: "7 days of play in a row, without missing one" });
+    expect(playerProfile(recap({ totalSecs: 4 * H, sessions: 4, games: 2, weekdaySecs: [H, 0, 0, 0, 0, 2 * H, H] }), titre)).toMatchObject({
+      title: "The weekend gamer",
+      line: "75% of your time on Saturdays and Sundays",
+    });
+    const top = [1, 2, 3, 4, 5].map((i) => ({ gameId: `steam:${i}`, secs: H, sessions: 1 }));
+    expect(playerProfile(recap({ totalSecs: 6 * H, sessions: 6, games: 6, top }), titre)).toMatchObject({ title: "The game hopper", line: "6 different games, none takes over" });
+    expect(playerProfile(recap({ totalSecs: H, sessions: 1, games: 1, momentSecs: [0, 0, H, 0] }), titre)).toEqual({ id: "casual", title: "The laid-back player", line: "1 session, no rush" });
+  });
+
+  it("titre de la période, comparaison et rareté", () => {
+    setLang("en");
+    expect(periodTitle({ period: "week", start: "2026-11-30", end: "2026-12-06" })).toBe("November 30 to December 6, 2026");
+    expect(periodTitle({ period: "week", start: "2026-12-28", end: "2027-01-03" })).toBe("December 28, 2026 to January 3, 2027");
+    expect(periodTitle({ period: "month", start: "2026-11-01", end: "2026-11-30" })).toBe("November 2026");
+    expect(storyComparison(recap({ totalSecs: H }))).toBe("Nothing tracked the previous week");
+    expect(storyComparison(recap({ totalSecs: H, previousSecs: H }))).toBe("Same as the previous week");
+    expect(storyComparison(recap({ period: "month", totalSecs: 3 * H, previousSecs: 2 * H }))).toBe("+50% vs. the previous month");
+    expect(storyComparison(recap({ period: "year", totalSecs: 30 * H, previousSecs: 2 * H }))).toBe("+1,400% vs. the previous year");
+    expect(rarityText(1.24)).toBe("Unlocked by 1.2% of Steam players");
+    expect(rarityText(0.02)).toBe("Unlocked by 0.1% of Steam players or fewer");
   });
 });

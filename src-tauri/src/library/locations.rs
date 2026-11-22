@@ -8,7 +8,7 @@ use std::path::Path;
 /// Un dossier, un fichier ou une clé du registre lu par une source.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Location {
-    /// Ce que c'est, en français (« Bibliothèque Steam », « Manifestes »…).
+    /// Ce que c'est, dans la langue de Ludex (« Bibliothèque Steam », « Manifestes »…).
     pub label: String,
     /// Chemin complet, ou clé du registre préfixée par `HKLM\` ou `HKCU\`.
     pub path: String,
@@ -37,62 +37,70 @@ pub fn locations(platform: Platform) -> Vec<Location> {
     match platform {
         Platform::Steam => {
             let mut list = vec![
-                key("Steam (utilisateur)", "HKCU", r"Software\Valve\Steam"),
+                key(tr_str!("Steam (utilisateur)", "Steam (user)"), "HKCU", r"Software\Valve\Steam"),
                 key("Steam (machine)", "HKLM", r"SOFTWARE\WOW6432Node\Valve\Steam"),
             ];
             if let Some(root) = steam::steam_root() {
-                list.push(path("Dossier de Steam", &root));
-                list.push(path("Liste des bibliothèques", &root.join(r"steamapps\libraryfolders.vdf")));
+                list.push(path(tr_str!("Dossier de Steam", "Steam folder"), &root));
+                list.push(path(tr_str!("Liste des bibliothèques", "Library list"), &root.join(r"steamapps\libraryfolders.vdf")));
                 for library in steam::library_paths(&root) {
-                    list.push(path("Bibliothèque", &library.join("steamapps")));
+                    list.push(path(tr_str!("Bibliothèque", "Library"), &library.join("steamapps")));
                 }
                 match steam::localconfig_path(&root) {
-                    Some(config) => list.push(path("Temps de jeu du compte", &config)),
-                    None => list.push(Location { label: "Temps de jeu du compte".into(), path: "Aucun compte trouvé dans userdata".into(), found: false }),
+                    Some(config) => list.push(path(tr_str!("Temps de jeu du compte", "Account playtime"), &config)),
+                    None => list.push(Location {
+                        label: tr!("Temps de jeu du compte", "Account playtime"),
+                        path: tr!("Aucun compte trouvé dans userdata", "No account found in userdata"),
+                        found: false,
+                    }),
                 }
-                list.push(path("Succès", &root.join(r"appcache\stats")));
-                list.push(path("Images de Steam", &root.join(r"appcache\librarycache")));
+                list.push(path(tr_str!("Succès", "Achievements"), &root.join(r"appcache\stats")));
+                list.push(path(tr_str!("Images de Steam", "Steam images"), &root.join(r"appcache\librarycache")));
             }
             list
         }
-        Platform::Epic => vec![path("Epic Games Launcher", &program_data().join(r"Epic\EpicGamesLauncher")), path("Manifestes", &epic::manifests_dir())],
+        Platform::Epic => vec![path("Epic Games Launcher", &program_data().join(r"Epic\EpicGamesLauncher")), path(tr_str!("Manifestes", "Manifests"), &epic::manifests_dir())],
         Platform::Gog => vec![
-            key("Jeux", "HKLM", r"SOFTWARE\WOW6432Node\GOG.com\Games"),
+            key(tr_str!("Jeux", "Games"), "HKLM", r"SOFTWARE\WOW6432Node\GOG.com\Games"),
             key("GOG Galaxy", "HKLM", r"SOFTWARE\WOW6432Node\GOG.com\GalaxyClient\paths"),
-            path("Temps de jeu de Galaxy", &program_data().join(r"GOG.com\Galaxy\storage\galaxy-2.0.db")),
+            path(tr_str!("Temps de jeu de Galaxy", "Galaxy playtime"), &program_data().join(r"GOG.com\Galaxy\storage\galaxy-2.0.db")),
         ],
         Platform::Ubisoft => vec![
             key("Ubisoft Connect", "HKLM", r"SOFTWARE\WOW6432Node\Ubisoft\Launcher"),
-            key("Jeux", "HKLM", r"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs"),
+            key(tr_str!("Jeux", "Games"), "HKLM", r"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs"),
         ],
-        Platform::Ea => vec![path("Appli EA", &program_data().join("EA Desktop")), path("Origin", &program_data().join("Origin"))],
+        Platform::Ea => vec![path(tr_str!("Appli EA", "EA app"), &program_data().join("EA Desktop")), path("Origin", &program_data().join("Origin"))],
         Platform::Battlenet => vec![path("Battle.net", &program_data().join(r"Battle.net\Agent"))],
-        Platform::Rockstar => vec![key("Jeux", "HKLM", r"SOFTWARE\WOW6432Node\Rockstar Games")],
+        Platform::Rockstar => vec![key(tr_str!("Jeux", "Games"), "HKLM", r"SOFTWARE\WOW6432Node\Rockstar Games")],
         Platform::Xbox => vec![key(
-            "Paquets de l'utilisateur",
+            tr_str!("Paquets de l'utilisateur", "User packages"),
             "HKCU",
             r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages",
         )],
         Platform::Riot => {
             let root = riot::root_dir();
-            vec![path("Client Riot", &root.join("RiotClientInstalls.json")), path("Jeux", &root.join("Metadata"))]
+            vec![path(tr_str!("Client Riot", "Riot Client"), &root.join("RiotClientInstalls.json")), path(tr_str!("Jeux", "Games"), &root.join("Metadata"))]
         }
         Platform::Amazon => {
             let root = amazon::root_dir();
-            vec![path("Appli Amazon Games", &root), path("Jeux installés", &amazon::database(&root))]
+            vec![path(tr_str!("Appli Amazon Games", "Amazon Games app"), &root), path(tr_str!("Jeux installés", "Installed games"), &amazon::database(&root))]
         }
         Platform::Itch => {
             let root = itch::root_dir();
-            vec![path("Appli itch", &root), path("Jeux installés (butler)", &itch::database(&root))]
+            vec![path(tr_str!("Appli itch", "itch app"), &root), path(tr_str!("Jeux installés (butler)", "Installed games (butler)"), &itch::database(&root))]
         }
         Platform::Other => {
-            let mut list: Vec<Location> = local::library_dirs().iter().map(|d| path("Dossier de jeux", d)).collect();
+            let mut list: Vec<Location> = local::library_dirs().iter().map(|d| path(tr_str!("Dossier de jeux", "Game folder"), d)).collect();
             if list.is_empty() {
-                list.push(Location { label: "Dossier de jeux".into(), path: "Aucun dossier « Jeux » ou « Games » à la racine des disques".into(), found: false });
+                list.push(Location {
+                    label: tr!("Dossier de jeux", "Game folder"),
+                    path: tr!("Aucun dossier « Jeux » ou « Games » à la racine des disques", "No \"Jeux\" or \"Games\" folder at the root of the drives"),
+                    found: false,
+                });
             }
-            list.push(key("Programmes installés", "HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"));
-            list.push(key("Programmes installés (32 bits)", "HKLM", r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"));
-            list.push(key("Programmes de l'utilisateur", "HKCU", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"));
+            list.push(key(tr_str!("Programmes installés", "Installed programs"), "HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"));
+            list.push(key(tr_str!("Programmes installés (32 bits)", "Installed programs (32-bit)"), "HKLM", r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"));
+            list.push(key(tr_str!("Programmes de l'utilisateur", "User programs"), "HKCU", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"));
             list
         }
     }

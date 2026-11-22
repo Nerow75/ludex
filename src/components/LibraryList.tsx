@@ -1,6 +1,7 @@
 import { Fragment, memo, useRef, type ReactNode } from "react";
 import { PLATFORM_LABEL, type Game } from "../lib/api";
-import { formatAchievements, formatDate, formatPlaytime, formatSize, installBadge, relativeTime, releaseYear } from "../lib/format";
+import { formatAchievements, formatDate, formatPlaytime, formatSize, genreLabel, installBadge, relativeTime, releaseYear } from "../lib/format";
+import { t, useLang, type Messages } from "../lib/i18n";
 import { virtualDisabled } from "../lib/fake";
 import { achievementPercent, SORT_LABEL, storyMinutes, type Sort } from "../lib/library";
 import { VIRTUAL_MIN } from "../lib/virtual";
@@ -10,17 +11,22 @@ import { LauncherIcon } from "./LauncherIcon";
 import { PlayIcon, StarIcon } from "./Icons";
 import { useVirtualRows } from "./useVirtualRows";
 
-/** Colonnes triables : en-tête cliquable, tri de la barre (même sens que dans la grille). */
-const COLUMNS: { sort: Sort | null; label: string; className: string }[] = [
-  { sort: "title", label: "Titre", className: "lc--title" },
-  { sort: null, label: "Launcher", className: "lc--plat" },
-  { sort: null, label: "Genres", className: "lc--genres" },
-  { sort: "year", label: "Sortie", className: "lc--year" },
-  { sort: "playtime", label: "Temps de jeu", className: "lc--num" },
-  { sort: "recent", label: "Dernière partie", className: "lc--when" },
-  { sort: "achievements", label: "Succès", className: "lc--num" },
-  { sort: "lifespan", label: "Histoire", className: "lc--num" },
-  { sort: "size", label: "Taille", className: "lc--num" },
+type Column = keyof Messages["library"]["list"]["columns"];
+
+/**
+ * Colonnes triables : en-tête cliquable, tri de la barre (même sens que dans la grille). Libellé
+ * lu dans la langue actuelle au rendu (`t.library.list.columns[id]`).
+ */
+const COLUMNS: { id: Column; sort: Sort | null; className: string }[] = [
+  { id: "title", sort: "title", className: "lc--title" },
+  { id: "launcher", sort: null, className: "lc--plat" },
+  { id: "genres", sort: null, className: "lc--genres" },
+  { id: "year", sort: "year", className: "lc--year" },
+  { id: "playtime", sort: "playtime", className: "lc--num" },
+  { id: "recent", sort: "recent", className: "lc--when" },
+  { id: "achievements", sort: "achievements", className: "lc--num" },
+  { id: "story", sort: "lifespan", className: "lc--num" },
+  { id: "size", sort: "size", className: "lc--num" },
 ];
 
 /** Tris du plus petit au plus grand ; les autres vont du plus grand au plus petit. */
@@ -72,23 +78,23 @@ export function LibraryList({ games, selectedId, open, sort, playing, onSort, on
   );
   return (
     <div className="lib-list" ref={ref}>
-      <div className="lhead" role="group" aria-label="Trier la liste">
+      <div className="lhead" role="group" aria-label={t.library.list.sortGroup}>
         <span aria-hidden />
         {COLUMNS.map((c) =>
           c.sort ? (
             <button
-              key={c.label}
+              key={c.id}
               type="button"
               className={`lhead__sort ${c.className}`}
               aria-pressed={sort === c.sort}
-              title={`Trier : ${SORT_LABEL[c.sort]}`}
+              title={t.library.list.sortBy(SORT_LABEL[c.sort])}
               onClick={() => onSort(c.sort!)}
             >
-              {c.label}
+              {t.library.list.columns[c.id]}
               {sort === c.sort && <span className="lhead__dir" aria-hidden>{ASCENDING.has(c.sort) ? "↑" : "↓"}</span>}
             </button>
           ) : (
-            <span key={c.label} className={c.className}>{c.label}</span>
+            <span key={c.id} className={c.className}>{t.library.list.columns[c.id]}</span>
           ),
         )}
       </div>
@@ -113,6 +119,9 @@ interface RowProps {
 }
 
 const ListRow = memo(function ListRow({ game, selected, expanded, playing, onSelect, onPlay }: RowProps) {
+  useLang();
+  const list = t.library.list;
+  const genres = game.details?.genres.map(genreLabel).join(", ");
   const badge = installBadge(game.installState);
   const year = releaseYear(game.details?.releaseDate ?? null);
   const ach = game.achievements && game.achievements.total > 0 ? game.achievements : null;
@@ -133,28 +142,28 @@ const ListRow = memo(function ListRow({ game, selected, expanded, playing, onSel
         <span className="lc--title lrow__title">
           <span className="lrow__name">{game.title}</span>
           {game.favorite && <span className="lrow__fav"><StarIcon filled /></span>}
-          {playing ? <span className="live">En jeu</span> : badge && <span className="live is-pending">{badge}</span>}
+          {playing ? <span className="live">{t.library.inGame}</span> : badge && <span className="live is-pending">{badge}</span>}
         </span>
         <span className="lc--plat"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</span>
-        <span className="lc--genres" title={game.details?.genres.join(", ")}>
-          {game.details?.genres.length ? game.details.genres.join(", ") : <Missing />}
+        <span className="lc--genres" title={genres}>
+          {genres ? genres : <Missing />}
         </span>
         <span className="lc--year">{year ?? <Missing />}</span>
-        <span className="lc--num" title={game.playtimeSource === "ludex" ? "Mesuré par Ludex" : undefined}>
+        <span className="lc--num" title={game.playtimeSource === "ludex" ? list.trackedByLudex : undefined}>
           {game.playtimeMinutes === null ? <Missing /> : formatPlaytime(game.playtimeMinutes)}
         </span>
         <span className="lc--when" title={game.lastPlayed ? formatDate(game.lastPlayed) : undefined}>
           {game.lastPlayed ? relativeTime(game.lastPlayed) : <Missing />}
         </span>
-        <span className={`lc--num ${percent === 100 ? "is-perfect" : ""}`} title={percent === null ? undefined : `${percent} % des succès`}>
+        <span className={`lc--num ${percent === 100 ? "is-perfect" : ""}`} title={percent === null ? undefined : list.achievementShare(percent)}>
           {ach ? formatAchievements(ach.unlocked, ach.total) : <Missing />}
         </span>
-        <span className="lc--num" title={game.hltb ? `HowLongToBeat : ${game.hltb.name}` : undefined}>
+        <span className="lc--num" title={game.hltb ? list.hltb(game.hltb.name) : undefined}>
           {story === null ? <Missing /> : formatPlaytime(story)}
         </span>
         <span className="lc--num">{game.sizeOnDisk ? formatSize(game.sizeOnDisk) : <Missing />}</span>
       </button>
-      <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${game.title}`} onClick={() => onPlay(game)}>
+      <button type="button" className="card__play" tabIndex={-1} aria-label={t.library.playGame(game.title)} onClick={() => onPlay(game)}>
         <PlayIcon />
       </button>
     </div>

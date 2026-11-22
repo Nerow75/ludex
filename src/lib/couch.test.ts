@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { couchKey, couchKeyAction, couchPadAction, couchRows, initialFocus, localDate, stepRow, todaySecs } from "./couch";
 import { jeu, jeuAmbiance, JOUR, maintenant } from "../test/jeu";
+import { setLang } from "./i18n";
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-11-19T20:00:00Z"));
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  setLang("fr");
+});
 
 const titres = (games: { title: string }[]) => games.map((g) => g.title);
 const aucun: ReadonlySet<string> = new Set();
@@ -137,5 +141,23 @@ describe("divers", () => {
     expect(stepRow(3, 0, -1)).toBeNull();
     expect(stepRow(3, 0, 1)).toBe(1);
     expect(stepRow(3, 2, 1)).toBeNull();
+  });
+});
+
+describe("mode canapé en anglais", () => {
+  it("titres des rangées et des ambiances en anglais", () => {
+    setLang("en");
+    const enCours = jeu({ title: "En cours", status: "playing", lastPlayed: ilYa(1) });
+    const rows = couchRows(
+      [enCours, jeu({ title: "Fav", favorite: true, lastPlayed: ilYa(2) }), jeuAmbiance(["friends"], { title: "Coop" })],
+      aucun,
+    );
+    expect(rows.map((r) => [r.id, r.title])).toEqual([
+      ["resume", "Jump back in"],
+      ["favorites", "Favorites"],
+      ["recent", "Recent"],
+      ["mood:friends", "With friends"],
+      ["all", "All games"],
+    ]);
   });
 });

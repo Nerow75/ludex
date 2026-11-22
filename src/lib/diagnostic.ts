@@ -1,25 +1,24 @@
 // Textes de la page de diagnostic (Paramètres), tirés du diagnostic envoyé par Rust.
 import type { DiagService, DiagSource, Diagnostic } from "./api";
 import { relativeTime } from "./format";
-
-const integer = new Intl.NumberFormat("fr-FR");
-const plural = (n: number, one: string, many: string) => `${integer.format(n)} ${n > 1 ? many : one}`;
+import { formatNumber, t } from "./i18n";
 
 /** État d'une source en une ligne, comme dans le rapport. */
 export function sourceState(s: DiagSource): string {
+  const d = t.settings.diagnostic;
   switch (s.state) {
     case "unknown":
-      return "Pas encore lu";
+      return d.state.unknown;
     case "absent":
-      return "Pas sur ce PC";
+      return d.state.absent;
     case "empty":
-      return s.id === "manual" ? "Aucun" : "Installé, aucun jeu";
+      return s.id === "manual" ? d.state.none : d.state.empty;
     case "games":
-      return plural(s.count, "jeu", "jeux");
+      return d.state.games(s.count);
     case "disabled":
-      return s.count ? `Désactivé, ${plural(s.count, "jeu écarté", "jeux écartés")}` : "Désactivé";
+      return s.count ? d.state.disabledCount(s.count) : d.state.disabled;
     case "error":
-      return `Erreur : ${s.error ?? "inconnue"}`;
+      return d.state.error(s.error ?? d.unknownError);
   }
 }
 
@@ -35,28 +34,30 @@ export function sourceTone(s: DiagSource): Tone {
 
 /** Détails courts sous le nom : écarts, applis masquées, durée de lecture. */
 export function sourceDetail(s: DiagSource): string {
+  const d = t.settings.diagnostic;
   const parts: string[] = [];
-  if (s.skipped.length) parts.push(s.id === "manual" ? plural(s.skipped.length, "exécutable introuvable", "exécutables introuvables") : plural(s.skipped.length, "écarté", "écartés"));
-  if (s.tools.length) parts.push(plural(s.tools.length, "appli masquée", "applis masquées"));
+  if (s.skipped.length) parts.push(s.id === "manual" ? d.missingExes(s.skipped.length) : d.skipped(s.skipped.length));
+  if (s.tools.length) parts.push(d.tools(s.tools.length));
   const ms = durationText(s.millis);
-  if (ms) parts.push(`lu en ${ms}`);
+  if (ms) parts.push(d.readIn(ms));
   return parts.join(" · ");
 }
 
-/** « 12 ms », « 1,6 s » ; vide si inconnue. */
+/** « 12 ms », « 1,6 s » (« 1.6 s » en anglais) ; vide si inconnue. */
 export function durationText(ms: number | null): string {
   if (ms === null) return "";
-  if (ms < 1000) return `${integer.format(ms)} ms`;
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(ms / 1000)} s`;
+  if (ms < 1000) return `${formatNumber(ms)} ms`;
+  return `${formatNumber(ms / 1000, { maximumFractionDigits: 1 })} s`;
 }
 
 /** État d'un service en ligne depuis le démarrage. Une erreur plus récente que la dernière réussite compte. */
 export function serviceState(s: DiagService): { text: string; tone: Tone } {
+  const d = t.settings.diagnostic;
   const failing = s.errorAt !== null && (s.lastOk === null || s.errorAt >= s.lastOk);
-  if (failing) return { text: `Erreur ${relativeTime(s.errorAt)} : ${s.lastError ?? "inconnue"}`, tone: "error" };
-  if (s.busy) return { text: "Lecture en cours", tone: "ok" };
-  if (s.lastOk !== null) return { text: `Joint ${relativeTime(s.lastOk)}`, tone: "ok" };
-  return { text: "Rien demandé depuis le démarrage", tone: "off" };
+  if (failing) return { text: d.serviceError(relativeTime(s.errorAt), s.lastError ?? d.unknownError), tone: "error" };
+  if (s.busy) return { text: d.serviceBusy, tone: "ok" };
+  if (s.lastOk !== null) return { text: d.serviceOk(relativeTime(s.lastOk)), tone: "ok" };
+  return { text: d.serviceIdle, tone: "off" };
 }
 
 /** Nombre de problèmes à signaler en tête : sources en erreur, services en erreur. */

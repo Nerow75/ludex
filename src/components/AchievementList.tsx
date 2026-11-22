@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { gameAchievements, type Achievement, type Game } from "../lib/api";
 import { formatDate, formatPercent, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { TrophyIcon } from "./Icons";
 
 /** Icône d'un succès (CDN de Steam), coupe dessinée si elle manque ou ne charge pas. */
@@ -20,19 +21,19 @@ export function AchievementIcon({ src, className = "" }: { src: string | null; c
 /** Ligne d'un succès de la fiche. Caché et pas encore débloqué : rien ne le dévoile. */
 function AchievementRow({ a }: { a: Achievement }) {
   const secret = a.hidden && !a.unlocked;
-  const percent = a.globalPercent !== null ? `${formatPercent(a.globalPercent)} des joueurs` : null;
+  const percent = a.globalPercent !== null ? t.fiche.achievements.players(formatPercent(a.globalPercent)) : null;
   return (
     <li className={`ach ${a.unlocked ? "is-unlocked" : ""}`}>
       <AchievementIcon src={a.unlocked ? a.icon : a.iconGray} />
       <span className="ach__text">
-        <span className="ach__name">{secret ? "Succès caché" : a.name}</span>
-        <span className="ach__desc">{secret ? "Ses détails apparaîtront une fois débloqué" : a.description}</span>
+        <span className="ach__name">{secret ? t.fiche.achievements.hidden : a.name}</span>
+        <span className="ach__desc">{secret ? t.fiche.achievements.hiddenDesc : a.description}</span>
       </span>
       <span className="ach__side">
         {percent && <span>{percent}</span>}
         {a.unlocked && (
           <span className="ach__when" title={a.unlockedAt ? formatDate(a.unlockedAt) : undefined}>
-            {a.unlockedAt ? `Débloqué ${relativeTime(a.unlockedAt)}` : "Débloqué"}
+            {a.unlockedAt ? t.fiche.achievements.unlockedAgo(relativeTime(a.unlockedAt)) : t.fiche.achievements.unlocked}
           </span>
         )}
       </span>
@@ -71,14 +72,14 @@ export function AchievementList({ game, expanded = false }: { game: Game; expand
       {!expanded && (
         <button type="button" className="achs__toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <TrophyIcon />
-          {open ? "Masquer les succès" : `Voir les ${total} succès`}
+          {open ? t.fiche.achievements.hide : t.fiche.achievements.show(total)}
         </button>
       )}
-      {open && load.state === "loading" && <p className="achs__note">Lecture des succès…</p>}
-      {open && load.state === "error" && <p className="achs__note">Succès illisibles pour l'instant</p>}
-      {open && load.state === "ready" && load.list.length === 0 && <p className="achs__note">Steam n'a pas encore de détail pour ce jeu</p>}
+      {open && load.state === "loading" && <p className="achs__note">{t.fiche.achievements.loading}</p>}
+      {open && load.state === "error" && <p className="achs__note">{t.fiche.achievements.error}</p>}
+      {open && load.state === "ready" && load.list.length === 0 && <p className="achs__note">{t.fiche.achievements.empty}</p>}
       {open && load.state === "ready" && load.list.length > 0 && (
-        <ol className="achs__list" aria-label={`Succès de ${game.title}`}>
+        <ol className="achs__list" aria-label={t.fiche.achievements.label(game.title)}>
           {load.list.map((a) => <AchievementRow key={a.apiName} a={a} />)}
         </ol>
       )}

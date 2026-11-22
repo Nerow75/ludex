@@ -53,15 +53,15 @@ fn valid_id(id: &str) -> bool {
 /// Jeu tiré d'une ligne, ou la raison de l'écarter (page de diagnostic).
 fn build(row: &Row) -> Result<Game, &'static str> {
     if !row.installed {
-        return Err("Non installé (encore listé par l'appli Amazon Games)");
+        return Err(tr_str!("Non installé (encore listé par l'appli Amazon Games)", "Not installed (still listed by the Amazon Games app)"));
     }
     if !valid_id(&row.id) {
-        return Err("Identifiant Amazon illisible");
+        return Err(tr_str!("Identifiant Amazon illisible", "Unreadable Amazon ID"));
     }
     let dir = row.dir.replace('/', "\\");
     let dir = dir.trim_end_matches('\\');
     if dir.is_empty() || !Path::new(dir).is_dir() {
-        return Err("Dossier d'installation introuvable");
+        return Err(tr_str!("Dossier d'installation introuvable", "Install folder not found"));
     }
     let title = if row.title.is_empty() {
         Path::new(dir).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| row.id.clone())
@@ -82,13 +82,13 @@ fn scan_in(root: &Path) -> Result<Option<Vec<Game>>, String> {
     if !db.is_file() {
         return Ok(Some(Vec::new()));
     }
-    let rows = read(&db).map_err(|e| format!("Base des jeux d'Amazon Games illisible : {e}"))?;
+    let rows = read(&db).map_err(|e| tr!("Base des jeux d'Amazon Games illisible : {e}", "Can't read the Amazon Games database: {e}"))?;
     let games = rows
         .iter()
         .filter_map(|row| match build(row) {
             Ok(game) => Some(game),
             Err(reason) => {
-                let title = if row.title.is_empty() { format!("Jeu Amazon {}", row.id) } else { row.title.clone() };
+                let title = if row.title.is_empty() { tr!("Jeu Amazon {}", "Amazon game {}", row.id) } else { row.title.clone() };
                 super::skip(&title, reason);
                 None
             }

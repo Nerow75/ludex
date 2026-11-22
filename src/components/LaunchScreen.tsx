@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { onGameSession, type Game } from "../lib/api";
 import { titleColor } from "../lib/color";
+import { t } from "../lib/i18n";
 import {
   afterError,
   afterSession,
@@ -127,7 +128,7 @@ export function LaunchScreen({ game, alreadyPlaying, error, onClosed, closeRef }
       style={{ ["--art-tint" as string]: titleColor(game.title), ["--launch-fade" as string]: `${leaving ?? FADE_MS}ms` }}
       role="dialog"
       aria-modal="true"
-      aria-label={`Lancement de ${game.title}`}
+      aria-label={t.extras.launch.dialog(game.title)}
       tabIndex={-1}
       // Un portail remonte les événements React à ses parents (grille, fiche) : ils s'arrêtent ici.
       onMouseDown={stop}
@@ -161,12 +162,12 @@ export function LaunchScreen({ game, alreadyPlaying, error, onClosed, closeRef }
             e.stopPropagation();
             leave();
           }}>
-            Fermer
+            {t.extras.launch.close}
           </button>
         )}
       </div>
       <p className="launch__hint" aria-hidden>
-        N'importe quelle touche, B ou un clic pour revenir à Ludex
+        {t.extras.launch.hint}
       </p>
     </div>,
     document.body,

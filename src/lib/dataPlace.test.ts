@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { bytesLabel, currentText, diskOptions, heavyBytes, MARGIN, moveText, targetPlaces } from "./dataPlace";
+import { afterEach, describe, expect, it } from "vitest";
+import { backText, bytesLabel, currentText, diskOptions, heavyBytes, MARGIN, moveText, targetPlaces } from "./dataPlace";
+import { setLang } from "./i18n";
 import type { DataLocation, DiskChoice } from "./api";
 
 const disk = (letter: string, free: number, total: number, extra: Partial<DiskChoice> = {}): DiskChoice => ({
@@ -90,5 +91,47 @@ describe("textes", () => {
     expect(currentText(location())).toContain("origine");
     expect(currentText(location({ root: "D:\\Ludex" }))).toBe("Dans D:\\Ludex.");
     expect(currentText(location({ root: "F:\\Ludex", missing: true }))).toContain("introuvable");
+  });
+});
+
+describe("retour à l'origine", () => {
+  it("cache et copies vers les dossiers d'origine, copies choisies à part laissées", () => {
+    expect(backText(location())).toBe(
+      "2\u00a0Go à déplacer. Cache dans C:\\Users\\A\\AppData\\Roaming\\com.ludex.app. Copies de sauvegardes dans C:\\Users\\A\\Documents\\Ludex\\Sauvegardes.",
+    );
+    expect(backText(location({ copiesSeparate: true }))).toBe("18\u00a0Mo à déplacer. Cache dans C:\\Users\\A\\AppData\\Roaming\\com.ludex.app.");
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("KB, MB, GB, TB avec un point décimal", () => {
+    setLang("en");
+    expect(bytesLabel(0)).toBe("0\u00a0KB");
+    expect(bytesLabel(6_300_000)).toBe("6.3\u00a0MB");
+    expect(bytesLabel(2_000_000_000)).toBe("2\u00a0GB");
+    expect(bytesLabel(1_500_000_000_000)).toBe("1.5\u00a0TB");
+  });
+
+  it("disques, emplacement et déplacement", () => {
+    setLang("en");
+    const options = diskOptions(
+      location({
+        disks: [
+          disk("D:", 800_000_000_000, 1_000_000_000_000),
+          disk("C:", 100_000_000_000, 500_000_000_000, { system: true, current: true, removable: true }),
+        ],
+      }),
+    );
+    expect(options[0].tags).toEqual(["Windows", "Current", "Removable"]);
+    expect(options[1].detail).toBe("800\u00a0GB free of 1\u00a0TB");
+    expect(currentText(location())).toBe("Original location, on the Windows drive.");
+    expect(currentText(location({ root: "D:\\Ludex" }))).toBe("In D:\\Ludex.");
+    expect(currentText(location({ root: "F:\\Ludex", missing: true }))).toContain("can't be found");
+    expect(moveText(location(), "D:\\Ludex")).toBe("2\u00a0GB to move. Cache in D:\\Ludex\\Cache. Save backups in D:\\Ludex\\Sauvegardes.");
+    expect(moveText(location({ copiesSeparate: true }), "D:\\Ludex")).toBe(
+      "18\u00a0MB to move. Cache in D:\\Ludex\\Cache. Save backups stay in the folder you chose separately.",
+    );
   });
 });

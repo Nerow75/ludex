@@ -167,7 +167,7 @@ pub enum Mode {
 }
 
 fn zip_err(e: zip::result::ZipError) -> String {
-    format!("Archive illisible : {e}")
+    tr!("Archive illisible : {e}", "Unreadable archive: {e}")
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -210,11 +210,11 @@ fn write_archive<W: Write + Seek>(
     ];
     for (name, text) in parts.iter() {
         zip.start_file(*name, opts).map_err(zip_err)?;
-        zip.write_all(text.as_bytes()).map_err(|e| format!("Écriture de l'archive impossible : {e}"))?;
+        zip.write_all(text.as_bytes()).map_err(|e| tr!("Écriture de l'archive impossible : {e}", "Couldn't write the archive: {e}"))?;
     }
     for (name, bytes) in &files {
         zip.start_file(name.as_str(), opts).map_err(zip_err)?;
-        zip.write_all(bytes).map_err(|e| format!("Écriture de l'archive impossible : {e}"))?;
+        zip.write_all(bytes).map_err(|e| tr!("Écriture de l'archive impossible : {e}", "Couldn't write the archive: {e}"))?;
     }
     zip.finish().map_err(zip_err)?;
     Ok(summarize(&data_out, sessions))
@@ -228,13 +228,13 @@ fn pretty<T: Serialize>(value: &T) -> Result<String, String> {
 fn write_file(path: &Path, data: &UserData, sessions: &[PastSession], images_root: &Path, version: &str) -> Result<Summary, String> {
     let tmp = path.with_extension("zip.tmp");
     let result = (|| {
-        let file = fs::File::create(&tmp).map_err(|e| format!("Écriture impossible : {e}"))?;
+        let file = fs::File::create(&tmp).map_err(|e| tr!("Écriture impossible : {e}", "Couldn't write the file: {e}"))?;
         let mut out = std::io::BufWriter::new(file);
         let summary = write_archive(&mut out, data, sessions, images_root, version, now_secs())?;
-        let file = out.into_inner().map_err(|e| format!("Écriture impossible : {e}"))?;
-        file.sync_all().map_err(|e| format!("Écriture impossible : {e}"))?;
+        let file = out.into_inner().map_err(|e| tr!("Écriture impossible : {e}", "Couldn't write the file: {e}"))?;
+        file.sync_all().map_err(|e| tr!("Écriture impossible : {e}", "Couldn't write the file: {e}"))?;
         drop(file);
-        fs::rename(&tmp, path).map_err(|e| format!("Écriture impossible : {e}"))?;
+        fs::rename(&tmp, path).map_err(|e| tr!("Écriture impossible : {e}", "Couldn't write the file: {e}"))?;
         Ok(summary)
     })();
     if result.is_err() {
@@ -279,12 +279,12 @@ fn limit_for(name: &str) -> u64 {
 /// Lit et vérifie une archive entière, sans rien écrire. `size` : taille du fichier.
 fn read_archive<R: Read + Seek>(input: R, size: u64) -> Result<Export, String> {
     if size > MAX_ARCHIVE {
-        return Err(format!("Fichier trop lourd : {} Mo au plus.", MAX_ARCHIVE / (1024 * 1024)));
+        return Err(tr!("Fichier trop lourd : {} Mo au plus.", "File too large: {} MB at most.", MAX_ARCHIVE / (1024 * 1024)));
     }
-    let not_export = "Ce fichier n'est pas un export de Ludex.";
+    let not_export = tr_str!("Ce fichier n'est pas un export de Ludex.", "This file isn't a Ludex export.");
     let mut archive = ZipArchive::new(input).map_err(|_| not_export.to_string())?;
     if archive.len() > MAX_COVERS + 3 {
-        return Err("Archive refusée : trop de fichiers.".into());
+        return Err(tr!("Archive refusée : trop de fichiers.", "Archive refused: too many files."));
     }
     let mut parts: HashMap<String, Vec<u8>> = HashMap::new();
     let mut total: u64 = 0;
@@ -293,69 +293,72 @@ fn read_archive<R: Read + Seek>(input: R, size: u64) -> Result<Export, String> {
         let name = entry.name().map_err(zip_err)?.into_owned();
         // `enclosed_name` en plus de la liste : un nom attendu est toujours un chemin relatif sûr.
         if !expected_name(&name) || entry.enclosed_name().is_none() || entry.is_dir() || entry.is_symlink() {
-            return Err(format!("Archive refusée : fichier inattendu « {} ».", name.chars().take(80).collect::<String>()));
+            return Err(tr!("Archive refusée : fichier inattendu « {} ».", "Archive refused: unexpected file \"{}\".", name.chars().take(80).collect::<String>()));
         }
         if entry.encrypted() || entry.compression() != CompressionMethod::Stored {
-            return Err(format!("Archive refusée : « {name} » est chiffré ou compressé."));
+            return Err(tr!("Archive refusée : « {name} » est chiffré ou compressé.", "Archive refused: \"{name}\" is encrypted or compressed."));
         }
         if parts.contains_key(&name) {
-            return Err(format!("Archive refusée : « {name} » en double."));
+            return Err(tr!("Archive refusée : « {name} » en double.", "Archive refused: \"{name}\" appears twice."));
         }
         let limit = limit_for(&name);
         if entry.size() > limit {
-            return Err(format!("Archive refusée : « {name} » est trop lourd."));
+            return Err(tr!("Archive refusée : « {name} » est trop lourd.", "Archive refused: \"{name}\" is too large."));
         }
         let mut bytes = Vec::new();
-        (&mut entry).take(limit + 1).read_to_end(&mut bytes).map_err(|e| format!("Archive illisible : {e}"))?;
+        (&mut entry).take(limit + 1).read_to_end(&mut bytes).map_err(|e| tr!("Archive illisible : {e}", "Unreadable archive: {e}"))?;
         if bytes.len() as u64 > limit {
-            return Err(format!("Archive refusée : « {name} » est trop lourd."));
+            return Err(tr!("Archive refusée : « {name} » est trop lourd.", "Archive refused: \"{name}\" is too large."));
         }
         total += bytes.len() as u64;
         if total > MAX_ARCHIVE {
-            return Err("Archive refusée : contenu trop lourd.".into());
+            return Err(tr!("Archive refusée : contenu trop lourd.", "Archive refused: content too large."));
         }
         parts.insert(name, bytes);
     }
 
     let manifest: Manifest =
-        serde_json::from_slice(parts.get(MANIFEST).ok_or(not_export)?).map_err(|_| "manifest.json illisible.".to_string())?;
+        serde_json::from_slice(parts.get(MANIFEST).ok_or(not_export)?).map_err(|_| tr!("manifest.json illisible.", "Unreadable manifest.json."))?;
     if manifest.format != FORMAT {
         return Err(not_export.into());
     }
     if manifest.format_version == 0 {
-        return Err("manifest.json illisible.".into());
+        return Err(tr!("manifest.json illisible.", "Unreadable manifest.json."));
     }
     if manifest.format_version > FORMAT_VERSION {
-        return Err(format!(
-            "Cet export vient d'une version plus récente de Ludex ({}) : mets Ludex à jour pour l'importer.",
-            if manifest.ludex_version.is_empty() { "inconnue" } else { &manifest.ludex_version }
+        let version = if manifest.ludex_version.is_empty() { tr_str!("inconnue", "unknown") } else { &manifest.ludex_version };
+        return Err(tr!(
+            "Cet export vient d'une version plus récente de Ludex ({version}) : mets Ludex à jour pour l'importer.",
+            "This export comes from a newer version of Ludex ({version}): update Ludex to import it."
         ));
     }
     let mut data: UserData =
-        serde_json::from_slice(parts.get(USER_DATA).ok_or("user-data.json manque dans l'archive.")?).map_err(|e| format!("user-data.json illisible : {e}"))?;
+        serde_json::from_slice(parts.get(USER_DATA).ok_or_else(|| tr!("user-data.json manque dans l'archive.", "user-data.json is missing from the archive."))?)
+            .map_err(|e| tr!("user-data.json illisible : {e}", "Unreadable user-data.json: {e}"))?;
     let sessions: SessionsFile =
-        serde_json::from_slice(parts.get(SESSIONS).ok_or("sessions.json manque dans l'archive.")?).map_err(|e| format!("sessions.json illisible : {e}"))?;
+        serde_json::from_slice(parts.get(SESSIONS).ok_or_else(|| tr!("sessions.json manque dans l'archive.", "sessions.json is missing from the archive."))?)
+            .map_err(|e| tr!("sessions.json illisible : {e}", "Unreadable sessions.json: {e}"))?;
 
     // Jaquettes : chacune référencée une fois par le manifeste, vérifiée comme au choix d'une image.
     if manifest.covers.len() > MAX_COVERS {
-        return Err("Archive refusée : trop de jaquettes.".into());
+        return Err(tr!("Archive refusée : trop de jaquettes.", "Archive refused: too many covers."));
     }
     let mut used: BTreeSet<&str> = BTreeSet::new();
     let mut seen: BTreeSet<(String, Kind)> = BTreeSet::new();
     let mut images: Vec<CoverImage> = Vec::new();
     for c in &manifest.covers {
         if !is_cover_name(&c.file) || !valid_id(&c.game) {
-            return Err("manifest.json illisible : jaquette invalide.".into());
+            return Err(tr!("manifest.json illisible : jaquette invalide.", "Unreadable manifest.json: invalid cover."));
         }
-        let bytes = parts.get(&c.file).ok_or_else(|| format!("Archive incomplète : « {} » manque.", c.file))?;
+        let bytes = parts.get(&c.file).ok_or_else(|| tr!("Archive incomplète : « {} » manque.", "Incomplete archive: \"{}\" is missing.", c.file))?;
         if !used.insert(c.file.as_str()) || !seen.insert((c.game.clone(), c.kind)) {
-            return Err("manifest.json illisible : jaquette en double.".into());
+            return Err(tr!("manifest.json illisible : jaquette en double.", "Unreadable manifest.json: duplicate cover."));
         }
-        let ext = covers::check_bytes(&c.file, bytes).map_err(|e| format!("Jaquette refusée : {e}"))?;
+        let ext = covers::check_bytes(&c.file, bytes).map_err(|e| tr!("Jaquette refusée : {e}", "Cover refused: {e}"))?;
         images.push(CoverImage { game: c.game.clone(), kind: c.kind, bytes: bytes.clone(), ext, at: c.at });
     }
     if let Some(stray) = parts.keys().find(|n| is_cover_name(n) && !used.contains(n.as_str())) {
-        return Err(format!("Archive refusée : fichier inattendu « {stray} »."));
+        return Err(tr!("Archive refusée : fichier inattendu « {stray} ».", "Archive refused: unexpected file \"{stray}\"."));
     }
 
     // Jaquettes perso : seulement celles vérifiées ci-dessus, quoi que dise `user-data.json`.
@@ -433,7 +436,7 @@ fn sanitize(mut data: UserData) -> UserData {
         .filter(|m| manual::is_manual(&m.id) && valid_id(&m.id) && valid_exe(&m.exe) && ids.insert(m.id.clone()))
         .take(MAX_MANUAL)
         .map(|m| ManualGame {
-            title: manual::clean_title(&m.title).unwrap_or_else(|| "Jeu".into()),
+            title: manual::clean_title(&m.title).unwrap_or_else(|| tr!("Jeu", "Game")),
             // Aucun moyen de saisir des arguments aujourd'hui : jamais repris d'un fichier.
             args: Vec::new(),
             ..m
@@ -597,14 +600,14 @@ fn rotate_backups(dir: &Path) {
 /// Copie de sécurité de l'état actuel avant un import, dans `<données>/exports/`. Renvoie son nom.
 fn backup(data_dir: &Path, stamp: &str, data: &UserData, sessions: &[PastSession], images_root: &Path, version: &str) -> Result<String, String> {
     let dir = data_dir.join(BACKUP_DIR);
-    fs::create_dir_all(&dir).map_err(|e| format!("Copie de sécurité impossible : {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| tr!("Copie de sécurité impossible : {e}", "Couldn't make a safety copy: {e}"))?;
     let mut path = dir.join(format!("{BACKUP_PREFIX}{stamp}.zip"));
     let mut n = 2;
     while path.exists() {
         path = dir.join(format!("{BACKUP_PREFIX}{stamp}-{n}.zip"));
         n += 1;
     }
-    write_file(&path, data, sessions, images_root, version).map_err(|e| format!("Copie de sécurité impossible : {e}"))?;
+    write_file(&path, data, sessions, images_root, version).map_err(|e| tr!("Copie de sécurité impossible : {e}", "Couldn't make a safety copy: {e}"))?;
     rotate_backups(&dir);
     Ok(path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
 }
@@ -653,15 +656,15 @@ pub async fn export_data(app: AppHandle, window: WebviewWindow) -> Result<Option
         let picked = window
             .dialog()
             .file()
-            .set_title("Exporter mes données Ludex")
-            .add_filter("Export Ludex", &["zip"])
+            .set_title(tr_str!("Exporter mes données Ludex", "Export my Ludex data"))
+            .add_filter(tr_str!("Export Ludex", "Ludex export"), &["zip"])
             .set_file_name(&name)
             .set_parent(&window)
             .blocking_save_file()
             .and_then(|f| f.into_path().ok());
         let Some(mut path) = picked else { return Ok(None) };
         if !path.is_absolute() {
-            return Err("Chemin invalide.".into());
+            return Err(tr!("Chemin invalide.", "Invalid path."));
         }
         if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip")) {
             let mut text = path.into_os_string();
@@ -688,20 +691,20 @@ pub async fn import_data(app: AppHandle, window: WebviewWindow) -> Result<Option
         let picked = window
             .dialog()
             .file()
-            .set_title("Importer des données Ludex")
-            .add_filter("Export Ludex", &["zip"])
+            .set_title(tr_str!("Importer des données Ludex", "Import Ludex data"))
+            .add_filter(tr_str!("Export Ludex", "Ludex export"), &["zip"])
             .set_parent(&window)
             .blocking_pick_file()
             .and_then(|f| f.into_path().ok());
         let Some(path) = picked else { return Ok(None) };
         if !path.is_absolute() {
-            return Err("Chemin invalide.".into());
+            return Err(tr!("Chemin invalide.", "Invalid path."));
         }
-        let meta = fs::metadata(&path).map_err(|_| "Fichier introuvable.".to_string())?;
+        let meta = fs::metadata(&path).map_err(|_| tr!("Fichier introuvable.", "File not found."))?;
         if !meta.is_file() {
-            return Err("Fichier introuvable.".into());
+            return Err(tr!("Fichier introuvable.", "File not found."));
         }
-        let file = fs::File::open(&path).map_err(|e| format!("Lecture impossible : {e}"))?;
+        let file = fs::File::open(&path).map_err(|e| tr!("Lecture impossible : {e}", "Couldn't read the file: {e}"))?;
         let export = read_archive(std::io::BufReader::new(file), meta.len())?;
         let preview = ImportPreview {
             file: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -728,9 +731,9 @@ pub async fn apply_import(app: AppHandle, mode: Mode) -> Result<ImportDone, Stri
     blocking(move || {
         let state = app.state::<AppState>();
         if !state.tracker.active().is_empty() {
-            return Err("Une partie est en cours : importe tes données une fois le jeu fermé.".into());
+            return Err(tr!("Une partie est en cours : importe tes données une fois le jeu fermé.", "A game is running: import your data once it's closed."));
         }
-        let export = lock(&state.pending_import)?.take().ok_or("Choisis d'abord un fichier à importer.")?;
+        let export = lock(&state.pending_import)?.take().ok_or_else(|| tr!("Choisis d'abord un fichier à importer.", "Pick a file to import first."))?;
         let scanning = wait_scan(&state);
         let version = app.package_info().version.to_string();
         let root = lock(&state.images)?.root().to_path_buf();
@@ -765,6 +768,7 @@ pub async fn apply_import(app: AppHandle, mode: Mode) -> Result<ImportDone, Stri
         let theme = result.settings.theme;
         let ((), scan) = save_and_rescan(&app, &state, scanning, |data| *data = result)?;
         settings::apply_theme(&app, theme);
+        settings::apply_language(&app);
         settings::publish(&app)?;
         Ok(ImportDone { scan, summary, backup: backup_name })
     })
@@ -855,6 +859,24 @@ mod tests {
 
     fn manifest(covers: &str) -> Vec<u8> {
         format!(r#"{{"format":"ludex-export","formatVersion":1,"ludexVersion":"0.2.0","created":1,"covers":[{covers}]}}"#).into_bytes()
+    }
+
+    #[test]
+    fn refusals_are_written_in_english() {
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(read(b"bonjour".to_vec()).unwrap_err(), "This file isn't a Ludex export.");
+            assert_eq!(read_archive(Cursor::new(Vec::new()), MAX_ARCHIVE + 1).unwrap_err(), "File too large: 256 MB at most.");
+            let m = manifest("");
+            let base: [(&str, &[u8]); 4] =
+                [("manifest.json", &m), ("user-data.json", b"{}"), ("sessions.json", br#"{"sessions":[]}"#), ("autre.txt", b"x")];
+            let err = read(raw_zip(&base, CompressionMethod::Stored)).unwrap_err();
+            assert_eq!(err, "Archive refused: unexpected file \"autre.txt\".");
+            let future = br#"{"format":"ludex-export","formatVersion":9,"ludexVersion":"9.0.0"}"#;
+            let err = read(raw_zip(&[("manifest.json", future), ("user-data.json", b"{}"), ("sessions.json", b"{}")], CompressionMethod::Stored)).unwrap_err();
+            assert_eq!(err, "This export comes from a newer version of Ludex (9.0.0): update Ludex to import it.");
+            // Le nom proposé reste le même dans les deux langues.
+            assert_eq!(export_name("2026-11-21"), "ludex-export-2026-11-21.zip");
+        });
     }
 
     #[test]

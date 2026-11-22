@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { durationText, problems, serviceState, sourceDetail, sourceState, sourceTone } from "./diagnostic";
+import { setLang } from "./i18n";
 import type { DiagService, DiagSource, Diagnostic } from "./api";
 
 const NOW = new Date("2026-11-19T14:00:00+01:00");
@@ -103,5 +104,43 @@ describe("problems", () => {
       services: [service({ lastError: "hors ligne", errorAt: t(1) }), service({ lastOk: t(1) })],
     } as Diagnostic;
     expect(problems(d)).toBe(2);
+  });
+});
+
+describe("en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("état des sources", () => {
+    setLang("en");
+    expect(sourceState(source({ state: "unknown" }))).toBe("Not read yet");
+    expect(sourceState(source({ state: "absent" }))).toBe("Not on this PC");
+    expect(sourceState(source({ state: "empty" }))).toBe("Installed, no games");
+    expect(sourceState(source({ id: "manual", state: "empty" }))).toBe("None");
+    expect(sourceState(source({ count: 1 }))).toBe("1 game");
+    expect(sourceState(source({ count: 1240 }))).toBe("1,240 games");
+    expect(sourceState(source({ state: "disabled", count: 2 }))).toBe("Off, 2 games left out");
+    expect(sourceState(source({ state: "disabled", count: 1 }))).toBe("Off, 1 game left out");
+    expect(sourceState(source({ state: "error", error: "Access denied" }))).toBe("Error: Access denied");
+    expect(sourceState(source({ state: "error" }))).toBe("Error: unknown");
+  });
+
+  it("détails et durées", () => {
+    setLang("en");
+    expect(sourceDetail(source({ skipped: [{ title: "a", reason: "b" }], tools: ["Wallpaper Engine", "SDK"], millis: 220 }))).toBe(
+      "1 left out · 2 hidden apps · read in 220 ms",
+    );
+    expect(sourceDetail(source({ id: "manual", skipped: [{ title: "a", reason: "b" }, { title: "c", reason: "d" }] }))).toBe("2 executables not found");
+    expect(durationText(1600)).toBe("1.6 s");
+    expect(durationText(999)).toBe("999 ms");
+  });
+
+  it("services en ligne", () => {
+    setLang("en");
+    expect(serviceState(service({}))).toEqual({ text: "Nothing requested since startup", tone: "off" });
+    expect(serviceState(service({ busy: true }))).toEqual({ text: "Reading", tone: "ok" });
+    expect(serviceState(service({ lastOk: t(5) })).text).toMatch(/^Reached /);
+    const failing = serviceState(service({ lastOk: t(30), lastError: "429 response", errorAt: t(2) }));
+    expect(failing.tone).toBe("error");
+    expect(failing.text).toMatch(/^Error .+: 429 response$/);
   });
 });

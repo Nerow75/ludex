@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { installDates, MOOD_LABEL, PLATFORM_LABEL, recap, STATUS_LABEL, type Game } from "../lib/api";
 import { formatDuration, formatPlaytime, installBadge, relativeTime } from "../lib/format";
 import { downloads, lastAchievement, moodIdeas, pickTonight, pileGames, tonightSettled, type Tonight } from "../lib/home";
+import { t } from "../lib/i18n";
 import { recentGames } from "../lib/library";
 import type { SectionContext } from "../lib/sections";
 import { Art, Logo } from "./Art";
@@ -14,12 +15,6 @@ import { ResumeRow } from "./ResumeRow";
 const PER_ROW = 10;
 const PILE_ROW = 12;
 
-const REASON: Record<Tonight["reason"], string> = {
-  live: "En jeu",
-  playing: "En cours dans ta progression",
-  last: "Dernier jeu lancé",
-  new: "Jamais lancé",
-};
 
 /**
  * Section « Pour toi » : l'accueil. Bannière « Ce soir », quelques chiffres, la rangée Reprendre,
@@ -28,6 +23,7 @@ const REASON: Record<Tonight["reason"], string> = {
  * Les rangées se parcourent aux flèches : écran en deux dimensions (`data-nav-2d`).
  */
 export function HomeView({ games, partial, playing, openGame, play, showMood }: SectionContext) {
+  const home = t.library.home;
   const installed = useInstallDates(games);
   const pile = useMemo(() => pileGames(games, installed), [games, installed]);
   const tonight = useMemo(() => pickTonight(games, playing, pile), [games, playing, pile]);
@@ -44,7 +40,7 @@ export function HomeView({ games, partial, playing, openGame, play, showMood }: 
       <Facts games={games} playing={playing} openGame={openGame} />
       <ResumeRow games={resume} playing={playing} onSelect={openGame} onPlay={play} nav />
       {pending.length > 0 && (
-        <Shelf title="Téléchargements" count={pending.length}>
+        <Shelf title={home.downloads} count={pending.length}>
           {pending.map((g) => (
             <ShelfItem key={g.id} game={g} meta={<span className="live is-pending">{installBadge(g.installState)}</span>} openGame={openGame} play={play} />
           ))}
@@ -56,20 +52,20 @@ export function HomeView({ games, partial, playing, openGame, play, showMood }: 
           title={MOOD_LABEL[mood]}
           count={count}
           onTitle={() => showMood(mood)}
-          titleHint={`Tous les jeux de l'ambiance « ${MOOD_LABEL[mood]} »`}
+          titleHint={home.moodHint(MOOD_LABEL[mood])}
         >
           {list.map((g) => (
-            <ShelfItem key={g.id} game={g} meta={playing.has(g.id) ? <span className="live">En jeu</span> : relativeTime(g.lastPlayed)} openGame={openGame} play={play} />
+            <ShelfItem key={g.id} game={g} meta={playing.has(g.id) ? <span className="live">{t.library.inGame}</span> : relativeTime(g.lastPlayed)} openGame={openGame} play={play} />
           ))}
         </Shelf>
       ))}
       {pileShown.length > 0 && (
-        <Shelf title="Ta pile" count={pile.length} note="Jamais lancés ou à faire, les derniers installés d'abord">
+        <Shelf title={home.pile} count={pile.length} note={home.pileNote}>
           {pileShown.map((g) => (
             <ShelfItem
               key={g.id}
               game={g}
-              meta={g.status === "todo" ? STATUS_LABEL.todo : installed.has(g.id) ? `Installé ${relativeTime(installed.get(g.id)!)}` : PLATFORM_LABEL[g.platform]}
+              meta={g.status === "todo" ? STATUS_LABEL.todo : installed.has(g.id) ? home.installed(relativeTime(installed.get(g.id)!)) : PLATFORM_LABEL[g.platform]}
               openGame={openGame}
               play={play}
             />
@@ -100,9 +96,10 @@ function useInstallDates(games: Game[]): ReadonlyMap<string, number> {
 function TonightBanner({ tonight, live, openGame, play }: { tonight: Tonight; live: boolean } & Pick<SectionContext, "openGame" | "play">) {
   const { game, reason } = tonight;
   const last = lastSessionText(game, useLastSession(game.id, live));
+  const home = t.library.home;
   const facts = [
-    game.playtimeMinutes !== null && game.playtimeMinutes > 0 ? `${formatPlaytime(game.playtimeMinutes)} de jeu` : null,
-    game.lastPlayed ? `Dernière session ${last.text}` : null,
+    game.playtimeMinutes !== null && game.playtimeMinutes > 0 ? home.played(formatPlaytime(game.playtimeMinutes)) : null,
+    game.lastPlayed ? home.lastSession(last.text) : null,
     game.status && reason !== "playing" ? STATUS_LABEL[game.status] : null,
   ].filter(Boolean);
   const install = installBadge(game.installState);
@@ -111,14 +108,14 @@ function TonightBanner({ tonight, live, openGame, play }: { tonight: Tonight; li
       <Art game={game} className="tonight__art" />
       <div className="tonight__body">
         <p className="tonight__eyebrow">
-          <span id="tonight-title">Ce soir</span>
-          {live ? <span className="live">En jeu</span> : <span>{REASON[reason]}</span>}
+          <span id="tonight-title">{home.tonight}</span>
+          {live ? <span className="live">{t.library.inGame}</span> : <span>{home.reason[reason]}</span>}
         </p>
         <Logo game={game} className="tonight__logo" />
         {facts.length > 0 && <p className="tonight__facts" title={last.title}>{facts.join(" · ")}</p>}
         <div className="tonight__acts">
-          <button type="button" className="btn-play" data-nav onClick={() => play(game)} aria-label={`Jouer à ${game.title}`}><PlayIcon /> Jouer</button>
-          <button type="button" className="btn-ghost" data-nav onClick={() => openGame(game)}>Voir la fiche</button>
+          <button type="button" className="btn-play" data-nav onClick={() => play(game)} aria-label={t.library.playGame(game.title)}><PlayIcon /> {t.library.play}</button>
+          <button type="button" className="btn-ghost" data-nav onClick={() => openGame(game)}>{home.details}</button>
           {install && <span className="live is-pending">{install}</span>}
         </div>
       </div>
@@ -141,18 +138,19 @@ function Facts({ games, playing, openGame }: Pick<SectionContext, "games" | "pla
   }, [playing]);
   const achievement = useMemo(() => lastAchievement(games), [games]);
   if (!(week && week.secs > 0) && !achievement) return null;
+  const home = t.library.home;
   return (
-    <ul className="facts" aria-label="En bref">
+    <ul className="facts" aria-label={home.facts}>
       {week && week.secs > 0 && (
         <li>
-          Cette semaine <b>{formatDuration(week.secs)}</b>
-          <span>{week.sessions} session{week.sessions > 1 ? "s" : ""}</span>
+          {home.thisWeek} <b>{formatDuration(week.secs)}</b>
+          <span>{home.sessions(week.sessions)}</span>
         </li>
       )}
       {achievement && (
         <li>
-          <button type="button" data-nav onClick={() => openGame(achievement.game)} title={`Ouvrir la fiche de ${achievement.game.title}`}>
-            Dernier succès <b>{achievement.game.title}</b>
+          <button type="button" data-nav onClick={() => openGame(achievement.game)} title={home.openDetails(achievement.game.title)}>
+            {home.lastAchievement} <b>{achievement.game.title}</b>
             <span>{relativeTime(achievement.at)}</span>
           </button>
         </li>

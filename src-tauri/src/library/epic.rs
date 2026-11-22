@@ -27,7 +27,7 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
     if !dir.exists() {
         return Ok(Some(Vec::new()));
     }
-    let entries = fs::read_dir(&dir).map_err(|e| format!("Lecture des manifestes Epic impossible : {e}"))?;
+    let entries = fs::read_dir(&dir).map_err(|e| tr!("Lecture des manifestes Epic impossible : {e}", "Can't read the Epic manifests: {e}"))?;
 
     let mut games = Vec::new();
     let mut seen = HashSet::new();
@@ -38,12 +38,12 @@ pub fn scan() -> Result<Option<Vec<Game>>, String> {
         }
         let file = entry.file_name().to_string_lossy().into_owned();
         let Some(item) = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
-            super::skip(&file, "Manifeste illisible");
+            super::skip(&file, tr_str!("Manifeste illisible", "Unreadable manifest"));
             continue;
         };
         match parse_item(&item) {
             Ok(game) if seen.insert(game.platform_id.clone()) => games.push(game),
-            Ok(game) => super::skip(&game.title, "Manifeste en double"),
+            Ok(game) => super::skip(&game.title, tr_str!("Manifeste en double", "Duplicate manifest")),
             Err(reason) => {
                 let title = item.get("DisplayName").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or(&file);
                 super::skip(title, reason);
@@ -61,28 +61,28 @@ fn parse_item(item: &Value) -> Result<Game, &'static str> {
     let app_name = s("AppName");
     let title = s("DisplayName");
     if app_name.is_empty() || title.is_empty() {
-        return Err("Manifeste incomplet (AppName ou nom absent)");
+        return Err(tr_str!("Manifeste incomplet (AppName ou nom absent)", "Incomplete manifest (no AppName or name)"));
     }
     // DLC : leur jeu principal porte un autre AppName.
     let main = s("MainGameAppName");
     if !main.is_empty() && main != app_name {
-        return Err("Contenu additionnel (DLC)");
+        return Err(tr_str!("Contenu additionnel (DLC)", "Additional content (DLC)"));
     }
     // Ignore les applications qui ne sont pas des jeux (Unreal Engine, etc.).
     if let Some(categories) = item.get("AppCategories").and_then(Value::as_array)
         && !categories.iter().any(|c| c.as_str() == Some("games"))
     {
-        return Err("Application, pas un jeu");
+        return Err(tr_str!("Application, pas un jeu", "Application, not a game"));
     }
     let install = s("InstallLocation");
     if !install.is_empty() && !Path::new(install).exists() {
-        return Err("Dossier d'installation introuvable");
+        return Err(tr_str!("Dossier d'installation introuvable", "Install folder not found"));
     }
     // `bIsIncompleteInstall` : installation ou mise à jour interrompue. Gardé seulement si
     // l'exécutable est déjà là (mise à jour), une première installation n'étant pas jouable.
     let incomplete = flag("bIsIncompleteInstall");
     if incomplete && (install.is_empty() || !Path::new(install).join(s("LaunchExecutable")).is_file()) {
-        return Err("Première installation pas terminée");
+        return Err(tr_str!("Première installation pas terminée", "First install not finished"));
     }
 
     let (namespace, catalog_id) = (s("CatalogNamespace"), s("CatalogItemId"));
@@ -128,6 +128,8 @@ mod tests {
         let mut dlc = base.clone();
         dlc["AppName"] = "SugarDLC".into();
         assert_eq!(parse_item(&dlc).err(), Some("Contenu additionnel (DLC)"));
+        // Raison d'écart en anglais (Diagnostic).
+        crate::i18n::with(crate::i18n::Lang::En, || assert_eq!(parse_item(&dlc).err(), Some("Additional content (DLC)")));
     }
 
     #[test]

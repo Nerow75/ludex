@@ -1,6 +1,7 @@
 import { MOOD_LABEL, type Game } from "./api";
 import type { PadAction } from "./gamepad";
 import { moodIdeas, pickTonight, pileGames } from "./home";
+import { t } from "./i18n";
 import { recentGames, selectGames } from "./library";
 
 /** Calculs du mode canapé, à partir des jeux déjà chargés et des calculs de « Pour toi ». */
@@ -33,11 +34,11 @@ export function couchRows(games: Game[], playing: ReadonlySet<string>, perRow = 
   const favorites = selectGames(visible, "favorites", "recent", "").slice(0, perRow);
   const moods = moodIdeas(games, perRow, new Set()).map((m) => ({ id: `mood:${m.mood}`, title: MOOD_LABEL[m.mood], games: m.games }));
   const rows: CouchRow[] = [
-    { id: "resume", title: "Reprendre", games: resume },
-    { id: "favorites", title: "Favoris", games: favorites },
-    { id: "recent", title: "Récents", games: recent },
+    { id: "resume", title: t.extras.couch.rows.resume, games: resume },
+    { id: "favorites", title: t.extras.couch.rows.favorites, games: favorites },
+    { id: "recent", title: t.extras.couch.rows.recent, games: recent },
     ...moods,
-    { id: "all", title: "Tous les jeux", games: selectGames(games, "all", "title", "") },
+    { id: "all", title: t.extras.couch.rows.all, games: selectGames(games, "all", "title", "") },
   ];
   return rows.filter((r) => r.games.length > 0);
 }

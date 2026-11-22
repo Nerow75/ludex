@@ -30,9 +30,9 @@ pub fn parse(text: &str) -> Result<Option<Shortcut>, String> {
     if text.is_empty() {
         return Ok(None);
     }
-    let shortcut: Shortcut = text.parse().map_err(|_| format!("Raccourci {} non reconnu.", label(text)))?;
+    let shortcut: Shortcut = text.parse().map_err(|_| tr!("Raccourci {} non reconnu.", "Shortcut {} not recognized.", label(text)))?;
     if !shortcut.mods.intersects(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SUPER) {
-        return Err(format!("Le raccourci {} doit contenir Ctrl, Alt ou Windows.", label(text)));
+        return Err(tr!("Le raccourci {} doit contenir Ctrl, Alt ou Windows.", "The shortcut {} must include Ctrl, Alt or Windows.", label(text)));
     }
     Ok(Some(shortcut))
 }
@@ -41,7 +41,7 @@ pub fn parse(text: &str) -> Result<Option<Shortcut>, String> {
 pub fn label(text: &str) -> String {
     let text = text.trim();
     if text.is_empty() {
-        return "Désactivé".into();
+        return tr!("Désactivé", "Off");
     }
     text.split('+')
         .map(|part| {
@@ -49,22 +49,22 @@ pub fn label(text: &str) -> String {
             let named = match upper.as_str() {
                 "CTRL" | "CONTROL" => "Ctrl",
                 "ALT" | "OPTION" => "Alt",
-                "SHIFT" => "Maj",
+                "SHIFT" => tr_str!("Maj", "Shift"),
                 "SUPER" | "META" | "CMD" | "COMMAND" => "Windows",
-                "SPACE" => "Espace",
-                "ENTER" => "Entrée",
-                "ESCAPE" | "ESC" => "Échap",
-                "BACKSPACE" => "Retour arrière",
-                "DELETE" => "Suppr",
-                "INSERT" => "Inser",
-                "HOME" => "Début",
-                "END" => "Fin",
-                "PAGEUP" => "Page préc.",
-                "PAGEDOWN" => "Page suiv.",
-                "ARROWUP" | "UP" => "Haut",
-                "ARROWDOWN" | "DOWN" => "Bas",
-                "ARROWLEFT" | "LEFT" => "Gauche",
-                "ARROWRIGHT" | "RIGHT" => "Droite",
+                "SPACE" => tr_str!("Espace", "Space"),
+                "ENTER" => tr_str!("Entrée", "Enter"),
+                "ESCAPE" | "ESC" => tr_str!("Échap", "Esc"),
+                "BACKSPACE" => tr_str!("Retour arrière", "Backspace"),
+                "DELETE" => tr_str!("Suppr", "Delete"),
+                "INSERT" => tr_str!("Inser", "Insert"),
+                "HOME" => tr_str!("Début", "Home"),
+                "END" => tr_str!("Fin", "End"),
+                "PAGEUP" => tr_str!("Page préc.", "Page Up"),
+                "PAGEDOWN" => tr_str!("Page suiv.", "Page Down"),
+                "ARROWUP" | "UP" => tr_str!("Haut", "Up"),
+                "ARROWDOWN" | "DOWN" => tr_str!("Bas", "Down"),
+                "ARROWLEFT" | "LEFT" => tr_str!("Gauche", "Left"),
+                "ARROWRIGHT" | "RIGHT" => tr_str!("Droite", "Right"),
                 _ => "",
             };
             if !named.is_empty() {
@@ -79,7 +79,7 @@ pub fn label(text: &str) -> String {
                 }
             }
             if let Some(rest) = p.get(..6).filter(|s| s.eq_ignore_ascii_case("Numpad")).and(p.get(6..)) {
-                return format!("Pavé {rest}");
+                return tr!("Pavé {rest}", "Numpad {rest}");
             }
             p.to_string()
         })
@@ -97,8 +97,9 @@ pub fn replace<R: Runtime>(app: &AppHandle<R>, text: &str, previous: &str) -> Re
     let Some(shortcut) = shortcut else { return Ok(()) };
     if manager.register(shortcut).is_err() {
         resume(app, previous);
-        return Err(format!(
+        return Err(tr!(
             "Le raccourci {} est déjà pris par une autre application ou par Windows. Essaie une autre combinaison.",
+            "The shortcut {} is already used by another app or by Windows. Try another combination.",
             label(text)
         ));
     }
@@ -155,7 +156,7 @@ pub fn on_shortcut<R: Runtime>(app: &AppHandle<R>, _shortcut: &Shortcut, event: 
 
 fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
     WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("quick.html".into()))
-        .title("Ludex : recherche rapide")
+        .title(tr!("Ludex : recherche rapide", "Ludex: quick search"))
         .inner_size(WIDTH, HEIGHT)
         .resizable(false)
         .maximizable(false)
@@ -274,6 +275,14 @@ mod tests {
         assert_eq!(label("Alt+Numpad5"), "Alt+Pavé 5");
         assert_eq!(label("Ctrl+F12"), "Ctrl+F12");
         assert_eq!(label("  "), "Désactivé");
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(label("Alt+Space"), "Alt+Space");
+            assert_eq!(label("Ctrl+Shift+KeyL"), "Ctrl+Shift+L");
+            assert_eq!(label("Control+Alt+ArrowUp"), "Ctrl+Alt+Up");
+            assert_eq!(label("Alt+Numpad5"), "Alt+Numpad 5");
+            assert_eq!(label(""), "Off");
+            assert!(parse("Shift+A").unwrap_err().contains("must include Ctrl, Alt or Windows"));
+        });
         // Format envoyé par la page Paramètres (`KeyboardEvent.code`) : lu par le plugin.
         assert_eq!(parse("Ctrl+Alt+KeyG").unwrap().unwrap().key, Code::KeyG);
         assert_eq!(parse("Alt+Digit3").unwrap().unwrap().key, Code::Digit3);

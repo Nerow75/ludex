@@ -262,13 +262,13 @@ fn on_local_drive(p: &str) -> bool {
 pub fn parse_command(text: &str, system: &Path, is_file: impl Fn(&Path) -> bool) -> Result<Command, String> {
     let text = text.trim();
     if text.is_empty() {
-        return Err("Aucune commande de désinstallation.".into());
+        return Err(tr!("Aucune commande de désinstallation.", "No uninstall command."));
     }
     if text.chars().any(char::is_control) {
-        return Err("Commande de désinstallation illisible.".into());
+        return Err(tr!("Commande de désinstallation illisible.", "Unreadable uninstall command."));
     }
     let (exe, args): (String, &str) = if let Some(rest) = text.strip_prefix('"') {
-        let end = rest.find('"').ok_or("Commande de désinstallation illisible.")?;
+        let end = rest.find('"').ok_or_else(|| tr!("Commande de désinstallation illisible.", "Unreadable uninstall command."))?;
         (rest[..end].to_string(), &rest[end + 1..])
     } else {
         let first = text.split_whitespace().next().unwrap_or("");
@@ -286,23 +286,26 @@ pub fn parse_command(text: &str, system: &Path, is_file: impl Fn(&Path) -> bool)
                 .copied()
                 .find(|&end| is_file(Path::new(&text[..end])))
                 .or_else(|| ends.first().copied())
-                .ok_or("Désinstalleur introuvable : la commande ne lance aucun programme.")?;
+                .ok_or_else(|| tr!("Désinstalleur introuvable : la commande ne lance aucun programme.", "Uninstaller not found: the command doesn't run any program."))?;
             (text[..end].to_string(), &text[end..])
         }
     };
     let exe = exe.trim().replace('/', "\\");
     if !on_local_drive(&exe) {
-        return Err(format!("Désinstalleur refusé : {exe} n'est pas un chemin complet sur un disque de ce PC."));
+        return Err(tr!("Désinstalleur refusé : {exe} n'est pas un chemin complet sur un disque de ce PC.", "Uninstaller refused: {exe} isn't a full path on a drive of this PC."));
     }
     let name = Path::new(&exe).file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     if !name.ends_with(".exe") {
-        return Err(format!("Désinstalleur refusé : {exe} n'est pas un programme."));
+        return Err(tr!("Désinstalleur refusé : {exe} n'est pas un programme.", "Uninstaller refused: {exe} isn't a program."));
     }
     if INTERPRETERS.contains(&name.as_str()) {
-        return Err(format!("Ce désinstalleur passe par {name} : lance-le depuis Paramètres > Applications de Windows."));
+        return Err(tr!(
+            "Ce désinstalleur passe par {name} : lance-le depuis Paramètres > Applications de Windows.",
+            "This uninstaller goes through {name}: run it from Windows Settings > Apps."
+        ));
     }
     if !is_file(Path::new(&exe)) {
-        return Err(format!("Désinstalleur introuvable : {exe}"));
+        return Err(tr!("Désinstalleur introuvable : {exe}", "Uninstaller not found: {exe}"));
     }
     Ok(Command { exe: PathBuf::from(exe), args: args.trim().to_string() })
 }
@@ -338,16 +341,16 @@ pub fn launch(cmd: &Command) -> Result<(), String> {
     // SAFETY : `info` et les chaînes qu'il désigne vivent jusqu'au retour de l'appel.
     unsafe { ShellExecuteExW(&mut info) }.map_err(|e| {
         if e.code() == windows::core::HRESULT::from_win32(1223) {
-            "Désinstallation annulée : Windows n'a pas reçu l'autorisation.".to_string()
+            tr!("Désinstallation annulée : Windows n'a pas reçu l'autorisation.", "Uninstall canceled: Windows didn't get permission.")
         } else {
-            format!("Impossible de lancer le désinstalleur : {}", e.message())
+            tr!("Impossible de lancer le désinstalleur : {}", "Couldn't start the uninstaller: {}", e.message())
         }
     })
 }
 
 #[cfg(not(windows))]
 pub fn launch(_: &Command) -> Result<(), String> {
-    Err("Désinstalleur disponible sous Windows seulement.".into())
+    Err(tr!("Désinstalleur disponible sous Windows seulement.", "Uninstaller only available on Windows."))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -420,9 +423,9 @@ fn steam_folders(game: &Game, account: Option<&Path>) -> Vec<FolderTarget> {
         .filter(|s| named(s, "steamapps"));
     if let Some(steamapps) = steamapps {
         for (item, label, kind, sub) in [
-            ("shaders", "Cache des shaders", Kind::Cache, steamapps.join("shadercache").join(appid)),
-            ("workshop", "Mods du Workshop", Kind::Mods, steamapps.join(r"workshop\content").join(appid)),
-            ("download", "Téléchargement de Steam en cours ou interrompu", Kind::Cache, steamapps.join("downloading").join(appid)),
+            ("shaders", tr_str!("Cache des shaders", "Shader cache"), Kind::Cache, steamapps.join("shadercache").join(appid)),
+            ("workshop", tr_str!("Mods du Workshop", "Workshop mods"), Kind::Mods, steamapps.join(r"workshop\content").join(appid)),
+            ("download", tr_str!("Téléchargement de Steam en cours ou interrompu", "Steam download in progress or interrupted"), Kind::Cache, steamapps.join("downloading").join(appid)),
         ] {
             if sub.is_dir() {
                 out.push(FolderTarget { item: item.into(), label: label.into(), kind, path: sub });
@@ -430,7 +433,7 @@ fn steam_folders(game: &Game, account: Option<&Path>) -> Vec<FolderTarget> {
         }
     }
     if let Some(dir) = account.map(|a| a.join(appid)).filter(|d| d.is_dir()) {
-        out.push(FolderTarget { item: "cloud".into(), label: "Données du compte Steam (Cloud, réglages)".into(), kind: Kind::Saves, path: dir });
+        out.push(FolderTarget { item: "cloud".into(), label: tr!("Données du compte Steam (Cloud, réglages)", "Steam account data (Cloud, settings)"), kind: Kind::Saves, path: dir });
     }
     out
 }
@@ -446,17 +449,17 @@ pub fn source_keys(game: &Game, reg: &impl Registry) -> Vec<KeyTarget> {
     match game.platform {
         Platform::Steam => {
             if let Some(appid) = steam_appid(game) {
-                out.push(key("État du jeu chez Steam", Hive::Hkcu, format!(r"Software\Valve\Steam\Apps\{appid}")));
+                out.push(key(tr_str!("État du jeu chez Steam", "Game state in Steam"), Hive::Hkcu, format!(r"Software\Valve\Steam\Apps\{appid}")));
             }
         }
         Platform::Gog => {
             if let Some(id) = safe_id(id) {
-                out.push(key("Installation GOG", Hive::Hklm, format!(r"SOFTWARE\WOW6432Node\GOG.com\Games\{id}")));
+                out.push(key(tr_str!("Installation GOG", "GOG installation"), Hive::Hklm, format!(r"SOFTWARE\WOW6432Node\GOG.com\Games\{id}")));
             }
         }
         Platform::Ubisoft => {
             if let Some(id) = safe_id(id) {
-                out.push(key("Installation Ubisoft Connect", Hive::Hklm, format!(r"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs\{id}")));
+                out.push(key(tr_str!("Installation Ubisoft Connect", "Ubisoft Connect installation"), Hive::Hklm, format!(r"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs\{id}")));
             }
         }
         Platform::Rockstar => {
@@ -464,7 +467,7 @@ pub fn source_keys(game: &Game, reg: &impl Registry) -> Vec<KeyTarget> {
             for name in reg.children(Hive::Hklm, root) {
                 let path = format!(r"{root}\{name}");
                 if same_dir(Hive::Hklm, &path, "InstallFolder") {
-                    out.push(key("Installation Rockstar", Hive::Hklm, path));
+                    out.push(key(tr_str!("Installation Rockstar", "Rockstar installation"), Hive::Hklm, path));
                 }
             }
         }
@@ -474,7 +477,7 @@ pub fn source_keys(game: &Game, reg: &impl Registry) -> Vec<KeyTarget> {
                 // `Nom_Version_Archi_Ressource_Éditeur` : famille = `Nom_Éditeur`.
                 let parts: Vec<&str> = name.split('_').collect();
                 if parts.len() == 5 && format!("{}_{}", parts[0], parts[4]).eq_ignore_ascii_case(id) {
-                    out.push(key("Paquet Windows", Hive::Hkcu, format!(r"{root}\{name}")));
+                    out.push(key(tr_str!("Paquet Windows", "Windows package"), Hive::Hkcu, format!(r"{root}\{name}")));
                 }
             }
         }
@@ -483,7 +486,7 @@ pub fn source_keys(game: &Game, reg: &impl Registry) -> Vec<KeyTarget> {
                 for name in reg.children(Hive::Hklm, root) {
                     let path = format!(r"{root}\{name}");
                     if same_dir(Hive::Hklm, &path, "Install Dir") || same_dir(Hive::Hklm, &path, "InstallDir") {
-                        out.push(key("Installation EA", Hive::Hklm, path));
+                        out.push(key(tr_str!("Installation EA", "EA installation"), Hive::Hklm, path));
                     }
                 }
             }
@@ -499,7 +502,7 @@ pub fn source_keys(game: &Game, reg: &impl Registry) -> Vec<KeyTarget> {
 pub fn targets(game: &Game, reg: &impl Registry, entries: &[UninstallEntry], saves: Saves, account: Option<&Path>) -> Targets {
     let mut folders: Vec<FolderTarget> = Vec::new();
     if let Some(dir) = game.install_dir.as_deref() {
-        folders.push(FolderTarget { item: "install".into(), label: "Dossier d'installation".into(), kind: Kind::Install, path: PathBuf::from(dir) });
+        folders.push(FolderTarget { item: "install".into(), label: tr!("Dossier d'installation", "Install folder"), kind: Kind::Install, path: PathBuf::from(dir) });
     }
     folders.extend(steam_folders(game, account));
     let mut n = 0;
@@ -508,7 +511,7 @@ pub fn targets(game: &Game, reg: &impl Registry, entries: &[UninstallEntry], sav
         if folders.iter().any(|f| norm(&f.path.to_string_lossy()) == k) {
             continue;
         }
-        folders.push(FolderTarget { item: format!("save-{n}"), label: "Sauvegardes".into(), kind: Kind::Saves, path });
+        folders.push(FolderTarget { item: format!("save-{n}"), label: tr!("Sauvegardes", "Saves"), kind: Kind::Saves, path });
         n += 1;
     }
     Targets {
@@ -615,14 +618,14 @@ fn install_date(raw: Option<&str>) -> Option<String> {
 /// Bouton d'une entrée de désinstallation.
 fn action(entry: &UninstallEntry, steam: bool, is_file: &impl Fn(&Path) -> bool) -> (Action, Option<String>) {
     let Some(text) = entry.uninstall_string.as_deref() else {
-        return (Action::None, Some("Cette entrée n'a pas de commande de désinstallation.".into()));
+        return (Action::None, Some(tr!("Cette entrée n'a pas de commande de désinstallation.", "This entry has no uninstall command.")));
     };
     match parse_command(text, &system_dir(), is_file) {
         Ok(cmd) if is_steam_exe(&cmd) => {
             if steam {
                 (Action::Steam, None)
             } else {
-                (Action::None, Some("Désinstallation gérée par Steam.".into()))
+                (Action::None, Some(tr!("Désinstallation gérée par Steam.", "Uninstall handled by Steam.")))
             }
         }
         Ok(_) => (Action::Run, None),

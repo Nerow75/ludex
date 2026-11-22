@@ -9,6 +9,7 @@ import {
   type FootprintFolder,
 } from "../lib/api";
 import { formatSize } from "../lib/format";
+import { t } from "../lib/i18n";
 import { actionHint, folderSize, footprintStatus, insideLabel, installDay, mainAction } from "../lib/footprint";
 
 /** Copie un texte (clé du registre) : clic de l'utilisateur, aucune permission Tauri. */
@@ -29,7 +30,7 @@ function CopyButton({ text }: { text: string }) {
         )
       }
     >
-      {done ? "Copiée" : "Copier"}
+      {done ? t.fiche.footprint.copied : t.fiche.footprint.copy}
     </button>
   );
 }
@@ -47,7 +48,7 @@ function FolderRow({ f, inside, onOpen }: { f: FootprintFolder; inside: string |
       <span className="foot__size">{folderSize(f)}</span>
       {f.exists && (
         <button type="button" className="btn-ghost" data-nav onClick={() => onOpen(f.item)}>
-          {f.file ? "Montrer" : "Ouvrir"}
+          {f.file ? t.fiche.footprint.show : t.fiche.footprint.open}
         </button>
       )}
     </li>
@@ -83,8 +84,8 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
 
   // Relu quand le jeu quitte (ou retrouve) la bibliothèque : désinstallation vue par le rescan.
   useEffect(() => {
-    const t = window.setTimeout(() => void load(false), present ? 0 : 300);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => void load(false), present ? 0 : 300);
+    return () => window.clearTimeout(timer);
   }, [load, present]);
 
   const attempt = async (task: () => Promise<void>, done: string | null) => {
@@ -100,7 +101,7 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
   if (!fp) {
     return (
       <div className="foot" aria-live="polite">
-        {error ? <p className="notice notice--error">{error}</p> : <p className="foot__status">Relevé de ce que {title} laisse sur le PC…</p>}
+        {error ? <p className="notice notice--error">{error}</p> : <p className="foot__status">{t.fiche.footprint.scanning(title)}</p>}
       </div>
     );
   }
@@ -110,16 +111,16 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
   const hasUninstall = fp.uninstall.length > 0;
 
   return (
-    <div className="foot" aria-label={`Ce que ${fp.title} laisse sur le PC`}>
+    <div className="foot" aria-label={t.fiche.footprint.title(fp.title)}>
       <div className="foot__head">
         <div>
-          <h3>Ce que {fp.title} laisse sur le PC</h3>
+          <h3>{t.fiche.footprint.title(fp.title)}</h3>
           <p className={`foot__status${!fp.installed && fp.leftovers > 0 ? " is-left" : ""}`} aria-live="polite">
             {footprintStatus(fp)}
           </p>
         </div>
         <button type="button" className="btn-ghost" data-nav disabled={busy} onClick={() => void load(true)}>
-          {busy ? "Lecture…" : fp.installed ? "Relire" : "Vérifier les restes"}
+          {busy ? t.fiche.footprint.reading : fp.installed ? t.fiche.footprint.reread : t.fiche.footprint.leftovers}
         </button>
       </div>
 
@@ -129,62 +130,62 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
       {fp.installed && (
         <div className="foot__acts">
           {action?.kind === "steam" && (
-            <button type="button" className="btn-ghost" data-nav onClick={() => attempt(() => uninstallGame(id), `Steam demande confirmation avant de désinstaller ${fp.title}. La vue montre ensuite ce qui reste.`)}>
-              Désinstaller avec Steam
+            <button type="button" className="btn-ghost" data-nav onClick={() => attempt(() => uninstallGame(id), t.fiche.footprint.steamDone(fp.title))}>
+              {t.fiche.footprint.steam}
             </button>
           )}
           {action?.kind === "run" &&
             (confirm ? (
-              <span className="saves__confirm" role="group" aria-label="Confirmer">
-                Lancer le désinstalleur de {fp.title} ?
+              <span className="saves__confirm" role="group" aria-label={t.fiche.footprint.confirm}>
+                {t.fiche.footprint.runAsk(fp.title)}
                 <button
                   type="button"
                   className="btn-ghost btn-ghost--danger"
                   data-nav
                   onClick={() => {
                     setConfirm(false);
-                    void attempt(() => runUninstaller(id, action.item), "Désinstalleur lancé. Quand il a fini, « Vérifier les restes » relit le PC.");
+                    void attempt(() => runUninstaller(id, action.item), t.fiche.footprint.runDone);
                   }}
                 >
-                  Lancer
+                  {t.fiche.footprint.run}
                 </button>
                 <button type="button" className="btn-ghost" data-nav onClick={() => setConfirm(false)}>
-                  Annuler
+                  {t.fiche.footprint.cancel}
                 </button>
               </span>
             ) : (
               <button type="button" className="btn-ghost" data-nav onClick={() => setConfirm(true)}>
-                Lancer le désinstalleur
+                {t.fiche.footprint.runButton}
               </button>
             ))}
           {action?.kind === "settings" && (
             <button type="button" className="btn-ghost" data-nav onClick={() => attempt(openAppsSettings, null)}>
-              Ouvrir les Paramètres de Windows
+              {t.fiche.footprint.settings}
             </button>
           )}
           {action?.kind === "folder" && (
             <button type="button" className="btn-ghost" data-nav onClick={() => open("install")}>
-              Ouvrir le dossier du jeu
+              {t.fiche.footprint.folder}
             </button>
           )}
           <span className="foot__hint">{actionHint(fp, action)}</span>
         </div>
       )}
 
-      <h4>Dossiers et fichiers</h4>
+      <h4>{t.fiche.footprint.folders}</h4>
       <ul className="foot__list">
         {fp.folders.map((f) => <FolderRow key={f.item} f={f} inside={insideLabel(fp, f)} onOpen={open} />)}
       </ul>
-      {fp.savesNote && <p className="foot__note">Sauvegardes : {fp.savesNote}</p>}
+      {fp.savesNote && <p className="foot__note">{t.fiche.footprint.savesNote(fp.savesNote)}</p>}
 
-      <h4>Désinstallation Windows</h4>
+      <h4>{t.fiche.footprint.uninstall}</h4>
       {hasUninstall ? (
         <ul className="foot__list foot__list--entries">
           {fp.uninstall.map((u) => (
             <li key={u.item} className={u.exists ? undefined : "is-gone"}>
               <div className="foot__what">
                 <span className="foot__label">
-                  {u.exists ? u.name ?? "Sans nom" : "Entrée supprimée"}
+                  {u.exists ? u.name ?? t.fiche.footprint.unnamed : t.fiche.footprint.entryGone}
                   {u.exists && (u.publisher || u.version) && <span className="foot__tag">{[u.publisher, u.version].filter(Boolean).join(" · ")}</span>}
                 </span>
                 <span className="path" title={u.key}>{u.key}</span>
@@ -192,31 +193,31 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
                   <dl className="foot__facts">
                     {u.command && (
                       <>
-                        <dt>Commande</dt>
+                        <dt>{t.fiche.footprint.command}</dt>
                         <dd className="path" title={u.command}>{u.command}</dd>
                       </>
                     )}
                     {u.location && (
                       <>
-                        <dt>Emplacement</dt>
+                        <dt>{t.fiche.footprint.location}</dt>
                         <dd className="path" title={u.location}>{u.location}</dd>
                       </>
                     )}
                     {u.declaredSize !== null && (
                       <>
-                        <dt>Taille déclarée</dt>
+                        <dt>{t.fiche.footprint.declaredSize}</dt>
                         <dd>{formatSize(u.declaredSize)}</dd>
                       </>
                     )}
                     {u.installDate && (
                       <>
-                        <dt>Installé le</dt>
+                        <dt>{t.fiche.footprint.installedOn}</dt>
                         <dd>{installDay(u.installDate)}</dd>
                       </>
                     )}
                     {u.refusal && (
                       <>
-                        <dt>Désinstalleur</dt>
+                        <dt>{t.fiche.footprint.uninstaller}</dt>
                         <dd>{u.refusal}</dd>
                       </>
                     )}
@@ -229,12 +230,11 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
         </ul>
       ) : (
         <p className="foot__note">
-          Aucune entrée pour ce jeu dans « Applications installées » de Windows
-          {fp.platform === "xbox" ? " : les jeux du Microsoft Store y figurent sous un autre format." : "."}
+          {t.fiche.footprint.noEntry(fp.platform === "xbox")}
         </p>
       )}
 
-      <h4>Registre</h4>
+      <h4>{t.fiche.footprint.registry}</h4>
       {fp.keys.length > 0 ? (
         <ul className="foot__list">
           {fp.keys.map((k) => (
@@ -243,17 +243,17 @@ export function FootprintPanel({ id, title, present }: { id: string; title: stri
                 <span className="foot__label">{k.label}</span>
                 <span className="path" title={k.key}>{k.key}</span>
               </div>
-              <span className="foot__size">{k.exists ? "Présente" : "Supprimée"}</span>
+              <span className="foot__size">{k.exists ? t.fiche.footprint.present : t.fiche.footprint.removed}</span>
               {k.exists && <CopyButton text={k.key} />}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="foot__note">Aucune autre clé connue de Ludex pour ce jeu.</p>
+        <p className="foot__note">{t.fiche.footprint.noKeys}</p>
       )}
-      {fp.savesRegistry && <p className="foot__note">La base des sauvegardes signale aussi des réglages de ce jeu dans le registre (emplacement exact non relevé).</p>}
+      {fp.savesRegistry && <p className="foot__note">{t.fiche.footprint.savesRegistry}</p>}
 
-      <p className="foot__note">Ludex ne supprime rien : il montre et ouvre. Un reste se supprime à la main, depuis l'Explorateur ou l'Éditeur du Registre.</p>
+      <p className="foot__note">{t.fiche.footprint.nothingDeleted}</p>
     </div>
   );
 }

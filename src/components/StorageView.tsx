@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { PLATFORM_LABEL, storageReport, type DiskUsage, type Game, type StorageReport, type UninstallCandidate } from "../lib/api";
 import { formatDate, formatSize, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
@@ -15,32 +16,33 @@ function DiskRow({ disk }: { disk: DiskUsage }) {
   const games = Math.min(disk.gamesBytes, used);
   const freePct = Math.round(share(disk.free, disk.total));
   const label = `${disk.letter}${disk.name ? ` ${disk.name}` : ""}`;
+  const st = t.library.storage;
   return (
     <li className={`disk${disk.low ? " is-low" : ""}`}>
       <div className="disk__head">
         <b>{disk.letter}</b>
         {disk.name && <span className="disk__name">{disk.name}</span>}
-        <span className="disk__free">{formatSize(disk.free)} libres sur {formatSize(disk.total)}</span>
+        <span className="disk__free">{st.free(formatSize(disk.free), formatSize(disk.total))}</span>
       </div>
       <div
         className="disk__bar"
         role="img"
-        aria-label={`${label} : jeux ${formatSize(disk.gamesBytes)}, autres fichiers ${formatSize(used - games)}, libre ${formatSize(disk.free)}`}
+        aria-label={st.bar(label, formatSize(disk.gamesBytes), formatSize(used - games), formatSize(disk.free))}
       >
         <span className="disk__games" style={{ width: `${share(games, disk.total)}%` }} />
         <span className="disk__other" style={{ width: `${share(used - games, disk.total)}%` }} />
       </div>
       <p className="disk__legend">
-        <span className="disk__key disk__key--games">Jeux {formatSize(disk.gamesBytes)}</span>
+        <span className="disk__key disk__key--games">{st.games(formatSize(disk.gamesBytes))}</span>
         {disk.platforms.map((p) => (
-          <span key={p.platform} title={`${p.games} jeu${p.games > 1 ? "x" : ""}`}>
+          <span key={p.platform} title={t.library.gameCount(p.games)}>
             <LauncherIcon platform={p.platform} size={12} />{PLATFORM_LABEL[p.platform]} {formatSize(p.bytes)}
           </span>
         ))}
-        <span className="disk__key disk__key--other">Autres fichiers {formatSize(used - games)}</span>
-        {disk.unknown > 0 && <span>{disk.unknown} jeu{disk.unknown > 1 ? "x" : ""} sans taille connue</span>}
+        <span className="disk__key disk__key--other">{st.otherFiles(formatSize(used - games))}</span>
+        {disk.unknown > 0 && <span>{st.unknownSize(disk.unknown)}</span>}
       </p>
-      {disk.low && <p className="disk__warn">Presque plein : {freePct} % d'espace libre</p>}
+      {disk.low && <p className="disk__warn">{st.almostFull(freePct)}</p>}
     </li>
   );
 }
@@ -99,18 +101,19 @@ export function StorageView({ games, openGame }: SectionContext) {
     return out;
   }, [list, open]);
   const toggle = (c: UninstallCandidate, g: Game, index: number) => setOpen((o) => (o?.c.id === c.id ? null : { c, g, index }));
+  const st = t.library.storage;
 
   if (!report) {
-    return error ? <p className="notice notice--error">{error}</p> : <p className="hint">Lecture des disques…</p>;
+    return error ? <p className="notice notice--error">{error}</p> : <p className="hint">{st.reading}</p>;
   }
   if (disks.length === 0) {
-    return <EmptyState title="Aucun disque à afficher">Les disques qui contiennent des jeux de Ludex apparaîtront ici</EmptyState>;
+    return <EmptyState title={st.emptyTitle}>{st.emptyBody}</EmptyState>;
   }
   return (
     <section aria-labelledby="storage-title" className="storage">
       <div className="bar">
-        <h2 id="storage-title">Stockage<span><span className="sr-only">, </span>{disks.length} disque{disks.length > 1 ? "s" : ""}</span></h2>
-        {report.measuring && <span className="storage__busy">Mesure des dossiers en cours</span>}
+        <h2 id="storage-title">{st.title}<span><span className="sr-only">, </span>{st.disks(disks.length)}</span></h2>
+        {report.measuring && <span className="storage__busy">{st.measuring}</span>}
       </div>
       {error && <p className="notice notice--error">{error}</p>}
       <ul className="disks">
@@ -118,13 +121,13 @@ export function StorageView({ games, openGame }: SectionContext) {
       </ul>
 
       <div className="bar">
-        <h2>À désinstaller<span><span className="sr-only">, </span>{list.length ? `${list.length} · ${formatSize(total)}` : "0"}</span></h2>
+        <h2>{st.toUninstall}<span><span className="sr-only">, </span>{list.length ? `${list.length} · ${formatSize(total)}` : "0"}</span></h2>
       </div>
       {list.length === 0 ? (
-        <p className="hint storage__none">Aucun jeu de taille connue n'est resté sans lancement depuis six mois</p>
+        <p className="hint storage__none">{st.none}</p>
       ) : (
         <>
-          <p className="storage__intro">Pas lancés depuis six mois, ou jamais lancés, le plus gros d'abord</p>
+          <p className="storage__intro">{st.intro}</p>
           <ol className="hist store">
             {rows.map(([c, g], index) => (
               <Fragment key={c.id}>
@@ -136,16 +139,16 @@ export function StorageView({ games, openGame }: SectionContext) {
                   onClick={() => openGame(g)}
                   title={
                     c.lastPlayed
-                      ? `Dernier lancement : ${formatDate(c.lastPlayed)}`
+                      ? st.lastLaunch(formatDate(c.lastPlayed))
                       : c.launcherDates
                         ? undefined
-                        : `${PLATFORM_LABEL[c.platform]} ne note pas les lancements : seuls ceux faits depuis Ludex sont connus`
+                        : st.noLaunchDates(PLATFORM_LABEL[c.platform])
                   }
                 >
                   <Cover game={g} className="hist__cover" />
                   <span className="hist__title">{c.title}</span>
                   <span className="hist__meta"><LauncherIcon platform={c.platform} size={12} />{PLATFORM_LABEL[c.platform]}{c.drive ? ` · ${c.drive}` : ""}</span>
-                  <span className="hist__when">{c.lastPlayed || c.launcherDates ? relativeTime(c.lastPlayed) : "Jamais depuis Ludex"}</span>
+                  <span className="hist__when">{c.lastPlayed || c.launcherDates ? relativeTime(c.lastPlayed) : st.neverFromLudex}</span>
                   <span className="store__size">{formatSize(c.bytes)}</span>
                 </button>
                 <button
@@ -154,9 +157,9 @@ export function StorageView({ games, openGame }: SectionContext) {
                   data-nav
                   aria-expanded={open?.c.id === c.id}
                   onClick={() => toggle(c, g, index)}
-                  title="Ce que le jeu laisse sur le PC, puis sa désinstallation"
+                  title={st.uninstallHint}
                 >
-                  {open?.c.id === c.id ? "Fermer" : "Désinstaller…"}
+                  {open?.c.id === c.id ? st.close : st.uninstall}
                 </button>
               </li>
               {open?.c.id === c.id && (

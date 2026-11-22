@@ -1,24 +1,13 @@
 // Configuration requise (onglet Aperçu de la fiche) : lignes du tableau, colonne « Ce PC » et
 // phrase de synthèse. Les verdicts viennent de Rust (`requirements.rs`) ; ici, seulement l'affichage.
 import type { PcSpecs, RequirementKind, RequirementLine, Requirements, RequirementVerdict } from "./api";
+import { live, nf, t } from "./i18n";
 
-export const REQUIREMENT_LABEL: Record<RequirementKind, string> = {
-  system: "Système",
-  cpu: "Processeur",
-  memory: "Mémoire",
-  gpu: "Graphiques",
-  directx: "DirectX",
-  storage: "Stockage",
-  notes: "Notes",
-};
+export const REQUIREMENT_LABEL: Record<RequirementKind, string> = live(() => t.fiche.reqs.kind);
 
 const ORDER: RequirementKind[] = ["system", "cpu", "memory", "gpu", "directx", "storage", "notes"];
 
-export const VERDICT_LABEL: Record<RequirementVerdict, string> = {
-  ok: "Ce PC suffit",
-  below: "Ce PC est en dessous",
-  unknown: "Comparaison impossible, à vérifier à la main",
-};
+export const VERDICT_LABEL: Record<RequirementVerdict, string> = live(() => t.fiche.reqs.verdict);
 
 export interface RequirementRow {
   kind: RequirementKind;
@@ -28,25 +17,25 @@ export interface RequirementRow {
   pc: string | null;
 }
 
-const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const GIB = 1024 ** 3;
 
 /** Taille en Go comme Windows les compte : « 64 Go », « 0,5 Go » (une décimale sous 2 Go). */
 export function formatGib(bytes: number): string {
   const gib = bytes / GIB;
-  return `${number.format(gib >= 2 ? Math.round(gib) : Math.round(gib * 10) / 10)} Go`;
+  return t.fiche.reqs.gb(nf({ maximumFractionDigits: 1 }).format(gib >= 2 ? Math.round(gib) : Math.round(gib * 10) / 10));
 }
 
 /** Colonne « Ce PC » d'une ligne. */
 export function pcText(kind: RequirementKind, pc: PcSpecs): string | null {
+  const r = t.fiche.reqs;
   switch (kind) {
     case "system":
       return pc.windows || null;
     case "cpu": {
       if (!pc.cpu) return null;
       const parts = [pc.cpu];
-      if (pc.cores) parts.push(`${pc.cores} cœur${pc.cores > 1 ? "s" : ""}`);
-      if (pc.threads && pc.threads !== pc.cores) parts.push(`${pc.threads} threads`);
+      if (pc.cores) parts.push(r.cores(pc.cores));
+      if (pc.threads && pc.threads !== pc.cores) parts.push(r.threads(pc.threads));
       return parts.join(", ");
     }
     case "memory":
@@ -57,8 +46,8 @@ export function pcText(kind: RequirementKind, pc: PcSpecs): string | null {
       return pc.directx ? `DirectX ${pc.directx}` : null;
     case "storage": {
       if (!pc.disk) return null;
-      const free = `${formatGib(pc.disk.free)} libres sur ${pc.disk.letter}`;
-      return pc.disk.game ? `${free}, jeu installé : ${formatGib(pc.disk.game)}` : free;
+      const free = r.free(formatGib(pc.disk.free), pc.disk.letter);
+      return pc.disk.game ? r.withGame(free, formatGib(pc.disk.game)) : free;
     }
     case "notes":
       return null;
@@ -78,7 +67,7 @@ export function requirementRows(req: Requirements): RequirementRow[] {
 
 /** « A », « A et B », « A, B et C ». */
 function list(names: string[]): string {
-  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${t.fiche.reqs.and} ${names[names.length - 1]}`;
 }
 
 const named = (lines: RequirementLine[], verdict: RequirementVerdict) =>
@@ -86,15 +75,16 @@ const named = (lines: RequirementLine[], verdict: RequirementVerdict) =>
 
 /** Phrase de synthèse au-dessus du tableau. `null` sans aucune ligne comparable. */
 export function requirementSummary(req: Requirements): string | null {
+  const r = t.fiche.reqs;
   const belowMin = named(req.minimum, "below");
-  if (belowMin.length) return `Sous la configuration minimale pour : ${list(belowMin)}.`;
+  if (belowMin.length) return r.belowMin(list(belowMin));
   const belowRec = named(req.recommended, "below");
-  if (belowRec.length) return `Minimum atteint, sous la configuration recommandée pour : ${list(belowRec)}.`;
+  if (belowRec.length) return r.belowRec(list(belowRec));
   const target = req.recommended.length ? req.recommended : req.minimum;
-  const which = req.recommended.length ? "recommandée" : "minimale";
+  const which = req.recommended.length ? r.recommended : r.minimum;
   const ok = named(target, "ok");
   const unknown = named(target, "unknown");
-  if (!ok.length) return unknown.length ? "Rien de comparable automatiquement : à vérifier à la main." : null;
-  if (!unknown.length) return `Ce PC atteint la configuration ${which}.`;
-  return `Ce PC atteint la configuration ${which} pour ${ok.length} points sur ${ok.length + unknown.length}. ${list(unknown)} : à vérifier à la main.`;
+  if (!ok.length) return unknown.length ? r.nothing : null;
+  if (!unknown.length) return r.reached(which);
+  return r.partial(which, ok.length, ok.length + unknown.length, list(unknown));
 }

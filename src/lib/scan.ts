@@ -1,6 +1,7 @@
 // Scan progressif du démarrage : premier affichage partiel (sources rapides), puis complément
 // (EA, Battle.net, « Autres ») annoncé par `library-changed`.
 import type { LibraryEvent, ScanResult } from "./api";
+import { t } from "./i18n";
 
 /** Scan à garder quand un nouveau arrive : un scan complet n'est jamais remplacé par un partiel
  * (le complément peut arriver avant la réponse du premier `scan_library`). */
@@ -23,10 +24,11 @@ export function welcomeReady(scan: ScanResult | null, pending: boolean): boolean
  * ou pour le complément du premier scan (ces jeux ne sont pas nouveaux). */
 export function libraryToast({ added, removed, complement }: LibraryEvent): { title: string; detail?: string } | null {
   if (complement) return null;
+  const text = t.common.scanToast;
   const list = (titles: string[]) => (titles.length > 1 ? titles.join(", ") : undefined);
-  const gone = removed.length === 1 ? `Jeu retiré : ${removed[0]}` : `${removed.length} jeux retirés`;
+  const gone = removed.length === 1 ? text.removed(removed[0]) : text.removedMany(removed.length);
   if (added.length) {
-    const title = added.length === 1 ? `Nouveau jeu : ${added[0]}` : `${added.length} nouveaux jeux`;
+    const title = added.length === 1 ? text.added(added[0]) : text.addedMany(added.length);
     const detail = [list(added), removed.length ? gone : undefined].filter(Boolean).join(" · ");
     return { title, detail: detail || undefined };
   }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { SessionEvent } from "./api";
 import {
   afterError,
@@ -13,6 +13,9 @@ import {
   startLaunch,
 } from "./launch";
 import { jeu } from "../test/jeu";
+import { setLang } from "./i18n";
+
+afterEach(() => setLang("fr"));
 
 const session = (id: string, phase: SessionEvent["phase"]): SessionEvent => ({ id, phase, playtimeMinutes: null, playtimeSource: null });
 
@@ -87,5 +90,20 @@ describe("écran de lancement", () => {
     expect(launchBackdrop(jeu({ heroUrl: "h.jpg", coverUrl: "c.jpg" }))).toEqual({ url: "h.jpg", kind: "hero" });
     expect(launchBackdrop(jeu({ coverUrl: "c.jpg" }))).toEqual({ url: "c.jpg", kind: "cover" });
     expect(launchBackdrop(jeu())).toEqual({ url: null, kind: "tint" });
+  });
+});
+
+describe("écran de lancement en anglais", () => {
+  it("textes et message par défaut en anglais", () => {
+    setLang("en");
+    const steam = jeu({ launchLabel: "steam://rungameid/730" });
+    const v = startLaunch(steam, false, 0);
+    expect(launchText(v, steam, 1000)).toEqual({ status: "Launching…", detail: null });
+    expect(launchText(v, steam, RELAY_HINT_MS)).toEqual({ status: "Launching…", detail: "Steam is taking over…" });
+    const exe = jeu({ platform: "other", launchLabel: "Cyberpunk2077.exe" });
+    expect(launchText(startLaunch(exe, false, 0), exe, RELAY_HINT_MS).detail).toBe("The game is starting…");
+    expect(launchText({ ...v, phase: "running" }, steam, 0)).toEqual({ status: "Have fun", detail: null });
+    const failed = afterError(v, steam.id, "  ", 0);
+    expect(launchText(failed, steam, 0)).toEqual({ status: "Couldn't launch the game", detail: "The launcher didn't respond." });
   });
 });

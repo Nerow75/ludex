@@ -72,7 +72,7 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["French"],
+        "languages": ["English", "French"],
         "displayLanguageSelector": false,
         "installerIcon": "icons/icon.ico"
       }

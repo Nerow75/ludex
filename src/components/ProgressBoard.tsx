@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { PLATFORM_LABEL, STATUS_LABEL, STATUSES, type Game, type Status } from "../lib/api";
 import { cleanTitle } from "../lib/format";
+import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
 import { EmptyState } from "./States";
@@ -75,19 +76,21 @@ export function ProgressBoard({ games, playing, openGame, play, setStatus }: Sec
     }
   };
 
+  const text = t.extras.progress;
+  const keys = t.extras.keys;
   if (total === 0) {
     return (
-      <EmptyState title="Aucun jeu suivi pour l'instant">
-        Ouvre la fiche d'un jeu et choisis un statut : À faire, En cours, Terminé ou Abandonné. Il apparaîtra ici, rangé dans sa colonne
+      <EmptyState title={text.emptyTitle}>
+        {text.emptyText}
       </EmptyState>
     );
   }
   return (
     <section aria-labelledby="progress-title" ref={root}>
       <div className="bar">
-        <h2 id="progress-title">Progression<span><span className="sr-only">, </span>{total}</span></h2>
+        <h2 id="progress-title">{text.title}<span><span className="sr-only">, </span>{total}</span></h2>
         <p className="board__hint">
-          <kbd>Maj</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>LT</kbd><kbd>RT</kbd> change le statut, <kbd>Suppr</kbd> le retire
+          <kbd>{keys.shift}</kbd><kbd>←</kbd><kbd>→</kbd>{text.hintOr}<kbd>LT</kbd><kbd>RT</kbd>{text.hintChange}<kbd>{keys.del}</kbd>{text.hintRemove}
         </p>
       </div>
       <div className="board">
@@ -97,7 +100,7 @@ export function ProgressBoard({ games, playing, openGame, play, setStatus }: Sec
             <section key={status} className="board__col" aria-labelledby={`board-${status}`}>
               <h3 id={`board-${status}`}>{STATUS_LABEL[status]}<span><span className="sr-only">, </span>{list.length}</span></h3>
               {list.length === 0 ? (
-                <p className="board__empty">Aucun jeu</p>
+                <p className="board__empty">{text.noGame}</p>
               ) : (
                 <ul>
                   {list.map((g) => (
@@ -110,13 +113,13 @@ export function ProgressBoard({ games, playing, openGame, play, setStatus }: Sec
                         onClick={() => openGame(g)}
                         onDoubleClick={() => play(g)}
                         onKeyDown={onKeyDown(g)}
-                        aria-label={`${g.title}, ${STATUS_LABEL[status]}. Maj+flèches pour changer de statut`}
+                        aria-label={text.itemLabel(g.title, STATUS_LABEL[status])}
                         title={g.note ?? undefined}
                       >
                         <Cover game={g} className="board__cover" />
                         <span className="board__text">
                           <b>{g.title}</b>
-                          <small>{playing.has(g.id) ? <span className="live">En jeu</span> : g.note ?? PLATFORM_LABEL[g.platform]}</small>
+                          <small>{playing.has(g.id) ? <span className="live">{text.inGame}</span> : g.note ?? PLATFORM_LABEL[g.platform]}</small>
                         </span>
                       </button>
                     </li>

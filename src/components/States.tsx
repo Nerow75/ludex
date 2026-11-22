@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
+import { t } from "../lib/i18n";
 import { GamepadIcon, SearchIcon } from "./Icons";
 
 /** Squelette du premier scan : même géométrie que l'écran chargé, pour éviter les sauts. */
 export function LibrarySkeleton() {
   return (
-    <div className="skeleton" aria-busy="true" aria-label="Recherche de tes jeux">
+    <div className="skeleton" aria-busy="true" aria-label={t.common.skeleton}>
       <div className="sk sk--line" style={{ width: 120 }} />
       <div className="resume__grid">
         {Array.from({ length: 4 }, (_, i) => <div key={i} className="sk sk--tile" />)}

@@ -162,7 +162,7 @@ pub fn image_url(appid: u32) -> String {
 /// Texte de recherche : `MAX_QUERY` caractères, sur une ligne. Erreur : rien à chercher.
 pub fn clean_query(raw: &str) -> Result<String, String> {
     crate::collections::check_input(raw)?;
-    crate::library::manual::clean_text(raw, MAX_QUERY).ok_or_else(|| "Tape le titre d'un jeu à chercher.".to_string())
+    crate::library::manual::clean_text(raw, MAX_QUERY).ok_or_else(|| tr!("Tape le titre d'un jeu à chercher.", "Type the title of a game to search for."))
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -176,11 +176,16 @@ pub struct Hit {
     pub price: Option<Price>,
 }
 
+/// Réponse de la boutique illisible (forme inattendue).
+fn unreadable() -> String {
+    tr!("Réponse illisible de la boutique Steam.", "Unreadable response from the Steam store.")
+}
+
 /// Résultats de `storesearch` : jeux seulement (`type` = `app`), titre nettoyé, prix vérifié.
 pub fn parse_search(body: &str) -> Result<Vec<Hit>, String> {
-    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| "Réponse illisible de la boutique Steam.".to_string())?;
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| unreadable())?;
     let Some(items) = value.get("items").and_then(|i| i.as_array()) else {
-        return Err("Réponse illisible de la boutique Steam.".into());
+        return Err(unreadable());
     };
     let mut hits: Vec<Hit> = Vec::new();
     for item in items {
@@ -206,7 +211,7 @@ pub fn parse_search(body: &str) -> Result<Vec<Hit>, String> {
 fn get(request: ureq::Request) -> Result<String, String> {
     let response = request.call().map_err(|e| e.to_string())?;
     if response.status() != 200 {
-        return Err(format!("Réponse {} de la boutique Steam.", response.status()));
+        return Err(tr!("Réponse {} de la boutique Steam.", "Response {} from the Steam store.", response.status()));
     }
     let mut body = String::new();
     response.into_reader().take(MAX_BODY).read_to_string(&mut body).map_err(|e| e.to_string())?;
@@ -215,7 +220,7 @@ fn get(request: ureq::Request) -> Result<String, String> {
 
 /// Cherche un titre dans la boutique Steam (aucun compte).
 pub fn search(agent: &ureq::Agent, query: &str) -> Result<Vec<Hit>, String> {
-    let request = agent.get(SEARCH).query("term", query).query("l", "french").query("cc", "FR");
+    let request = agent.get(SEARCH).query("term", query).query("l", crate::i18n::steam_language()).query("cc", "FR");
     parse_search(&get(request)?)
 }
 
@@ -237,8 +242,8 @@ pub enum Offer {
 /// Réponse de `appdetails` pour un lot : seuls les appids demandés sont gardés. Un appid absent
 /// de la réponse n'y est pas (rien de connu).
 pub fn parse_prices(body: &str, asked: &[u32]) -> Result<BTreeMap<u32, Offer>, String> {
-    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| "Réponse illisible de la boutique Steam.".to_string())?;
-    let Some(map) = value.as_object() else { return Err("Réponse illisible de la boutique Steam.".into()) };
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| unreadable())?;
+    let Some(map) = value.as_object() else { return Err(unreadable()) };
     let mut out = BTreeMap::new();
     for &appid in asked {
         let Some(entry) = map.get(&appid.to_string()) else { continue };
@@ -506,13 +511,13 @@ impl Picks {
             return Ok(None);
         }
         if list.len() >= MAX_WISHES {
-            return Err(format!("Ta liste de souhaits compte déjà {MAX_WISHES} jeux."));
+            return Err(tr!("Ta liste de souhaits compte déjà {MAX_WISHES} jeux.", "Your wishlist already has {MAX_WISHES} games."));
         }
         if let Some(i) = self.removed.iter().position(|w| w.appid == appid) {
             list.push(self.removed.remove(i));
             return Ok(None);
         }
-        let hit = self.hits.iter().find(|h| h.appid == appid).ok_or("Jeu introuvable : relance la recherche.")?;
+        let hit = self.hits.iter().find(|h| h.appid == appid).ok_or_else(|| tr!("Jeu introuvable : relance la recherche.", "Game not found: search again."))?;
         list.push(Wish { appid, title: hit.title.clone(), added: at, price: hit.price.clone() });
         Ok(Some(match &hit.price {
             Some(price) => Offer::Price { price: price.clone() },
@@ -617,7 +622,7 @@ pub async fn wishlist_search(app: AppHandle, text: String) -> Result<Vec<HitView
             }
             Err(e) => {
                 diagnostic::failed(diagnostic::Service::Wishlist, &e);
-                return Err("La boutique Steam ne répond pas. Réessaie dans un moment.".into());
+                return Err(tr!("La boutique Steam ne répond pas. Réessaie dans un moment.", "The Steam store isn't responding. Try again in a moment."));
             }
         };
         let list = lock(&state.data)?.wishlist.clone();
@@ -659,9 +664,9 @@ pub fn wishlist_remove(state: tauri::State<'_, AppState>, appid: u32) -> Result<
 pub fn open_store_page(app: AppHandle, state: tauri::State<'_, AppState>, appid: u32) -> Result<(), String> {
     let known = lock(&state.data)?.wishlist.iter().any(|w| w.appid == appid) || lock(&state.wishlist.picks)?.knows(appid);
     if !known {
-        return Err("Jeu inconnu : relance la recherche.".into());
+        return Err(tr!("Jeu inconnu : relance la recherche.", "Unknown game: search again."));
     }
-    app.opener().open_url(format!("steam://store/{appid}"), None::<&str>).map_err(|e| format!("Impossible d'ouvrir Steam : {e}"))
+    app.opener().open_url(format!("steam://store/{appid}"), None::<&str>).map_err(|e| tr!("Impossible d'ouvrir Steam : {e}", "Can't open Steam: {e}"))
 }
 
 /// Relecture de fond des prix, au plus une fois par jour (après un scan) : lots espacés, puis
@@ -829,6 +834,11 @@ mod tests {
         assert!(clean_query("   ").is_err());
         assert_eq!(clean_query(&"a".repeat(300)).unwrap().chars().count(), MAX_QUERY);
         assert!(clean_query(&"a".repeat(5000)).is_err());
+        assert_eq!(clean_query("   ").unwrap_err(), "Tape le titre d'un jeu à chercher.");
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(clean_query("   ").unwrap_err(), "Type the title of a game to search for.");
+            assert_eq!(parse_search("{}").unwrap_err(), "Unreadable response from the Steam store.");
+        });
     }
 
     #[test]

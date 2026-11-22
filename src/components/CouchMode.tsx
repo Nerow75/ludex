@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "rea
 import { PLATFORM_LABEL, recap, type Game } from "../lib/api";
 import { ambientFromImage, titleColor } from "../lib/color";
 import { couchKey, couchKeyAction, couchRows, initialFocus, stepRow, todaySecs, type CouchAction } from "../lib/couch";
-import { formatAchievements, formatClock, formatDuration, formatPlaytime, installBadge, relativeTime, releaseYear } from "../lib/format";
+import { formatAchievements, formatClock, formatDuration, formatPlaytime, genreLabel, installBadge, relativeTime, releaseYear } from "../lib/format";
+import { t, useLang } from "../lib/i18n";
 import { spatialNext } from "../lib/spatial";
 import { Art, Logo } from "./Art";
 import { Cover } from "./Cover";
@@ -33,7 +34,9 @@ const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)"
 const scrollBehavior = (): ScrollBehavior => (reducedMotion() ? "auto" : "smooth");
 
 export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onExit, onFullscreen, control }: Props) {
-  const rows = useMemo(() => couchRows(games, playing), [games, playing]);
+  // Titres des rangées dans la langue actuelle : recalculées au changement de langue.
+  const lang = useLang();
+  const rows = useMemo(() => couchRows(games, playing), [games, playing, lang]);
   const byId = useMemo(() => new Map(games.map((g) => [g.id, g])), [games]);
   const [focusKey, setFocusKey] = useState<string | null>(() => initialFocus(rows, games, playing));
   const [ficheId, setFicheId] = useState<string | null>(null);
@@ -196,13 +199,15 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
     };
   }, [control]);
 
+  const hints = t.extras.couch.hints;
+  const keys = t.extras.keys;
   return (
     <div
       ref={root}
       className="couch"
       role="dialog"
       aria-modal="true"
-      aria-label="Mode canapé"
+      aria-label={t.extras.couch.dialog}
       style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}
     >
       <div className="couch__backdrop" aria-hidden>
@@ -212,7 +217,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
       <header className="couch__top">
         <span className="couch__brand"><LudexMark size={28} />Ludex</span>
         <TopInfo playing={playing} />
-        <button type="button" className="couch__quit" tabIndex={-1} onClick={onExit} aria-label="Quitter le mode canapé" title="Quitter le mode canapé (Échap)">
+        <button type="button" className="couch__quit" tabIndex={-1} onClick={onExit} aria-label={t.extras.couch.quit} title={t.extras.couch.quitTitle}>
           <CloseIcon />
         </button>
       </header>
@@ -223,7 +228,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
         <>
           <section className="couch__info" aria-live="polite">{game && <GameInfo game={game} live={playing.has(game.id)} />}</section>
           <div className="couch__shelves" ref={shelves}>
-            {rows.length === 0 && <p className="couch__empty">Aucun jeu à afficher. Quitte le mode canapé pour ajouter un jeu ou relancer un scan.</p>}
+            {rows.length === 0 && <p className="couch__empty">{t.extras.couch.empty}</p>}
             {rows.map((row) => (
               <section key={row.id} className="couch__row" aria-label={row.title}>
                 <h2>{row.title}<em><span className="sr-only">, </span>{row.games.length}</em></h2>
@@ -245,7 +250,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
                           onDoubleClick={() => onPlay(g)}
                         >
                           <Cover game={g} progress />
-                          {playing.has(g.id) && <span className="couch__live live">En jeu</span>}
+                          {playing.has(g.id) && <span className="couch__live live">{t.extras.couch.inGame}</span>}
                         </button>
                       </li>
                     );
@@ -260,19 +265,19 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
       <footer className="couch__keys" aria-hidden>
         {pad ? (
           <>
-            <span><kbd className="pad">A</kbd> {fiche ? "Valider" : "Jouer"}</span>
-            <span><kbd className="pad">X</kbd> {fiche ? "Fermer la fiche" : "Fiche"}</span>
-            <span><kbd className="pad">Y</kbd> Favori</span>
-            {!fiche && <span><kbd>LB</kbd><kbd>RB</kbd> Rangée</span>}
-            <span><kbd className="pad">B</kbd> {fiche ? "Retour" : "Quitter"}</span>
+            <span><kbd className="pad">A</kbd> {fiche ? hints.confirm : hints.play}</span>
+            <span><kbd className="pad">X</kbd> {fiche ? hints.closeFiche : hints.fiche}</span>
+            <span><kbd className="pad">Y</kbd> {hints.favorite}</span>
+            {!fiche && <span><kbd>LB</kbd><kbd>RB</kbd> {hints.row}</span>}
+            <span><kbd className="pad">B</kbd> {fiche ? hints.back : hints.quit}</span>
           </>
         ) : (
           <>
-            <span><kbd>Entrée</kbd> {fiche ? "Valider" : "Jouer"}</span>
-            <span><kbd>Espace</kbd> {fiche ? "Fermer la fiche" : "Fiche"}</span>
-            <span><kbd>Ctrl</kbd><kbd>D</kbd> Favori</span>
-            {!fiche && <span><kbd>Pg↑</kbd><kbd>Pg↓</kbd> Rangée</span>}
-            <span><kbd>Échap</kbd> {fiche ? "Retour" : "Quitter"}</span>
+            <span><kbd>{keys.enter}</kbd> {fiche ? hints.confirm : hints.play}</span>
+            <span><kbd>{keys.space}</kbd> {fiche ? hints.closeFiche : hints.fiche}</span>
+            <span><kbd>Ctrl</kbd><kbd>D</kbd> {hints.favorite}</span>
+            {!fiche && <span><kbd>{keys.pageUp}</kbd><kbd>{keys.pageDown}</kbd> {hints.row}</span>}
+            <span><kbd>{keys.esc}</kbd> {fiche ? hints.back : hints.quit}</span>
           </>
         )}
       </footer>
@@ -297,7 +302,7 @@ function TopInfo({ playing }: { playing: ReadonlySet<string> }) {
   }, [playing, day]);
   return (
     <p className="couch__now">
-      {today >= 60 && <span title="Parties lancées depuis Ludex">Aujourd'hui <b>{formatDuration(today)}</b></span>}
+      {today >= 60 && <span title={t.extras.couch.todayTitle}>{t.extras.couch.today} <b>{formatDuration(today)}</b></span>}
       <time>{formatClock(now.getTime() / 1000)}</time>
     </p>
   );
@@ -317,19 +322,20 @@ function useClock(): Date {
 function GameInfo({ game, live }: { game: Game; live: boolean }) {
   const install = installBadge(game.installState);
   const year = releaseYear(game.details?.releaseDate ?? null);
-  const meta = [PLATFORM_LABEL[game.platform], ...(game.details?.genres.slice(0, 2) ?? []), year].filter(Boolean).join(" · ");
+  const text = t.extras.couch;
+  const meta = [PLATFORM_LABEL[game.platform], ...(game.details?.genres.slice(0, 2).map(genreLabel) ?? []), year].filter(Boolean).join(" · ");
   const facts = [
-    game.playtimeMinutes !== null && game.playtimeMinutes > 0 ? `${formatPlaytime(game.playtimeMinutes)} de jeu` : null,
-    game.lastPlayed ? `Joué ${relativeTime(game.lastPlayed)}` : "Jamais lancé",
-    game.achievements ? `${formatAchievements(game.achievements.unlocked, game.achievements.total)} succès` : null,
+    game.playtimeMinutes !== null && game.playtimeMinutes > 0 ? text.played(formatPlaytime(game.playtimeMinutes)) : null,
+    game.lastPlayed ? text.lastPlayed(relativeTime(game.lastPlayed)) : text.neverLaunched,
+    game.achievements ? text.achievements(formatAchievements(game.achievements.unlocked, game.achievements.total)) : null,
   ].filter(Boolean);
   return (
     <div className="couch__game" key={game.id}>
       <Logo game={game} className="couch__logo" />
       <p className="couch__meta">
-        {live && <span className="live">En jeu</span>}
+        {live && <span className="live">{text.inGame}</span>}
         {install && <span className="live is-pending">{install}</span>}
-        {game.favorite && <span className="couch__fav"><StarIcon filled /> Favori</span>}
+        {game.favorite && <span className="couch__fav"><StarIcon filled /> {text.favorite}</span>}
         <span>{meta}</span>
       </p>
       <p className="couch__facts">{facts.join(" · ")}</p>
@@ -344,24 +350,25 @@ function CouchFiche({ game, live, onPlay, onFavorite }: { game: Game; live: bool
   const a = game.achievements;
   const h = game.hltb;
   const left = h ? storyLeft(h.main, game.playtimeMinutes) : null;
+  const text = t.extras.couch;
   const stats: [string, string, string | null][] = [
-    ["Temps de jeu", formatPlaytime(game.playtimeMinutes), game.playtimeSource === "ludex" ? "Mesuré par Ludex" : null],
-    ["Dernière session", game.lastPlayed ? last.text : "Jamais lancé", null],
+    [text.stats.playtime, formatPlaytime(game.playtimeMinutes), game.playtimeSource === "ludex" ? text.stats.tracked : null],
+    [text.stats.lastSession, game.lastPlayed ? last.text : text.neverLaunched, null],
   ];
-  if (a) stats.push(["Succès", formatAchievements(a.unlocked, a.total), a.total ? `${Math.round((a.unlocked / a.total) * 100)} %` : null]);
-  if (h && h.main !== null) stats.push(["Durée de vie", `${formatPlaytime(h.main)} pour l'histoire`, left]);
+  if (a) stats.push([text.stats.achievements, formatAchievements(a.unlocked, a.total), a.total ? text.percent(Math.round((a.unlocked / a.total) * 100)) : null]);
+  if (h && h.main !== null) stats.push([text.stats.lifespan, text.stats.story(formatPlaytime(h.main)), left]);
   return (
-    <section className="couch__fiche" aria-label={`Fiche de ${game.title}`}>
+    <section className="couch__fiche" aria-label={text.ficheLabel(game.title)}>
       <p className="couch__meta">
-        {live && <span className="live">En jeu</span>}
+        {live && <span className="live">{text.inGame}</span>}
         <span>{PLATFORM_LABEL[game.platform]}{game.details?.developers[0] ? ` · ${game.details.developers[0]}` : ""}</span>
       </p>
       <Logo game={game} className="couch__logo couch__logo--big" />
       {game.details?.description && <p className="couch__desc">{game.details.description}</p>}
       <div className="couch__acts">
-        <button type="button" className="btn-play" data-couch-btn onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>
+        <button type="button" className="btn-play" data-couch-btn onClick={() => onPlay(game)}><PlayIcon /> {text.play}</button>
         <button type="button" className="btn-ghost" data-couch-btn aria-pressed={game.favorite} onClick={() => onFavorite(game)}>
-          <StarIcon filled={game.favorite} /> {game.favorite ? "Dans les favoris" : "Ajouter aux favoris"}
+          <StarIcon filled={game.favorite} /> {game.favorite ? text.inFavorites : text.addFavorite}
         </button>
         {install && <span className="live is-pending">{install}</span>}
       </div>

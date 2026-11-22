@@ -1,5 +1,6 @@
 // Page « Captures » : dossiers (un par jeu), tri, filtre images / vidéos et regroupement par mois.
 import type { Screenshot, ScreenshotGroup } from "./api";
+import { live, locale, t } from "./i18n";
 
 /** Dossier de la liste de gauche : un jeu, un appid Steam désinstallé, ou les captures sans jeu. */
 export interface ShotFolder {
@@ -16,16 +17,17 @@ export interface ShotFolder {
 export type ShotSort = "recent" | "title" | "count";
 export type ShotKind = "all" | "images" | "videos";
 
-export const SHOT_SORTS: readonly { id: ShotSort; label: string }[] = [
-  { id: "recent", label: "Récentes" },
-  { id: "title", label: "A → Z" },
-  { id: "count", label: "Nombre" },
-];
-export const SHOT_KINDS: readonly { id: ShotKind; label: string }[] = [
-  { id: "all", label: "Tout" },
-  { id: "images", label: "Images" },
-  { id: "videos", label: "Vidéos" },
-];
+/** Libellés relus dans la langue actuelle à chaque accès (`live`). */
+export const SHOT_SORTS: readonly { id: ShotSort; label: string }[] = live(() => [
+  { id: "recent", label: t.extras.shots.sorts.recent },
+  { id: "title", label: t.extras.shots.sorts.title },
+  { id: "count", label: t.extras.shots.sorts.count },
+]);
+export const SHOT_KINDS: readonly { id: ShotKind; label: string }[] = live(() => [
+  { id: "all", label: t.extras.shots.kinds.all },
+  { id: "images", label: t.extras.shots.kinds.images },
+  { id: "videos", label: t.extras.shots.kinds.videos },
+]);
 
 const recentFirst = (a: Screenshot, b: Screenshot) => b.taken - a.taken || a.key.localeCompare(b.key);
 const TITLE_ORDER = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
@@ -50,9 +52,9 @@ export function shotFolders(groups: readonly ScreenshotGroup[]): ShotFolder[] {
     }
   }
   for (const [appid, shots] of byAppid) {
-    folders.push({ key: `appid:${appid}`, gameId: null, title: `Jeu Steam ${appid}`, note: "Désinstallé", shots: shots.sort(recentFirst) });
+    folders.push({ key: `appid:${appid}`, gameId: null, title: t.extras.shots.steamGame(appid), note: t.extras.shots.uninstalled, shots: shots.sort(recentFirst) });
   }
-  if (loose.length) folders.push({ key: "autres", gameId: null, title: "Autres captures", note: null, shots: loose.sort(recentFirst) });
+  if (loose.length) folders.push({ key: "autres", gameId: null, title: t.extras.shots.others, note: null, shots: loose.sort(recentFirst) });
   return folders.filter((f) => f.shots.length > 0);
 }
 
@@ -88,7 +90,17 @@ export interface ShotMonth {
   start: number;
 }
 
-const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+const monthNames = new Map<string, Intl.DateTimeFormat>();
+/** « novembre 2026 », « November 2026 » : format gardé par locale. */
+function monthName(d: Date): string {
+  const loc = locale();
+  let f = monthNames.get(loc);
+  if (!f) {
+    f = new Intl.DateTimeFormat(loc, { month: "long", year: "numeric" });
+    monthNames.set(loc, f);
+  }
+  return f.format(d);
+}
 
 /** Captures (déjà triées) rangées par mois, en heure locale, dans l'ordre reçu. */
 export function byMonth(shots: readonly Screenshot[]): ShotMonth[] {
@@ -99,7 +111,7 @@ export function byMonth(shots: readonly Screenshot[]): ShotMonth[] {
     const last = months[months.length - 1];
     if (last?.key === key) last.shots.push(s);
     else {
-      const label = monthName.format(d);
+      const label = monthName(d);
       months.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1), shots: [s], start: i });
     }
   });
@@ -119,6 +131,5 @@ export function kindCounts(folders: readonly ShotFolder[]): Record<ShotKind, num
 
 /** « 1 capture », « 12 captures », « 3 vidéos », selon le filtre. */
 export function shotCount(n: number, kind: ShotKind = "all"): string {
-  const word = kind === "videos" ? "vidéo" : kind === "images" ? "image" : "capture";
-  return `${n} ${word}${n > 1 ? "s" : ""}`;
+  return t.extras.shots.count(n, kind);
 }

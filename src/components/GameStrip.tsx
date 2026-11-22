@@ -39,6 +39,7 @@ import {
   formatDuration,
   formatPlaytime,
   formatSize,
+  genreLabel,
   installNote,
   relativeDay,
   relativeTime,
@@ -46,6 +47,7 @@ import {
   shortArgs,
 } from "../lib/format";
 import { downloadDetail } from "../lib/install";
+import { live, t } from "../lib/i18n";
 import { remember, remembered } from "../lib/library";
 import { spatialNext, type Direction } from "../lib/spatial";
 import { AchievementList } from "./AchievementList";
@@ -118,17 +120,7 @@ export type FicheEdit = "rename" | "collection";
 /** Onglets de la fiche, dans l'ordre de la barre. */
 const TABS = ["overview", "achievements", "shots", "saves", "sessions", "performance", "journal", "news", "mods"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = {
-  overview: "Aperçu",
-  achievements: "Succès",
-  shots: "Captures",
-  saves: "Sauvegardes",
-  sessions: "Sessions",
-  performance: "Performances",
-  journal: "Journal",
-  news: "Actualités",
-  mods: "Mods",
-};
+const TAB_LABEL: Record<Tab, string> = live(() => t.fiche.tabs);
 /** Onglet retenu entre deux fiches (stockage local, comme les autres préférences d'affichage). */
 const TAB_KEY = "ficheTab";
 
@@ -160,8 +152,8 @@ function TitleEditor({ game, onDone, onRename }: { game: Game; onDone: () => voi
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={onKeyDown}
       onBlur={onDone}
-      aria-label={`Nouveau titre de ${game.title}`}
-      title="Entrée pour valider, Échap pour annuler. Vide : titre d'origine"
+      aria-label={t.fiche.rename.label(game.title)}
+      title={t.fiche.rename.hint}
       spellCheck={false}
     />
   );
@@ -190,12 +182,12 @@ function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["o
   const refusal = game.launchArgsRefusal;
   return (
     <div className="fiche__block">
-      <p className="fiche__label" role="heading" aria-level={3}>Options de lancement</p>
+      <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.args.title}</p>
       {refusal ? (
         <>
           <button type="button" className="strip__note strip__args is-empty" disabled aria-describedby={`args-why-${game.id}`}>
             <SlidersIcon />
-            <span>Indisponibles</span>
+            <span>{t.fiche.args.unavailable}</span>
           </button>
           <p className="strip__args-help" id={`args-why-${game.id}`}>{refusal}</p>
         </>
@@ -205,7 +197,7 @@ function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["o
           className="strip__note-input strip__args-input"
           initial={draft ?? game.launchArgs ?? ""}
           maxLength={MAX_LAUNCH_ARGS}
-          label={`Options de lancement de ${game.title}`}
+          label={t.fiche.args.label(game.title)}
           placeholder={argsExample(game.platform)}
           onSubmit={submit}
           // Appelé juste après `onSubmit` : un refus arrive plus tard et rouvre le champ avec son message.
@@ -220,15 +212,14 @@ function LaunchArgs({ game, onLaunchArgs }: { game: Game; onLaunchArgs: Props["o
           type="button"
           data-nav
           className={`strip__note strip__args ${game.launchArgs ? "" : "is-empty"}`}
-          title={game.launchArgs ? `${game.launchArgs}
-Cliquer pour modifier. Vide : options effacées` : "Ajouter des options de lancement"}
+          title={game.launchArgs ? `${game.launchArgs}\n${t.fiche.args.editHint}` : t.fiche.args.addTitle}
           onClick={() => {
             setError(null);
             setEditing(true);
           }}
         >
           <SlidersIcon />
-          <span>{game.launchArgs ?? "Ajouter des options"}</span>
+          <span>{game.launchArgs ?? t.fiche.args.add}</span>
         </button>
       )}
       {error ? (
@@ -237,8 +228,8 @@ Cliquer pour modifier. Vide : options effacées` : "Ajouter des options de lance
         !refusal &&
         editing && (
           <p className="strip__args-help">
-            Passées au jeu à chaque lancement depuis Ludex, séparées par des espaces, guillemets pour un texte avec espaces.
-            {game.platform === "steam" && " Steam peut demander de confirmer."}
+            {t.fiche.args.help}
+            {game.platform === "steam" && ` ${t.fiche.args.steamConfirm}`}
           </p>
         )
       )}
@@ -268,7 +259,7 @@ function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"
   const text = game.aliases.join(", ");
   return (
     <div className="fiche__block">
-      <p className="fiche__label" role="heading" aria-level={3}>Alias de recherche</p>
+      <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.aliases.title}</p>
       {editing ? (
         <InlineInput
           key={draft ?? ""}
@@ -276,7 +267,7 @@ function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"
           initial={draft ?? text}
           // Huit alias, chacun avec sa virgule et son espace.
           maxLength={MAX_ALIASES * (MAX_ALIAS + 2)}
-          label={`Alias de recherche de ${game.title}`}
+          label={t.fiche.aliases.label(game.title)}
           placeholder="cod, call of duty"
           onSubmit={submit}
           onDone={() => {
@@ -290,14 +281,14 @@ function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"
           type="button"
           data-nav
           className={`strip__note ${text ? "" : "is-empty"}`}
-          title={text ? `${text}\nCliquer pour modifier. Vide : alias effacés` : "Ajouter des alias : d'autres noms sous lesquels la recherche trouve ce jeu"}
+          title={text ? `${text}\n${t.fiche.aliases.editHint}` : t.fiche.aliases.addTitle}
           onClick={() => {
             setError(null);
             setEditing(true);
           }}
         >
           <SearchIcon />
-          <span>{text || "Ajouter des alias"}</span>
+          <span>{text || t.fiche.aliases.add}</span>
         </button>
       )}
       {error ? (
@@ -305,7 +296,7 @@ function Aliases({ game, onAliases }: { game: Game; onAliases: Props["onAliases"
       ) : (
         editing && (
           <p className="strip__args-help">
-            Séparés par des virgules, {MAX_ALIASES} au plus : la recherche les trouve comme le titre, et un alias tapé en entier passe en tête.
+            {t.fiche.aliases.help(MAX_ALIASES)}
           </p>
         )
       )}
@@ -349,16 +340,16 @@ function Genres({ game, onGenres }: { game: Game; onGenres: Props["onGenres"] })
   return (
     <div className="fiche__block">
       <div className="fiche__row">
-        <p className="fiche__label" role="heading" aria-level={3}>Genres</p>
+        <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.genres.title}</p>
         <button type="button" className="fiche__link" data-nav aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {open ? "Fermer" : "Corriger"}
+          {open ? t.fiche.close : t.fiche.genres.fix}
         </button>
       </div>
       {open ? (
         <>
-          {error && <p className="strip__args-error" role="alert">Liste des genres illisible pour l'instant.</p>}
+          {error && <p className="strip__args-error" role="alert">{t.fiche.genres.error}</p>}
           {choices && (
-            <div className="strip__cols" role="group" aria-label={`Genres de ${game.title}, ${MAX_GENRES} au plus`}>
+            <div className="strip__cols" role="group" aria-label={t.fiche.genres.groupLabel(game.title, MAX_GENRES)}>
               {choices.map((g) => {
                 const on = current.includes(g);
                 return (
@@ -369,28 +360,28 @@ function Genres({ game, onGenres }: { game: Game; onGenres: Props["onGenres"] })
                     data-nav
                     aria-pressed={on}
                     disabled={!on && full}
-                    title={!on && full ? `${MAX_GENRES} genres au plus : retire d'abord un genre` : undefined}
+                    title={!on && full ? t.fiche.genres.full(MAX_GENRES) : undefined}
                     onClick={() => toggle(g)}
                   >
-                    {g}
+                    {genreLabel(g)}
                   </button>
                 );
               })}
               {game.customGenres && (
                 <button type="button" className="chip chip--add" data-nav onClick={() => onGenres(game, [])}>
-                  <UndoIcon />Genres d'origine
+                  <UndoIcon />{t.fiche.genres.reset}
                 </button>
               )}
             </div>
           )}
           <p className="strip__args-help">
-            {MAX_GENRES} au plus. {game.customGenres ? "Ton choix remplace les genres de Steam." : "Cocher ou décocher un genre remplace ceux de Steam."}
+            {t.fiche.genres.max(MAX_GENRES)} {game.customGenres ? t.fiche.genres.customHelp : t.fiche.genres.steamHelp}
           </p>
         </>
       ) : (
-        <p className="strip__member" title={game.customGenres ? "Genres choisis par toi" : undefined}>
-          {current.length ? current.join(", ") : "Aucun genre"}
-          {game.customGenres && " (corrigés)"}
+        <p className="strip__member" title={game.customGenres ? t.fiche.genres.chosenByYou : undefined}>
+          {current.length ? current.map(genreLabel).join(", ") : t.fiche.genres.none}
+          {game.customGenres && ` ${t.fiche.genres.corrected}`}
         </p>
       )}
     </div>
@@ -399,9 +390,9 @@ function Genres({ game, onGenres }: { game: Game; onGenres: Props["onGenres"] })
 
 /** D'où vient le temps de jeu affiché, en une phrase. */
 function playtimeOrigin(game: Game): string {
-  if (game.playtimeSource === "launcher") return `Compté par ${PLATFORM_LABEL[game.platform]}, toutes sessions confondues`;
-  if (game.playtimeSource === "ludex") return "Mesuré par Ludex, sur les parties lancées depuis Ludex";
-  return "Ludex mesurera les parties lancées depuis Ludex";
+  if (game.playtimeSource === "launcher") return t.fiche.playtime.launcher(PLATFORM_LABEL[game.platform]);
+  if (game.playtimeSource === "ludex") return t.fiche.playtime.ludex;
+  return t.fiche.playtime.none;
 }
 
 /** « Action, RPG · CD PROJEKT RED · 2020 » et le détail complet au survol. */
@@ -409,11 +400,11 @@ function detailsLine(game: Game): { line: string; title: string } | null {
   const d = game.details;
   if (!d) return null;
   const year = releaseYear(d.releaseDate);
-  const line = [d.genres.join(", "), d.developers[0], year].filter(Boolean).join(" · ");
+  const line = [d.genres.map(genreLabel).join(", "), d.developers[0], year].filter(Boolean).join(" · ");
   const title = [
-    d.developers.length > 0 && `Développement : ${d.developers.join(", ")}`,
-    d.publishers.length > 0 && `Édition : ${d.publishers.join(", ")}`,
-    d.releaseDate && `Sortie : ${formatDate(d.releaseDate)}`,
+    d.developers.length > 0 && t.fiche.details.developers(d.developers.join(", ")),
+    d.publishers.length > 0 && t.fiche.details.publishers(d.publishers.join(", ")),
+    d.releaseDate && t.fiche.details.release(formatDate(d.releaseDate)),
   ]
     .filter(Boolean)
     .join("\n");
@@ -422,7 +413,7 @@ function detailsLine(game: Game): { line: string; title: string } | null {
 
 /** Dernier succès débloqué, au survol de la stat « Succès ». */
 function lastAchievement(lastUnlocked: number | null): string {
-  return lastUnlocked ? `Dernier succès débloqué ${relativeTime(lastUnlocked)}` : "Aucun succès débloqué";
+  return lastUnlocked ? t.fiche.stats.lastUnlocked(relativeTime(lastUnlocked)) : t.fiche.stats.noneUnlocked;
 }
 
 /** Dernière session mesurée par Ludex, relue à l'ouverture de la fiche et à la fin d'une partie. */
@@ -453,16 +444,14 @@ export function lastSessionText(game: Game, last: PastSession | null): { text: s
   // Joué depuis hors de Ludex (date du launcher bien plus récente) : la durée mesurée serait trompeuse.
   // Marge de 10 min : un launcher peut dater la partie de sa fermeture, après le dernier relevé de Ludex.
   if (!last || end + 600 < launcherDate) return { text: relativeTime(game.lastPlayed) };
-  const title = last.launcher
-    ? `Session observée par Ludex. Le temps de jeu reste celui de ${PLATFORM_LABEL[game.platform]}.`
-    : "Session mesurée par Ludex";
+  const title = last.launcher ? t.fiche.session.observed(PLATFORM_LABEL[game.platform]) : t.fiche.session.measured;
   return { text: `${relativeTime(Math.max(end, launcherDate))}, ${formatDuration(last.secs)}`, title };
 }
 
 /** Libellé du retour aux images d'origine, selon ce qui a été remplacé. */
 function resetLabel(custom: ArtKind[]): string {
-  if (custom.length > 1) return "Jaquette et image de fond d'origine";
-  return custom[0] === "hero" ? "Image de fond d'origine" : "Jaquette d'origine";
+  if (custom.length > 1) return t.fiche.art.resetBoth;
+  return custom[0] === "hero" ? t.fiche.art.resetHero : t.fiche.art.resetCover;
 }
 
 /** Captures du jeu (Steam, Xbox Game Bar), relues à l'ouverture de la fiche et à la fin d'une partie. `null` : lecture. */
@@ -544,7 +533,7 @@ const TAB_SHOTS = 12;
 /** Onglet « Captures » : vignettes et visionneuse. */
 function ShotsTab({ game, shots }: { game: Game; shots: Screenshot[] | null }) {
   const [open, setOpen] = useState<number | null>(null);
-  if (!shots) return <p className="fiche__note">Lecture des captures…</p>;
+  if (!shots) return <p className="fiche__note">{t.fiche.shots.loading}</p>;
   const shown = shots.slice(0, TAB_SHOTS);
   const rest = shots.length - shown.length;
   return (
@@ -555,7 +544,7 @@ function ShotsTab({ game, shots }: { game: Game; shots: Screenshot[] | null }) {
             key={s.key}
             shot={s}
             nav
-            label={`Capture ${i + 1} de ${game.title}`}
+            label={t.fiche.shots.label(i + 1, game.title)}
             more={i === shown.length - 1 && rest > 0 ? rest : undefined}
             onOpen={() => setOpen(i)}
           />
@@ -573,27 +562,24 @@ const TAB_SESSIONS = 50;
 
 /** Onglet « Sessions » : historique mesuré par Ludex, la plus récente d'abord. */
 function SessionsTab({ game, history }: { game: Game; history: PastSession[] | null }) {
-  if (!history) return <p className="fiche__note">Lecture de l'historique…</p>;
+  if (!history) return <p className="fiche__note">{t.fiche.sessions.loading}</p>;
   const total = history.reduce((n, s) => n + s.secs, 0);
-  const plural = history.length > 1 ? "s" : "";
   return (
     <>
-      <p className="fiche__note">
-        {history.length} session{plural} lancée{plural} depuis Ludex, {formatDuration(total)} au total
-      </p>
-      <ol className="sessions" aria-label={`Sessions de ${game.title}`}>
+      <p className="fiche__note">{t.fiche.sessions.summary(history.length, formatDuration(total))}</p>
+      <ol className="sessions" aria-label={t.fiche.sessions.label(game.title)}>
         {history.slice(0, TAB_SESSIONS).map((s) => (
           <li
             key={`${s.start}-${s.secs}`}
             className="sessions__row"
-            title={s.launcher ? `Session observée par Ludex. Le temps de jeu reste celui de ${PLATFORM_LABEL[game.platform]}.` : undefined}
+            title={s.launcher ? t.fiche.session.observed(PLATFORM_LABEL[game.platform]) : undefined}
           >
-            <span>{s.merged ? `${formatDate(s.start)}, plusieurs sessions` : formatDateTime(s.start)}</span>
+            <span>{s.merged ? t.fiche.sessions.merged(formatDate(s.start)) : formatDateTime(s.start)}</span>
             <span className="sessions__secs">{formatDuration(s.secs)}</span>
           </li>
         ))}
       </ol>
-      {history.length > TAB_SESSIONS && <p className="fiche__note">Les {history.length - TAB_SESSIONS} plus anciennes sont dans son journal.</p>}
+      {history.length > TAB_SESSIONS && <p className="fiche__note">{t.fiche.sessions.older(history.length - TAB_SESSIONS)}</p>}
     </>
   );
 }
@@ -615,11 +601,11 @@ function JournalTab({ game, playing, onJournal }: { game: Game; playing: boolean
   }, [game.id, playing, game.achievements?.unlocked]);
   return (
     <>
-      {days === null && <p className="fiche__note">Lecture du journal…</p>}
-      {days === "error" && <p className="fiche__note">Journal illisible pour l'instant</p>}
-      {Array.isArray(days) && days.length === 0 && <p className="fiche__note">Rien dans son journal pour l'instant</p>}
+      {days === null && <p className="fiche__note">{t.fiche.journal.loading}</p>}
+      {days === "error" && <p className="fiche__note">{t.fiche.journal.error}</p>}
+      {Array.isArray(days) && days.length === 0 && <p className="fiche__note">{t.fiche.journal.empty}</p>}
       {Array.isArray(days) && days.length > 0 && (
-        <ol className="sessions" aria-label={`Derniers jours de ${game.title}`}>
+        <ol className="sessions" aria-label={t.fiche.journal.label(game.title)}>
           {days.map((d) => {
             const entry = d.games.find((g) => g.gameId === game.id);
             return (
@@ -633,7 +619,7 @@ function JournalTab({ game, playing, onJournal }: { game: Game; playing: boolean
         </ol>
       )}
       <button type="button" className="btn-ghost fiche__more" data-nav onClick={() => onJournal(game)}>
-        <JournalIcon /> Voir tout son journal
+        <JournalIcon /> {t.fiche.journal.all}
       </button>
     </>
   );
@@ -642,8 +628,8 @@ function JournalTab({ game, playing, onJournal }: { game: Game; playing: boolean
 /** Temps restant pour l'histoire, d'après la moyenne HowLongToBeat et le temps de jeu connu. */
 export function storyLeft(main: number | null, played: number | null): string | null {
   if (main === null || played === null) return null;
-  if (played >= main) return "Temps moyen de l'histoire atteint";
-  return `Encore environ ${formatPlaytime(Math.max(main - played, 1))} pour l'histoire`;
+  if (played >= main) return t.fiche.lifespan.reached;
+  return t.fiche.lifespan.left(formatPlaytime(Math.max(main - played, 1)));
 }
 
 /** Bloc « Durée de vie » : trois barres remplies selon le temps de jeu. Rien sans données. */
@@ -652,14 +638,14 @@ function Lifespan({ game }: { game: Game }) {
   if (!h) return null;
   const played = game.playtimeMinutes;
   const rows: [string, number | null][] = [
-    ["Histoire", h.main],
-    ["+ Extras", h.plus],
-    ["100 %", h.full],
+    [t.fiche.lifespan.main, h.main],
+    [t.fiche.lifespan.plus, h.plus],
+    [t.fiche.lifespan.full, h.full],
   ];
   const left = storyLeft(h.main, played);
   return (
-    <div className="lifespan" title={`Moyennes HowLongToBeat pour « ${h.name} »`}>
-      <p className="lifespan__head" role="heading" aria-level={3}>Durée de vie</p>
+    <div className="lifespan" title={t.fiche.lifespan.source(h.name)}>
+      <p className="lifespan__head" role="heading" aria-level={3}>{t.fiche.lifespan.title}</p>
       {rows.map(([label, target]) => {
         const ratio = target && played ? Math.min(played / target, 1) : 0;
         return (
@@ -668,7 +654,7 @@ function Lifespan({ game }: { game: Game }) {
             <span className="lifespan__track" aria-hidden="true">
               <span className="lifespan__fill" style={{ width: `${ratio * 100}%` }} />
             </span>
-            <span className="lifespan__value">{target === null ? "inconnu" : formatPlaytime(target)}</span>
+            <span className="lifespan__value">{target === null ? t.fiche.lifespan.unknown : formatPlaytime(target)}</span>
           </div>
         );
       })}
@@ -809,13 +795,13 @@ export function GameStrip({
   const tabId = (t: Tab) => `fiche-${t}`;
 
   return (
-    <section className="strip" aria-label={`Fiche de ${game.title}`} style={{ ["--notch" as string]: `${notch}px` }}>
+    <section className="strip" aria-label={t.fiche.ariaLabel(game.title)} style={{ ["--notch" as string]: `${notch}px` }}>
       <header className="strip__hero" data-nav-zone="hero">
         <Art game={game} className="strip__art" />
         <div className="strip__head">
           <div className="strip__eyebrow">
-            <span className="eyebrow"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}{game.isTool ? " · Application" : ""}</span>
-            {playing && <span className="live">En jeu</span>}
+            <span className="eyebrow"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}{game.isTool ? ` · ${t.fiche.application}` : ""}</span>
+            {playing && <span className="live">{t.fiche.inGame}</span>}
           </div>
           {renaming ? (
             <TitleEditor game={game} onRename={onRename} onDone={() => setRenaming(false)} />
@@ -824,14 +810,14 @@ export function GameStrip({
           )}
           {details && <p className="strip__meta" title={details.title}>{details.line}</p>}
           <div className="strip__acts">
-            <button type="button" className="btn-play" data-nav onClick={() => onPlay(game)}><PlayIcon /> Jouer</button>
+            <button type="button" className="btn-play" data-nav onClick={() => onPlay(game)}><PlayIcon /> {t.fiche.play}</button>
             <button
               type="button"
               className="btn-icon"
               data-nav
               aria-pressed={game.favorite}
-              aria-label={game.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-              title={game.favorite ? "Retirer des favoris (Ctrl+D)" : "Ajouter aux favoris (Ctrl+D)"}
+              aria-label={game.favorite ? t.fiche.favoriteRemove : t.fiche.favoriteAdd}
+              title={game.favorite ? t.fiche.favoriteRemoveTitle : t.fiche.favoriteAddTitle}
               onClick={() => onFavorite(game)}
             >
               <StarIcon filled={game.favorite} />
@@ -842,24 +828,24 @@ export function GameStrip({
       </header>
 
       <dl className="stats strip__stats">
-        <div title={playtimeOrigin(game)}><dt>Temps de jeu</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
-        <div title={lastSession.title}><dt>Dernière session</dt><dd>{lastSession.text}</dd></div>
+        <div title={playtimeOrigin(game)}><dt>{t.fiche.stats.playtime}</dt><dd>{formatPlaytime(game.playtimeMinutes)}</dd></div>
+        <div title={lastSession.title}><dt>{t.fiche.stats.lastSession}</dt><dd>{lastSession.text}</dd></div>
         {achievements && (
           <div title={lastAchievement(achievements.lastUnlocked)}>
-            <dt>Succès</dt><dd>{formatAchievements(achievements.unlocked, achievements.total)}</dd>
+            <dt>{t.fiche.stats.achievements}</dt><dd>{formatAchievements(achievements.unlocked, achievements.total)}</dd>
           </div>
         )}
         {lifespan && (
-          <div title={`Histoire, moyenne HowLongToBeat pour « ${game.hltb!.name} »`}>
-            <dt>Durée de vie</dt><dd>{lifespan}</dd>
+          <div title={t.fiche.stats.lifespanTitle(game.hltb!.name)}>
+            <dt>{t.fiche.stats.lifespan}</dt><dd>{lifespan}</dd>
           </div>
         )}
-        <div><dt>Taille</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
+        <div><dt>{t.fiche.stats.size}</dt><dd>{formatSize(game.sizeOnDisk)}</dd></div>
       </dl>
 
       <div className="strip__body">
         <div className="strip__main" data-nav-zone="main">
-          <div className="fiche__tabs" role="tablist" aria-label="Onglets de la fiche">
+          <div className="fiche__tabs" role="tablist" aria-label={t.fiche.tabsLabel}>
             {tabs.map((t) => (
               <button
                 key={t}
@@ -885,42 +871,42 @@ export function GameStrip({
               <>
                 {d?.description && <p className="fiche__desc">{d.description}</p>}
                 {(moods.length > 0 || tags.length > 0) && (
-                  <ul className="chips" aria-label="Ambiances et tags Steam">
+                  <ul className="chips" aria-label={t.fiche.overview.chips}>
                     {moods.map((m) => (
                       <li key={m}>
-                        <button type="button" className="chip is-mood" data-nav title={`Jeux de l'ambiance « ${MOOD_LABEL[m]} »`} onClick={() => onMood(m)}>{MOOD_LABEL[m]}</button>
+                        <button type="button" className="chip is-mood" data-nav title={t.fiche.overview.moodTitle(MOOD_LABEL[m])} onClick={() => onMood(m)}>{MOOD_LABEL[m]}</button>
                       </li>
                     ))}
-                    {tags.map((t) => (
-                      <li key={t}>
-                        <button type="button" className="chip" data-nav title={`Jeux du tag « ${t} »`} onClick={() => onTag(t)}>{t}</button>
+                    {tags.map((tag) => (
+                      <li key={tag}>
+                        <button type="button" className="chip" data-nav title={t.fiche.overview.tagTitle(tag)} onClick={() => onTag(tag)}>{tag}</button>
                       </li>
                     ))}
                   </ul>
                 )}
                 <dl className="fiche__facts">
                   {d && d.genres.length > 0 && (
-                    <div title={game.customGenres ? "Genres choisis par toi à la place de ceux de Steam" : undefined}>
-                      <dt>Genres</dt><dd>{d.genres.join(", ")}</dd>
+                    <div title={game.customGenres ? t.fiche.overview.genresCustom : undefined}>
+                      <dt>{t.fiche.overview.genres}</dt><dd>{d.genres.map(genreLabel).join(", ")}</dd>
                     </div>
                   )}
-                  {d && d.developers.length > 0 && <div><dt>Studio</dt><dd>{d.developers.join(", ")}</dd></div>}
-                  {d && d.publishers.length > 0 && <div><dt>Édition</dt><dd>{d.publishers.join(", ")}</dd></div>}
-                  {d?.releaseDate && <div><dt>Sortie</dt><dd title={formatDate(d.releaseDate)}>{releaseYear(d.releaseDate)}</dd></div>}
+                  {d && d.developers.length > 0 && <div><dt>{t.fiche.overview.studio}</dt><dd>{d.developers.join(", ")}</dd></div>}
+                  {d && d.publishers.length > 0 && <div><dt>{t.fiche.overview.publisher}</dt><dd>{d.publishers.join(", ")}</dd></div>}
+                  {d?.releaseDate && <div><dt>{t.fiche.overview.release}</dt><dd title={formatDate(d.releaseDate)}>{releaseYear(d.releaseDate)}</dd></div>}
                   {d?.controller && (
-                    <div title="Prise en charge annoncée par la boutique Steam">
-                      <dt>Manette</dt><dd>{d.controller === "full" ? "Complète" : "Partielle"}</dd>
+                    <div title={t.fiche.overview.controllerTitle}>
+                      <dt>{t.fiche.overview.controller}</dt><dd>{d.controller === "full" ? t.fiche.overview.controllerFull : t.fiche.overview.controllerPartial}</dd>
                     </div>
                   )}
-                  <div><dt>Launcher</dt><dd className="with-icon"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</dd></div>
+                  <div><dt>{t.fiche.overview.launcher}</dt><dd className="with-icon"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</dd></div>
                   {game.launchArgs && (
                     <div className="is-wide" title={game.launchArgs}>
-                      <dt>Options</dt><dd className="args">{shortArgs(game.launchArgs, 60)}</dd>
+                      <dt>{t.fiche.overview.options}</dt><dd className="args">{shortArgs(game.launchArgs, 60)}</dd>
                     </div>
                   )}
-                  {game.installDir && <div className="is-wide"><dt>Dossier</dt><dd className="path" title={game.installDir}>{game.installDir}</dd></div>}
+                  {game.installDir && <div className="is-wide"><dt>{t.fiche.overview.folder}</dt><dd className="path" title={game.installDir}>{game.installDir}</dd></div>}
                 </dl>
-                {!steamFiche && <p className="fiche__note">Pas de fiche Steam pour ce jeu : ni description, ni {game.customGenres ? "" : "genres, ni "}tags.</p>}
+                {!steamFiche && <p className="fiche__note">{t.fiche.overview.noFiche(!!game.customGenres)}</p>}
                 <RequirementsPanel key={`reqs-${game.id}`} gameId={game.id} />
               </>
             )}
@@ -935,17 +921,17 @@ export function GameStrip({
           </div>
         </div>
 
-        <aside className="strip__side" data-nav-zone="side" aria-label="Suivi et actions">
+        <aside className="strip__side" data-nav-zone="side" aria-label={t.fiche.side.label}>
           <div className="fiche__block">
-            <p className="fiche__label" role="heading" aria-level={3}>Progression</p>
-            <div className="seg strip__status" role="group" aria-label="Progression">
+            <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.side.progress}</p>
+            <div className="seg strip__status" role="group" aria-label={t.fiche.side.progress}>
               {STATUSES.map((s) => (
                 <button
                   key={s}
                   type="button"
                   data-nav
                   aria-pressed={game.status === s}
-                  title={game.status === s ? "Cliquer de nouveau retire le statut" : undefined}
+                  title={game.status === s ? t.fiche.side.statusAgain : undefined}
                   onClick={() => onStatus(game, game.status === s ? null : s)}
                 >
                   {STATUS_LABEL[s]}
@@ -957,8 +943,8 @@ export function GameStrip({
                 className="strip__note-input"
                 initial={game.note ?? ""}
                 maxLength={MAX_NOTE}
-                label={`Note sur ${game.title}`}
-                placeholder="Une note pour toi : où tu en es, ce qu'il reste à faire…"
+                label={t.fiche.note.label(game.title)}
+                placeholder={t.fiche.note.placeholder}
                 onSubmit={(note) => onNote(game, note)}
                 onDone={() => setEditingNote(false)}
               />
@@ -967,18 +953,18 @@ export function GameStrip({
                 type="button"
                 data-nav
                 className={`strip__note ${game.note ? "" : "is-empty"}`}
-                title={game.note ? `${game.note}\nCliquer pour modifier. Vide : note effacée` : "Ajouter une note perso"}
+                title={game.note ? `${game.note}\n${t.fiche.note.editHint}` : t.fiche.note.addTitle}
                 onClick={() => setEditingNote(true)}
               >
                 <NoteIcon />
-                <span>{game.note ?? "Ajouter une note"}</span>
+                <span>{game.note ?? t.fiche.note.add}</span>
               </button>
             )}
           </div>
 
           <div className="fiche__block">
             <div className="fiche__row">
-              <p className="fiche__label" role="heading" aria-level={3}>Collections</p>
+              <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.collections.title}</p>
               <button
                 type="button"
                 className="fiche__link"
@@ -986,11 +972,11 @@ export function GameStrip({
                 aria-expanded={showCollections}
                 onClick={() => setShowCollections((v) => !v)}
               >
-                {showCollections ? "Fermer" : member.length ? "Modifier" : "Ajouter"}
+                {showCollections ? t.fiche.close : member.length ? t.fiche.collections.edit : t.fiche.collections.add}
               </button>
             </div>
             {showCollections ? (
-              <div className="strip__cols" role="group" aria-label="Collections">
+              <div className="strip__cols" role="group" aria-label={t.fiche.collections.title}>
                 {collections.map((c) => {
                   const inside = c.games.includes(game.id);
                   return (
@@ -1003,19 +989,19 @@ export function GameStrip({
                   <InlineInput
                     className="chip chip--input"
                     maxLength={MAX_COLLECTION_NAME}
-                    label="Nom de la nouvelle collection"
-                    placeholder="Nom de la collection"
+                    label={t.fiche.collections.newLabel}
+                    placeholder={t.fiche.collections.newPlaceholder}
                     onSubmit={(name) => onCreateCollection(name, game)}
                     onDone={() => setCreating(false)}
                   />
                 ) : (
                   <button type="button" className="chip chip--add" data-nav onClick={() => setCreating(true)}>
-                    <PlusIcon />Nouvelle collection
+                    <PlusIcon />{t.fiche.collections.create}
                   </button>
                 )}
               </div>
             ) : (
-              <p className="strip__member">{member.length ? member.map((c) => `« ${c.name} »`).join(", ") : "Dans aucune collection"}</p>
+              <p className="strip__member">{member.length ? member.map((c) => t.fiche.collections.quoted(c.name)).join(", ") : t.fiche.collections.none}</p>
             )}
           </div>
 
@@ -1032,18 +1018,18 @@ export function GameStrip({
           <LaunchArgs game={game} onLaunchArgs={onLaunchArgs} />
 
           <div className="fiche__block">
-            <p className="fiche__label" role="heading" aria-level={3}>Actions</p>
+            <p className="fiche__label" role="heading" aria-level={3}>{t.fiche.actions.title}</p>
             <div className="strip__tools">
               {game.installDir && (
-                <button type="button" className="btn-icon" data-nav aria-label="Ouvrir le dossier" title="Ouvrir le dossier" onClick={() => onOpenFolder(game)}>
+                <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.openFolder} title={t.fiche.actions.openFolder} onClick={() => onOpenFolder(game)}>
                   <FolderIcon />
                 </button>
               )}
-              <button type="button" className="btn-icon" data-nav aria-label="Créer un raccourci sur le Bureau" title="Créer un raccourci sur le Bureau" onClick={() => onShortcut(game)}>
+              <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.shortcut} title={t.fiche.actions.shortcut} onClick={() => onShortcut(game)}>
                 <ShortcutIcon />
               </button>
               {game.platform === "other" && (
-                <button type="button" className="btn-icon" data-nav aria-label="Changer l'exécutable" title="Changer l'exécutable" onClick={() => onChangeExe(game)}>
+                <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.changeExe} title={t.fiche.actions.changeExe} onClick={() => onChangeExe(game)}>
                   <FileIcon />
                 </button>
               )}
@@ -1052,18 +1038,18 @@ export function GameStrip({
                 className="btn-icon"
                 data-nav
                 aria-pressed={renaming}
-                aria-label="Renommer"
-                title="Renommer"
+                aria-label={t.fiche.actions.rename}
+                title={t.fiche.actions.rename}
                 // Sans ceci, le clic ferme d'abord l'éditeur (perte du focus) puis le rouvre.
                 onMouseDown={(e) => renaming && e.preventDefault()}
                 onClick={() => setRenaming((r) => !r)}
               >
                 <PencilIcon />
               </button>
-              <button type="button" className="btn-icon" data-nav aria-label="Changer la jaquette" title="Changer la jaquette" onClick={() => onChooseArt(game, "cover")}>
+              <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.cover} title={t.fiche.actions.cover} onClick={() => onChooseArt(game, "cover")}>
                 <ImageIcon />
               </button>
-              <button type="button" className="btn-icon" data-nav aria-label="Changer l'image de fond" title="Changer l'image de fond" onClick={() => onChooseArt(game, "hero")}>
+              <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.hero} title={t.fiche.actions.hero} onClick={() => onChooseArt(game, "hero")}>
                 <WideImageIcon />
               </button>
               {game.customArt.length > 0 && (
@@ -1075,14 +1061,14 @@ export function GameStrip({
                 type="button"
                 className="btn-icon"
                 data-nav
-                aria-label={game.hidden ? "Ne plus masquer" : "Masquer de la bibliothèque"}
-                title={game.hidden ? "Ne plus masquer" : "Masquer de la bibliothèque"}
+                aria-label={game.hidden ? t.fiche.actions.unhide : t.fiche.actions.hide}
+                title={game.hidden ? t.fiche.actions.unhide : t.fiche.actions.hide}
                 onClick={() => onHide(game)}
               >
                 <EyeOffIcon />
               </button>
               {game.manual && (
-                <button type="button" className="btn-icon" data-nav aria-label="Retirer de la bibliothèque" title="Retirer de la bibliothèque" onClick={() => onRemove(game)}>
+                <button type="button" className="btn-icon" data-nav aria-label={t.fiche.actions.remove} title={t.fiche.actions.remove} onClick={() => onRemove(game)}>
                   <TrashIcon />
                 </button>
               )}
@@ -1091,7 +1077,7 @@ export function GameStrip({
         </aside>
       </div>
 
-      <button type="button" className="strip__close" aria-label="Fermer la fiche" title="Fermer (Échap)" onClick={onClose}>
+      <button type="button" className="strip__close" aria-label={t.fiche.closeFiche} title={t.fiche.closeTitle} onClick={onClose}>
         <CloseIcon />
       </button>
     </section>

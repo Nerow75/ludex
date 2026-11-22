@@ -6,6 +6,8 @@
 //   existe, sinon le cumul mesuré par Ludex (`playtimeSource`). Sert au top, aux launchers et aux genres ;
 // - `StatsInfo.months` : sessions de `sessions.json`, découpées au fuseau local. Sert aux mois et aux séries.
 import { PLATFORM_LABEL, type Game, type Platform, type PlaytimeSource, type StatsInfo } from "./api";
+import { genreLabel } from "./format";
+import { locale, t } from "./i18n";
 
 /** Taille du classement des jeux. */
 export const TOP_GAMES = 10;
@@ -14,7 +16,16 @@ export const TOP_GAMES = 10;
 export const countedGames = (games: readonly Game[]): Game[] => games.filter((g) => !g.hidden && !g.isTool);
 
 const minutes = (g: Game) => (g.playtimeMinutes !== null && g.playtimeMinutes >= 1 ? g.playtimeMinutes : 0);
-const byTitle = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
+/** Ordre des titres de la langue actuelle (un `Intl.Collator` par locale). */
+const collators = new Map<string, Intl.Collator>();
+function byTitle(): Intl.Collator {
+  let c = collators.get(locale());
+  if (!c) {
+    c = new Intl.Collator(locale(), { sensitivity: "base", numeric: true });
+    collators.set(locale(), c);
+  }
+  return c;
+}
 
 export interface PlaytimeTotals {
   /** Somme des temps de chaque jeu (une seule source par jeu). */
@@ -48,16 +59,16 @@ export function playtimeTotals(games: readonly Game[]): PlaytimeTotals {
 export function topGames(games: readonly Game[], count = TOP_GAMES): Game[] {
   return countedGames(games)
     .filter((g) => minutes(g) > 0)
-    .sort((a, b) => minutes(b) - minutes(a) || byTitle.compare(a.title, b.title))
+    .sort((a, b) => minutes(b) - minutes(a) || byTitle().compare(a.title, b.title))
     .slice(0, count);
 }
 
 /** « Steam », « GOG Galaxy », « Mesuré par Ludex » : d'où vient le temps d'un jeu. */
 export function sourceLabel(game: Game): string {
   const source: PlaytimeSource | null = game.playtimeSource;
-  if (source === "ludex") return "Mesuré par Ludex";
+  if (source === "ludex") return t.activity.stats.trackedByLudex;
   if (source === "launcher") return game.platform === "gog" ? "GOG Galaxy" : PLATFORM_LABEL[game.platform];
-  return "Non mesuré";
+  return t.activity.stats.notTracked;
 }
 
 export interface Share<K> {
@@ -83,7 +94,7 @@ export function launcherShares(games: readonly Game[]): Share<Platform>[] {
   const total = [...map.values()].reduce((n, s) => n + s.minutes, 0);
   return [...map.values()]
     .map((s) => ({ ...s, share: total > 0 ? s.minutes / total : 0 }))
-    .sort((a, b) => b.minutes - a.minutes || a.label.localeCompare(b.label, "fr"));
+    .sort((a, b) => b.minutes - a.minutes || byTitle().compare(a.label, b.label));
 }
 
 export interface GenreStats {
@@ -107,7 +118,7 @@ export function genreStats(games: readonly Game[]): GenreStats {
       continue;
     }
     for (const name of new Set(genres)) {
-      const s = map.get(name) ?? { key: name, label: name, minutes: 0, games: 0, share: 0 };
+      const s = map.get(name) ?? { key: name, label: genreLabel(name), minutes: 0, games: 0, share: 0 };
       s.minutes += minutes(g);
       s.games += 1;
       map.set(name, s);
@@ -116,7 +127,7 @@ export function genreStats(games: readonly Game[]): GenreStats {
   const max = Math.max(0, ...[...map.values()].map((s) => s.minutes));
   const genres = [...map.values()]
     .map((s) => ({ ...s, share: max > 0 ? s.minutes / max : 0 }))
-    .sort((a, b) => b.minutes - a.minutes || b.games - a.games || a.label.localeCompare(b.label, "fr"));
+    .sort((a, b) => b.minutes - a.minutes || b.games - a.games || byTitle().compare(a.label, b.label));
   return { genres, withoutGenre };
 }
 
@@ -129,8 +140,16 @@ export interface MonthBar {
   current: boolean;
 }
 
-const monthShort = new Intl.DateTimeFormat("fr-FR", { month: "short" });
-const monthLong = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+/** Formats des mois de la langue actuelle, gardés par locale. */
+const monthFormats = new Map<string, { short: Intl.DateTimeFormat; long: Intl.DateTimeFormat }>();
+function monthFormat() {
+  let f = monthFormats.get(locale());
+  if (!f) {
+    f = { short: new Intl.DateTimeFormat(locale(), { month: "short" }), long: new Intl.DateTimeFormat(locale(), { month: "long", year: "numeric" }) };
+    monthFormats.set(locale(), f);
+  }
+  return f;
+}
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Date du 1er d'un mois `AAAA-MM` (heure locale). */
@@ -141,11 +160,12 @@ export function parseMonth(month: string): Date {
 
 /** Barres d'un histogramme mensuel ; le dernier mois est le mois en cours. */
 export function monthBars(months: StatsInfo["months"], pick: (m: StatsInfo["months"][number]) => number): MonthBar[] {
+  const f = monthFormat();
   return months.map((m, i) => {
     const d = parseMonth(m.month);
     return {
-      label: monthShort.format(d).replace(".", ""),
-      title: capitalize(monthLong.format(d)),
+      label: f.short.format(d).replace(".", ""),
+      title: capitalize(f.long.format(d)),
       value: pick(m),
       current: i === months.length - 1,
     };

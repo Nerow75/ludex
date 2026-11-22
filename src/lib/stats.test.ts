@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { StatsInfo } from "./api";
 import { countedGames, genreStats, launcherShares, monthBars, parseMonth, peak, playtimeTotals, sourceLabel, statsEmpty, topGames } from "./stats";
 import { fiche, jeu } from "../test/jeu";
+import { setLang } from "./i18n";
 
 const infoVide = (): StatsInfo => ({
   months: Array.from({ length: 12 }, (_, i) => ({ month: `2026-${String(i + 1).padStart(2, "0")}`, secs: 0, sessions: 0, days: 0, achievements: 0 })),
@@ -137,5 +138,45 @@ describe("état vide", () => {
     expect(statsEmpty([], { ...info, historySessions: 1 })).toBe(false);
     info.months[0].achievements = 1;
     expect(statsEmpty([], info)).toBe(false);
+  });
+});
+
+describe("statistiques en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("provenance du temps", () => {
+    setLang("en");
+    expect(sourceLabel(jeu({ playtimeSource: "launcher" }))).toBe("Steam");
+    expect(sourceLabel(jeu({ playtimeSource: "launcher", platform: "gog" }))).toBe("GOG Galaxy");
+    expect(sourceLabel(jeu({ playtimeSource: "ludex", platform: "epic" }))).toBe("Tracked by Ludex");
+    expect(sourceLabel(jeu())).toBe("Not tracked");
+    expect(launcherShares([jeu({ platform: "other", playtimeMinutes: 30, playtimeSource: "ludex" })])[0].label).toBe("Other");
+  });
+
+  it("genres affichés en anglais, nom français gardé comme clé", () => {
+    setLang("en");
+    const games = [
+      jeu({ playtimeMinutes: 600, details: fiche({ genres: ["RPG", "Action"] }) }),
+      jeu({ playtimeMinutes: 200, details: fiche({ genres: ["Action"] }) }),
+      jeu({ playtimeMinutes: 50, details: fiche({ genres: ["Course"] }) }),
+      jeu({ playtimeMinutes: null, details: fiche({ genres: ["Stratégie"] }) }),
+    ];
+    expect(genreStats(games).genres.map((g) => [g.key, g.label])).toEqual([
+      ["Action", "Action"],
+      ["RPG", "RPG"],
+      ["Course", "Racing"],
+      ["Stratégie", "Strategy"],
+    ]);
+  });
+
+  it("mois en anglais", () => {
+    setLang("en");
+    const info = infoVide();
+    info.months[3].secs = 500;
+    info.months[7].secs = 500;
+    const bars = monthBars(info.months, (m) => m.secs);
+    expect(bars[0]).toMatchObject({ label: "Jan", title: "January 2026" });
+    expect(bars[11].label).toBe("Dec");
+    expect(peak(bars)?.title).toBe("August 2026");
   });
 });

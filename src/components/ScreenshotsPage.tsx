@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
-import { allScreenshots, type Screenshot } from "../lib/api";
+import { allScreenshots, type Screenshot, type ScreenshotGroup } from "../lib/api";
 import { formatDate } from "../lib/format";
+import { locale, t, useLang } from "../lib/i18n";
 import { remember, remembered } from "../lib/library";
 import {
   SHOT_KINDS,
@@ -23,9 +24,17 @@ interface Props {
   onOpenGame?: (gameId: string) => void;
 }
 
-const short = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-/** « 27 oct. 2026 » : date de la plus récente dans la liste, où la place manque. */
-const shortDate = (ts: number) => short.format(new Date(ts * 1000));
+const shortFormats = new Map<string, Intl.DateTimeFormat>();
+/** « 27 oct. 2026 », « Oct 27, 2026 » : date de la plus récente dans la liste, où la place manque. */
+function shortDate(ts: number): string {
+  const loc = locale();
+  let f = shortFormats.get(loc);
+  if (!f) {
+    f = new Intl.DateTimeFormat(loc, { day: "numeric", month: "short", year: "numeric" });
+    shortFormats.set(loc, f);
+  }
+  return f.format(new Date(ts * 1000));
+}
 
 /** Entrée « Toutes les captures » en tête de la liste. */
 const ALL = "*";
@@ -42,7 +51,10 @@ let lastFolder = ALL;
  * s'ouvre aussitôt, Entrée (A) passe à sa première capture.
  */
 export function ScreenshotsPage({ onOpenGame }: Props) {
-  const [folders, setFolders] = useState<ShotFolder[] | null>(null);
+  // Groupes reçus de Rust ; les dossiers (« Jeu Steam 218 », « Autres captures ») sont refaits au changement de langue.
+  const lang = useLang();
+  const [groups, setGroups] = useState<ScreenshotGroup[] | null>(null);
+  const folders = useMemo<ShotFolder[] | null>(() => (groups ? shotFolders(groups) : null), [groups, lang]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<ShotSort>(() => remembered("shotsSort", SHOT_SORTS.map((s) => s.id), "recent"));
@@ -58,7 +70,7 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
     setError(null);
     allScreenshots()
       .then((g) => {
-        setFolders(shotFolders(g));
+        setGroups(g);
         setOpen(null);
       })
       .catch((e) => setError(String(e)))
@@ -83,7 +95,8 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
     for (const f of list) for (const s of f.shots) m.set(s.key, f.title);
     return m;
   }, [list]);
-  const label = (s: Screenshot) => titleOf.get(s.key) ?? "Captures";
+  const text = t.extras.shots;
+  const label = (s: Screenshot) => titleOf.get(s.key) ?? text.title;
 
   const choose = (next: string) => {
     lastFolder = next;
@@ -137,13 +150,13 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
   const viewed = open !== null ? shots[open] : undefined;
 
   return (
-    <section className="shots-page" aria-label="Captures" aria-busy={loading} data-nav-2d>
+    <section className="shots-page" aria-label={text.title} aria-busy={loading} data-nav-2d>
       <div className="bar">
         <h2>
-          Captures{folders && <span><span className="sr-only">, </span>{shotCount(total)}</span>}
+          {text.title}{folders && <span><span className="sr-only">, </span>{shotCount(total)}</span>}
         </h2>
         {showKinds && (
-          <div className="seg" role="group" aria-label="Genre de capture">
+          <div className="seg" role="group" aria-label={text.kindGroup}>
             {SHOT_KINDS.map((k) => (
               <button key={k.id} type="button" data-nav aria-pressed={k.id === kind} onClick={() => chooseKind(k.id)}>
                 {k.label} <em>{counts[k.id]}</em>
@@ -152,7 +165,7 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
           </div>
         )}
         {list.length > 1 && (
-          <div className="seg" role="group" aria-label="Trier les jeux">
+          <div className="seg" role="group" aria-label={text.sortGroup}>
             {SHOT_SORTS.map((s) => (
               <button key={s.id} type="button" data-nav aria-pressed={s.id === sort} onClick={() => chooseSort(s.id)}>
                 {s.label}
@@ -160,7 +173,7 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
             ))}
           </div>
         )}
-        <button type="button" className="btn-icon" data-nav aria-label="Relire les captures" title="Relire les captures" disabled={loading} onClick={load}>
+        <button type="button" className="btn-icon" data-nav aria-label={text.reload} title={text.reload} disabled={loading} onClick={load}>
           <RefreshIcon />
         </button>
       </div>
@@ -170,18 +183,18 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
       {folders && total === 0 && (
         <div className="empty" role="status">
           <span className="empty__icon"><ImageIcon /></span>
-          <h3>Aucune capture</h3>
-          <p>Ludex lit les captures de Steam (F12 en jeu) et celles de la Xbox Game Bar (Win+Alt+Impr. écran).</p>
+          <h3>{text.none}</h3>
+          <p>{text.noneText}</p>
         </div>
       )}
 
       {total > 0 && (
         <div className="shots-layout">
-          <nav className="shots-list" ref={listRef} aria-label="Jeux" onFocus={onListFocus}>
+          <nav className="shots-list" ref={listRef} aria-label={text.games} onFocus={onListFocus}>
             <FolderButton
               id={ALL}
-              title="Toutes les captures"
-              hint="Toutes les captures"
+              title={text.all}
+              hint={text.all}
               meta={shotCount(every.length, activeKind)}
               shot={every[0]}
               current={key === ALL}
@@ -206,13 +219,13 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
 
           <div className="shots-main" ref={mainRef}>
             <header className="shots-main__head">
-              <h3>{folder ? folder.title : "Toutes les captures"}</h3>
+              <h3>{folder ? folder.title : text.all}</h3>
               <span className="eyebrow">
-                {[folder?.note, shotCount(shots.length, activeKind), shots[0] && `la plus récente le ${formatDate(shots[0].taken)}`].filter(Boolean).join(" · ")}
+                {[folder?.note, shotCount(shots.length, activeKind), shots[0] && text.latest(formatDate(shots[0].taken))].filter(Boolean).join(" · ")}
               </span>
               {folder?.gameId && onOpenGame && (
                 <button type="button" className="btn-ghost shots-main__open" data-nav onClick={() => onOpenGame(folder.gameId!)}>
-                  Voir la fiche
+                  {text.viewDetails}
                 </button>
               )}
             </header>
@@ -225,7 +238,7 @@ export function ScreenshotsPage({ onOpenGame }: Props) {
                   </h4>
                   <div className="shots-row">
                     {m.shots.map((s, i) => (
-                      <ShotTile key={s.key} shot={s} nav label={`Capture de ${label(s)}, ${formatDate(s.taken)}`} onOpen={() => setOpen(m.start + i)} />
+                      <ShotTile key={s.key} shot={s} nav label={t.extras.viewer.shotOf(label(s), formatDate(s.taken))} onOpen={() => setOpen(m.start + i)} />
                     ))}
                   </div>
                 </section>

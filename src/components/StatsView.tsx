@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadStats, type StatsInfo } from "../lib/api";
 import { formatDate, formatDuration, formatPlaytime } from "../lib/format";
+import { nf, t, useLang } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { genreStats, launcherShares, monthBars, peak, playtimeTotals, sourceLabel, statsEmpty, topGames, type MonthBar, type PlaytimeTotals } from "../lib/stats";
 import { parseDay } from "../lib/story";
@@ -8,15 +9,13 @@ import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { EmptyState } from "./States";
 
-const integer = new Intl.NumberFormat("fr-FR");
-const percent = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 0 });
-const plural = (n: number, one: string, many: string) => `${integer.format(n)} ${n > 1 ? many : one}`;
 /** « 68 jeux, temps des launchers », « 60 par le launcher, 8 par Ludex ». */
-function totalsNote(t: PlaytimeTotals): string {
-  if (t.played === 0) return "Aucun jeu mesuré";
-  if (t.fromLudex === 0) return `${plural(t.played, "jeu", "jeux")}, temps des launchers`;
-  if (t.fromLauncher === 0) return `${plural(t.played, "jeu", "jeux")}, mesurés par Ludex`;
-  return `${integer.format(t.fromLauncher)} par le launcher, ${integer.format(t.fromLudex)} par Ludex`;
+function totalsNote(totals: PlaytimeTotals): string {
+  const a = t.activity;
+  if (totals.played === 0) return a.stats.noGameTracked;
+  if (totals.fromLudex === 0) return a.stats.launcherTimes(a.games(totals.played));
+  if (totals.fromLauncher === 0) return a.stats.ludexTimes(a.games(totals.played));
+  return a.stats.bothTimes(totals.fromLauncher, totals.fromLudex);
 }
 const dayText = (day: string) => formatDate(parseDay(day).getTime() / 1000);
 
@@ -34,11 +33,11 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
 function MonthChart({ bars, label, format }: { bars: MonthBar[]; label: string; format: (n: number) => string }) {
   const max = Math.max(1, ...bars.map((b) => b.value));
   const top = peak(bars);
-  const summary = top ? `${label}. Mois le plus haut : ${top.title}, ${format(top.value)}` : `${label} : rien sur les 12 derniers mois`;
+  const summary = top ? t.activity.stats.chartPeak(label, top.title, format(top.value)) : t.activity.stats.chartEmpty(label);
   return (
     <div className="recap__chart statpage__chart" role="img" aria-label={summary}>
       {bars.map((b, i) => (
-        <div key={i} className={`recap__col${b.current ? " is-current" : ""}`} title={`${b.title} : ${b.value > 0 ? format(b.value) : "rien"}`}>
+        <div key={i} className={`recap__col${b.current ? " is-current" : ""}`} title={t.activity.barTitle(b.title, b.value > 0 ? format(b.value) : null)}>
           <div className="recap__track">
             <div className="recap__bar" style={{ height: `${b.value > 0 ? Math.max(2, (b.value / max) * 100) : 0}%` }} />
           </div>
@@ -66,6 +65,8 @@ function Card({ id, area, title, source, children }: { id: string; area: string;
  * par Ludex (commande `stats`) servent aux mois et aux séries ; les succès viennent du cache de Steam.
  */
 export function StatsView({ games, playing, openGame, showGenre }: SectionContext) {
+  // Libellés des genres et des launchers relus au changement de langue.
+  const language = useLang();
   const [info, setInfo] = useState<StatsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Relu quand une partie commence ou finit, et quand de nouveaux succès sont lus.
@@ -85,20 +86,22 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
   }, [playing, unlocked]);
 
   const totals = useMemo(() => playtimeTotals(games), [games]);
-  const top = useMemo(() => topGames(games), [games]);
-  const launchers = useMemo(() => launcherShares(games), [games]);
-  const genres = useMemo(() => genreStats(games), [games]);
+  const top = useMemo(() => topGames(games), [games, language]);
+  const launchers = useMemo(() => launcherShares(games), [games, language]);
+  const genres = useMemo(() => genreStats(games), [games, language]);
+  const a = t.activity;
+  const ts = a.stats;
 
   const header = (
     <div className="bar">
-      <h2 id="stats-title">Statistiques</h2>
+      <h2 id="stats-title">{ts.title}</h2>
     </div>
   );
   if (error) {
     return (
       <section aria-labelledby="stats-title">
         {header}
-        <EmptyState title="Statistiques indisponibles">{error}</EmptyState>
+        <EmptyState title={ts.unavailable}>{error}</EmptyState>
       </section>
     );
   }
@@ -107,9 +110,7 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
     return (
       <section aria-labelledby="stats-title">
         {header}
-        <EmptyState title="Pas encore de statistiques">
-          Aucun temps de jeu connu : Steam et GOG Galaxy donnent le leur, et Ludex mesure les parties lancées depuis Ludex. Lance un jeu ici et cette page se remplira
-        </EmptyState>
+        <EmptyState title={ts.emptyTitle}>{ts.emptyBody}</EmptyState>
       </section>
     );
   }
@@ -121,9 +122,9 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
   const yearDays = info.months.reduce((n, m) => n + m.days, 0);
   const yearUnlocks = info.months.reduce((n, m) => n + m.achievements, 0);
   const maxTop = Math.max(1, ...top.map((g) => g.playtimeMinutes ?? 0));
-  const ludexSince = info.historySince ? `depuis le ${formatDate(info.historySince)}` : null;
-  const LUDEX_SOURCE = `Parties lancées depuis Ludex${ludexSince ? `, mesurées ${ludexSince}` : ""}, au fuseau de ce PC.`;
-  const LIBRARY_SOURCE = "Compteur de chaque jeu : celui du launcher (Steam, GOG Galaxy) s'il en a un, sinon le temps mesuré par Ludex. Jamais additionnés.";
+  const LUDEX_SOURCE = ts.ludexSource(info.historySince ? formatDate(info.historySince) : null);
+  const LIBRARY_SOURCE = ts.librarySource;
+  const percent = nf({ style: "percent", maximumFractionDigits: 0 });
 
   return (
     <section aria-labelledby="stats-title" className="statpage">
@@ -131,45 +132,45 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
 
       <div className="recap__stats statpage__tiles">
         <Tile
-          label="Temps de jeu connu"
-          value={totals.minutes > 0 ? formatPlaytime(totals.minutes) : "Aucun"}
+          label={ts.knownTime}
+          value={totals.minutes > 0 ? formatPlaytime(totals.minutes) : ts.none}
           note={totalsNote(totals)}
         />
         <Tile
-          label="Avec Ludex, 12 derniers mois"
-          value={yearSecs > 0 ? formatDuration(yearSecs) : "0 min"}
-          note={`${plural(yearSessions, "session", "sessions")}, ${plural(yearDays, "jour joué", "jours joués")}`}
+          label={ts.withLudex}
+          value={yearSecs > 0 ? formatDuration(yearSecs) : a.zero}
+          note={ts.sessionsDays(a.sessions(yearSessions), a.playedDays(yearDays))}
         />
         <Tile
-          label="Plus longue série"
-          value={plural(info.bestStreak, "jour", "jours")}
-          note={info.bestStreakEnd ? `Jusqu'au ${dayText(info.bestStreakEnd)}` : "Aucune partie mesurée par Ludex"}
+          label={ts.bestStreak}
+          value={a.days(info.bestStreak)}
+          note={info.bestStreakEnd ? ts.streakUntil(dayText(info.bestStreakEnd)) : ts.noLudexGame}
         />
         <Tile
-          label="Série en cours"
-          value={plural(info.currentStreak, "jour", "jours")}
-          note={info.playedDays > 0 ? `${plural(info.playedDays, "jour joué", "jours joués")} en tout` : null}
+          label={ts.currentStreak}
+          value={a.days(info.currentStreak)}
+          note={info.playedDays > 0 ? ts.playedInTotal(a.playedDays(info.playedDays)) : null}
         />
       </div>
 
       {/* Pas de `data-nav-2d` : les lignes des deux colonnes ne sont pas alignées, la navigation
           spatiale sautait d'une colonne à l'autre. Haut et bas suivent l'ordre : top 10 puis genres. */}
       <div className="statpage__grid">
-        <Card id="stats-hours" area="hours" title="Heures par mois" source={LUDEX_SOURCE}>
+        <Card id="stats-hours" area="hours" title={ts.hours} source={LUDEX_SOURCE}>
           {info.historySessions > 0 ? (
-            <MonthChart bars={hours} label="Temps de jeu mesuré par Ludex par mois" format={formatDuration} />
+            <MonthChart bars={hours} label={ts.hoursChart} format={formatDuration} />
           ) : (
-            <p className="statpage__empty">Aucune partie lancée depuis Ludex pour l'instant : seuls les temps des launchers sont connus.</p>
+            <p className="statpage__empty">{ts.hoursEmpty}</p>
           )}
         </Card>
 
-        <Card id="stats-unlocks" area="unlocks" title="Succès Steam par mois" source={`Dates de déblocage gardées par Steam : ${plural(yearUnlocks, "succès", "succès")} sur 12 mois.`}>
-          <MonthChart bars={unlocks} label="Succès Steam débloqués par mois" format={(n) => plural(n, "succès", "succès")} />
+        <Card id="stats-unlocks" area="unlocks" title={ts.unlocks} source={ts.unlocksSource(a.achievements(yearUnlocks))}>
+          <MonthChart bars={unlocks} label={ts.unlocksChart} format={a.achievements} />
         </Card>
 
-        <Card id="stats-top" area="top" title="Les plus joués" source={LIBRARY_SOURCE}>
+        <Card id="stats-top" area="top" title={ts.top} source={LIBRARY_SOURCE}>
           {top.length === 0 ? (
-            <p className="statpage__empty">Aucun jeu avec un temps de jeu connu.</p>
+            <p className="statpage__empty">{ts.topEmpty}</p>
           ) : (
             <ol className="recap__top">
               {top.map((g, i) => (
@@ -194,9 +195,9 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
           )}
         </Card>
 
-        <Card id="stats-launchers" area="launchers" title="Par launcher" source="Même compteur que « Les plus joués » : chaque jeu compte dans son launcher.">
+        <Card id="stats-launchers" area="launchers" title={ts.launchers} source={ts.launchersSource}>
           {launchers.length === 0 ? (
-            <p className="statpage__empty">Aucun temps de jeu connu.</p>
+            <p className="statpage__empty">{ts.noTime}</p>
           ) : (
             <ul className="statpage__shares">
               {launchers.map((s) => (
@@ -205,7 +206,7 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
                   <span className="recap__name">
                     <span>
                       {s.label}
-                      <span className="recap__dim"><span className="sr-only">, </span>{plural(s.games, "jeu", "jeux")}</span>
+                      <span className="recap__dim"><span className="sr-only">, </span>{a.games(s.games)}</span>
                     </span>
                     <span className="recap__meter" aria-hidden="true">
                       <span style={{ width: `${s.share * 100}%` }} />
@@ -222,11 +223,11 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
         <Card
           id="stats-genres"
           area="genres"
-          title="Par genre"
-          source={`Genres des fiches, corrections comprises. Un jeu à plusieurs genres compte pour chacun.${genres.withoutGenre > 0 ? ` ${plural(genres.withoutGenre, "jeu", "jeux")} sans genre.` : ""}`}
+          title={ts.genres}
+          source={ts.genresSource(genres.withoutGenre > 0 ? a.games(genres.withoutGenre) : null)}
         >
           {genres.genres.length === 0 ? (
-            <p className="statpage__empty">Aucun jeu n'a de genre pour l'instant.</p>
+            <p className="statpage__empty">{ts.genresEmpty}</p>
           ) : (
             <ul className="statpage__shares">
               {genres.genres.map((s) => (
@@ -235,13 +236,13 @@ export function StatsView({ games, playing, openGame, showGenre }: SectionContex
                     type="button"
                     className="statpage__share statpage__share--button"
                     data-nav
-                    aria-label={`${s.label}, ${plural(s.games, "jeu", "jeux")}, ${s.minutes > 0 ? formatPlaytime(s.minutes) : "aucun temps connu"} : voir ces jeux`}
+                    aria-label={ts.genreButton(s.label, a.games(s.games), s.minutes > 0 ? formatPlaytime(s.minutes) : null)}
                     onClick={() => showGenre(s.key)}
                   >
                     <span className="recap__name">
                       <span>
                         {s.label}
-                        <span className="recap__dim">{plural(s.games, "jeu", "jeux")}</span>
+                        <span className="recap__dim">{a.games(s.games)}</span>
                       </span>
                       <span className="recap__meter">
                         <span style={{ width: `${s.share * 100}%` }} />

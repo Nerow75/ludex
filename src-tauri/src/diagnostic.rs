@@ -42,30 +42,30 @@ impl Service {
 
     pub fn label(self) -> &'static str {
         match self {
-            Service::Images => "Cache des images",
-            Service::Art => "Recherche des jaquettes",
-            Service::Details => "Fiches des jeux",
-            Service::Hltb => "Durées de vie",
-            Service::Saves => "Base des sauvegardes",
-            Service::Requirements => "Configurations requises",
-            Service::News => "Actualités des jeux",
-            Service::Workshop => "Mods Steam Workshop",
-            Service::Wishlist => "Prix de la liste de souhaits",
+            Service::Images => tr_str!("Cache des images", "Image cache"),
+            Service::Art => tr_str!("Recherche des jaquettes", "Cover search"),
+            Service::Details => tr_str!("Fiches des jeux", "Game details"),
+            Service::Hltb => tr_str!("Durées de vie", "Time to beat"),
+            Service::Saves => tr_str!("Base des sauvegardes", "Save locations database"),
+            Service::Requirements => tr_str!("Configurations requises", "System requirements"),
+            Service::News => tr_str!("Actualités des jeux", "Game news"),
+            Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
+            Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
         }
     }
 
     /// Ce que le service contacte.
     pub fn host(self) -> &'static str {
         match self {
-            Service::Images => "CDN de Steam et du Microsoft Store",
-            Service::Art => "boutique Steam, Microsoft Store",
-            Service::Details => "boutique Steam",
+            Service::Images => tr_str!("CDN de Steam et du Microsoft Store", "Steam and Microsoft Store CDN"),
+            Service::Art => tr_str!("boutique Steam, Microsoft Store", "Steam store, Microsoft Store"),
+            Service::Details => tr_str!("boutique Steam", "Steam store"),
             Service::Hltb => "HowLongToBeat",
-            Service::Saves => "manifeste Ludusavi sur GitHub",
-            Service::Requirements => "boutique Steam",
-            Service::News => "annonces Steam",
-            Service::Workshop => "API publique de Steam",
-            Service::Wishlist => "boutique Steam",
+            Service::Saves => tr_str!("manifeste Ludusavi sur GitHub", "Ludusavi manifest on GitHub"),
+            Service::Requirements => tr_str!("boutique Steam", "Steam store"),
+            Service::News => tr_str!("annonces Steam", "Steam announcements"),
+            Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
+            Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
         }
     }
 
@@ -228,11 +228,11 @@ fn manual_diag(manual: &[(String, bool)]) -> SourceDiag {
     let skipped = manual
         .iter()
         .filter(|(_, found)| !found)
-        .map(|(title, _)| Skipped { title: title.clone(), reason: "Exécutable introuvable".to_string() })
+        .map(|(title, _)| Skipped { title: title.clone(), reason: tr!("Exécutable introuvable", "Executable not found") })
         .collect();
     SourceDiag {
         id: "manual".to_string(),
-        label: "Jeux ajoutés à la main".to_string(),
+        label: tr!("Jeux ajoutés à la main", "Games added manually"),
         state: if present > 0 { SourceState::Games } else { SourceState::Empty },
         count: present,
         error: None,
@@ -379,24 +379,40 @@ pub fn anonymize(text: &str, privacy: &Privacy) -> String {
             (digits > 0).then_some((start, start + digits))
         })
         .collect();
-    splice(&text, &ranges, "<compte>")
+    splice(&text, &ranges, tr_str!("<compte>", "<account>"))
 }
 
 fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n > 1 { many } else { one })
 }
 
+/// Nombre suivi du mot qui convient, dans la langue de Ludex (anglais : singulier pour 1
+/// seulement, « 0 games »).
+fn count(n: usize, fr: (&str, &str), en: (&str, &str)) -> String {
+    if crate::i18n::english() {
+        format!("{n} {}", if n == 1 { en.0 } else { en.1 })
+    } else {
+        plural(n, fr.0, fr.1)
+    }
+}
+
 /// État d'une source en une ligne, comme dans la page.
 pub fn state_text(s: &SourceDiag) -> String {
     match s.state {
-        SourceState::Unknown => "Pas encore lu".to_string(),
-        SourceState::Absent => "Pas sur ce PC".to_string(),
-        SourceState::Empty if s.id == "manual" => "Aucun".to_string(),
-        SourceState::Empty => "Installé, aucun jeu".to_string(),
-        SourceState::Games => plural(s.count, "jeu", "jeux"),
-        SourceState::Disabled if s.count > 0 => format!("Désactivé dans les Paramètres, {}", plural(s.count, "jeu écarté", "jeux écartés")),
-        SourceState::Disabled => "Désactivé dans les Paramètres".to_string(),
-        SourceState::Error => format!("Erreur : {}", s.error.as_deref().unwrap_or("inconnue")),
+        SourceState::Unknown => tr!("Pas encore lu", "Not read yet"),
+        SourceState::Absent => tr!("Pas sur ce PC", "Not on this PC"),
+        SourceState::Empty if s.id == "manual" => tr!("Aucun", "None"),
+        SourceState::Empty => tr!("Installé, aucun jeu", "Installed, no games"),
+        SourceState::Games => count(s.count, ("jeu", "jeux"), ("game", "games")),
+        SourceState::Disabled if s.count > 0 => {
+            let skipped = count(s.count, ("jeu écarté", "jeux écartés"), ("game skipped", "games skipped"));
+            tr!("Désactivé dans les Paramètres, {skipped}", "Turned off in Settings, {skipped}")
+        }
+        SourceState::Disabled => tr!("Désactivé dans les Paramètres", "Turned off in Settings"),
+        SourceState::Error => {
+            let error = s.error.clone().unwrap_or_else(|| tr!("inconnue", "unknown"));
+            tr!("Erreur : {error}", "Error: {error}")
+        }
     }
 }
 
@@ -406,51 +422,76 @@ const MAX_SKIPPED: usize = 30;
 /// Rapport texte, lisible et anonymisé, à coller dans un message pour déboguer un autre PC.
 pub fn report(d: &Diagnostic, privacy: &Privacy, when: &dyn Fn(u64) -> String) -> String {
     let mut out = Vec::new();
-    out.push("Rapport de diagnostic de Ludex".to_string());
-    out.push(format!("Créé le {}", when(d.created)));
+    out.push(tr!("Rapport de diagnostic de Ludex", "Ludex diagnostics report"));
+    let created = when(d.created);
+    out.push(tr!("Créé le {created}", "Created {created}"));
     out.push(format!("Ludex {}", d.version));
-    out.push(format!("Windows : {}", d.windows));
-    out.push(format!("WebView2 : {}", d.webview.as_deref().unwrap_or("version inconnue")));
-    out.push(format!("Dossier de données : {}", d.data_dir));
-    out.push(format!("Dernier scan : {}", d.scanned_at.map_or("aucun depuis le démarrage".to_string(), when)));
+    let windows = &d.windows;
+    out.push(tr!("Windows : {windows}", "Windows: {windows}"));
+    let webview = d.webview.clone().unwrap_or_else(|| tr!("version inconnue", "unknown version"));
+    out.push(tr!("WebView2 : {webview}", "WebView2: {webview}"));
+    let data_dir = &d.data_dir;
+    out.push(tr!("Dossier de données : {data_dir}", "Data folder: {data_dir}"));
+    let scanned = d.scanned_at.map_or_else(|| tr!("aucun depuis le démarrage", "none since startup"), when);
+    out.push(tr!("Dernier scan : {scanned}", "Last scan: {scanned}"));
     out.push(String::new());
     out.push("Launchers".to_string());
+    // Deux-points précédé d'une espace en français seulement.
+    let colon = tr_str!(" : ", ": ");
     for s in &d.sources {
         let millis = s.millis.map(|ms| format!(" ({ms} ms)")).unwrap_or_default();
-        out.push(format!("- {} : {}{millis}", s.label, state_text(s)));
+        out.push(format!("- {}{colon}{}{millis}", s.label, state_text(s)));
         if s.id == "manual" {
             // Titres choisis par l'utilisateur : seulement le nombre.
             if !s.skipped.is_empty() {
-                out.push(format!("    {} introuvable", plural(s.skipped.len(), "exécutable", "exécutables")));
+                let missing = count(
+                    s.skipped.len(),
+                    ("exécutable introuvable", "exécutables introuvables"),
+                    ("executable not found", "executables not found"),
+                );
+                out.push(format!("    {missing}"));
             }
             continue;
         }
         for l in &s.locations {
-            out.push(format!("    [{}] {} : {}", if l.found { "trouvé" } else { "absent" }, l.label, l.path));
+            let found = if l.found { tr_str!("trouvé", "found") } else { tr_str!("absent", "missing") };
+            out.push(format!("    [{found}] {}{colon}{}", l.label, l.path));
         }
         if !s.skipped.is_empty() {
-            out.push(format!("    Écartés ({}) :", s.skipped.len()));
+            let n = s.skipped.len();
+            out.push(tr!("    Écartés ({n}) :", "    Skipped ({n}):"));
             for k in s.skipped.iter().take(MAX_SKIPPED) {
-                out.push(format!("      {} : {}", k.title, k.reason));
+                out.push(format!("      {}{colon}{}", k.title, k.reason));
             }
             if s.skipped.len() > MAX_SKIPPED {
-                out.push(format!("      … et {} autres", s.skipped.len() - MAX_SKIPPED));
+                let more = s.skipped.len() - MAX_SKIPPED;
+                out.push(tr!("      … et {more} autres", "      … and {more} more"));
             }
         }
         if !s.tools.is_empty() {
-            out.push(format!("    Masqués d'office (applis) : {}", s.tools.join(", ")));
+            let tools = s.tools.join(", ");
+            out.push(tr!("    Masqués d'office (applis) : {tools}", "    Hidden by default (apps): {tools}"));
         }
     }
     out.push(String::new());
-    out.push("Services en ligne (depuis le démarrage)".to_string());
+    out.push(tr!("Services en ligne (depuis le démarrage)", "Online services (since startup)"));
     for s in &d.services {
-        let ok = s.last_ok.map_or("aucune réussite".to_string(), |t| format!("dernière réussite {}", when(t)));
+        let ok = s.last_ok.map_or_else(
+            || tr!("aucune réussite", "no success yet"),
+            |t| {
+                let t = when(t);
+                tr!("dernière réussite {t}", "last success {t}")
+            },
+        );
         let err = match (&s.last_error, s.error_at) {
-            (Some(e), Some(at)) => format!("dernière erreur {} : {e}", when(at)),
-            _ => "aucune erreur".to_string(),
+            (Some(e), Some(at)) => {
+                let at = when(at);
+                tr!("dernière erreur {at} : {e}", "last error {at}: {e}")
+            }
+            _ => tr!("aucune erreur", "no errors"),
         };
-        let busy = if s.busy { ", lecture en cours" } else { "" };
-        out.push(format!("- {} ({}) : {ok}, {err}{busy}", s.label, s.host));
+        let busy = if s.busy { tr_str!(", lecture en cours", ", reading now") } else { "" };
+        out.push(format!("- {} ({}){colon}{ok}, {err}{busy}", s.label, s.host));
     }
     anonymize(&(out.join("\n") + "\n"), privacy)
 }
@@ -526,17 +567,19 @@ pub fn windows_version() -> String {
     }
     #[cfg(not(windows))]
     {
-        "Hors Windows".to_string()
+        tr!("Hors Windows", "Not Windows")
     }
 }
 
-/// Date et heure locales : « 19/11/2026 14:05 ».
+/// Date et heure locales : « 19/11/2026 14:05 » (« 2026-11-19 14:05 » en anglais : sans
+/// l'ambiguïté jour/mois).
 pub fn local_time(secs: u64) -> String {
+    let format = tr_str!("%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M");
     i64::try_from(secs)
         .ok()
         .and_then(|s| chrono::DateTime::from_timestamp(s, 0))
-        .map(|d| d.with_timezone(&chrono::Local).format("%d/%m/%Y %H:%M").to_string())
-        .unwrap_or_else(|| "date inconnue".to_string())
+        .map(|d| d.with_timezone(&chrono::Local).format(format).to_string())
+        .unwrap_or_else(|| tr!("date inconnue", "unknown date"))
 }
 
 #[cfg(test)]
@@ -651,6 +694,53 @@ mod tests {
         // La page garde les vrais chemins (affichés sur ce PC seulement).
         assert!(d.data_dir.contains("Anne"));
         assert_eq!(d.sources.len(), 13);
+    }
+
+    #[test]
+    fn report_in_english() {
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            let mut steam = report_of(Platform::Steam, true, 1, None, false);
+            steam.skipped = vec![Skipped { title: "SteamVR".into(), reason: "Steam component, not a game".into() }];
+            let games = [game(Platform::Steam, "Wallpaper Engine", true)];
+            let input = Inputs {
+                version: "0.1.0".into(),
+                windows: "Windows 11 Home".into(),
+                webview: None,
+                data_dir: PathBuf::from(r"C:\Users\Anne\AppData\Roaming\com.ludex.app"),
+                last: Some((1_000, vec![steam, report_of(Platform::Epic, true, 0, None, false), report_of(Platform::Riot, true, 2, None, true)])),
+                games: &games,
+                manual: vec![("Titre très perso".into(), false)],
+                busy: Vec::new(),
+            };
+            let locations = |p: Platform| match p {
+                Platform::Steam => vec![Location { label: "Account playtime".into(), path: r"E:\Steam\userdata\52870646\config\localconfig.vdf".into(), found: false }],
+                _ => Vec::new(),
+            };
+            let d = build(input, locations, &|t| format!("<{t}>"), &privacy());
+            let text = &d.report;
+            assert!(text.starts_with("Ludex diagnostics report\nCreated <"), "{text}");
+            assert!(text.contains("WebView2: unknown version\n"), "{text}");
+            assert!(text.contains("Data folder: %USERPROFILE%\\AppData\\Roaming\\com.ludex.app\n"), "{text}");
+            assert!(text.contains("Last scan: <1000>\n"));
+            assert!(text.contains("- Steam: 1 game (12 ms)\n"), "{text}");
+            assert!(text.contains("    [missing] Account playtime: E:\\Steam\\userdata\\<account>\\config\\localconfig.vdf\n"), "{text}");
+            assert!(text.contains("    Skipped (1):\n      SteamVR: Steam component, not a game\n"), "{text}");
+            assert!(text.contains("    Hidden by default (apps): Wallpaper Engine\n"));
+            assert!(text.contains("- Epic Games: Installed, no games (12 ms)\n"), "{text}");
+            assert!(text.contains("- Riot: Turned off in Settings, 2 games skipped"), "{text}");
+            assert!(text.contains("- Games added manually: None\n    1 executable not found\n"), "{text}");
+            assert!(text.contains("Online services (since startup)\n"));
+            assert!(text.contains("- Time to beat (HowLongToBeat): "), "{text}");
+            for secret in ["Anne", "52870646", "Titre très perso"] {
+                assert!(!text.contains(secret), "{secret} dans le rapport :\n{text}");
+            }
+            // Avant les services (leurs erreurs, partagées entre les tests, viennent d'ailleurs).
+            let sources = text.split("Online services").next().unwrap_or_default();
+            for french in ["Dossier", "Écartés", "jeux", " : ", "Autres"] {
+                assert!(!sources.contains(french), "« {french} » dans le rapport anglais :\n{text}");
+            }
+            assert!(!text.contains('\u{2014}'), "pas de tiret cadratin");
+        });
     }
 
     /// Diagnostic réel de ce PC (lecture seule, aucun fichier de l'app) :

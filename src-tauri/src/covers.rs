@@ -53,8 +53,8 @@ impl Kind {
     /// Titre du sélecteur de fichier.
     pub fn title(self) -> &'static str {
         match self {
-            Kind::Cover => "Jaquette",
-            Kind::Hero => "Image de fond",
+            Kind::Cover => tr_str!("Jaquette", "Cover"),
+            Kind::Hero => tr_str!("Image de fond", "Background image"),
         }
     }
 }
@@ -170,15 +170,15 @@ pub fn dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
 /// Renvoie l'extension du fichier à copier (tirée de la signature, jamais du nom).
 pub fn check_bytes(name: &str, bytes: &[u8]) -> Result<&'static str, String> {
     if bytes.len() as u64 > MAX_BYTES {
-        return Err(format!("{name} est trop lourde : 16 Mo au plus."));
+        return Err(tr!("{name} est trop lourde : 16 Mo au plus.", "{name} is too large: 16 MB at most."));
     }
-    let ext = images::sniff(bytes).ok_or_else(|| format!("{name} n'est pas une image PNG, JPEG ou WebP."))?;
-    let (w, h) = dimensions(bytes).ok_or_else(|| format!("{name} est illisible : en-tête d'image incomplet."))?;
+    let ext = images::sniff(bytes).ok_or_else(|| tr!("{name} n'est pas une image PNG, JPEG ou WebP.", "{name} isn't a PNG, JPEG or WebP image."))?;
+    let (w, h) = dimensions(bytes).ok_or_else(|| tr!("{name} est illisible : en-tête d'image incomplet.", "{name} can't be read: incomplete image header."))?;
     if w < MIN_SIDE || h < MIN_SIDE {
-        return Err(format!("{name} est trop petite ({w} × {h})."));
+        return Err(tr!("{name} est trop petite ({w} × {h}).", "{name} is too small ({w} × {h})."));
     }
     if w > MAX_SIDE || h > MAX_SIDE {
-        return Err(format!("{name} est trop grande ({w} × {h}) : {MAX_SIDE} pixels de côté au plus."));
+        return Err(tr!("{name} est trop grande ({w} × {h}) : {MAX_SIDE} pixels de côté au plus.", "{name} is too big ({w} × {h}): {MAX_SIDE} pixels per side at most."));
     }
     Ok(ext)
 }
@@ -187,24 +187,24 @@ pub fn check_bytes(name: &str, bytes: &[u8]) -> Result<&'static str, String> {
 /// existant, 16 Mo au plus, contenu vérifié par `check_bytes`.
 pub fn check_image(path: &Path) -> Result<(Vec<u8>, &'static str), String> {
     if !path.is_absolute() {
-        return Err("Chemin invalide.".into());
+        return Err(tr!("Chemin invalide.", "Invalid path."));
     }
     let is_image = path.extension().and_then(|e| e.to_str()).is_some_and(|e| EXTENSIONS.iter().any(|x| e.eq_ignore_ascii_case(x)));
     if !is_image {
-        return Err("Choisis une image PNG, JPEG ou WebP.".into());
+        return Err(tr!("Choisis une image PNG, JPEG ou WebP.", "Pick a PNG, JPEG or WebP image."));
     }
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let meta = fs::metadata(path).map_err(|_| format!("Fichier introuvable : {}", path.display()))?;
+    let meta = fs::metadata(path).map_err(|_| tr!("Fichier introuvable : {}", "File not found: {}", path.display()))?;
     if !meta.is_file() {
-        return Err(format!("Fichier introuvable : {}", path.display()));
+        return Err(tr!("Fichier introuvable : {}", "File not found: {}", path.display()));
     }
     if meta.len() > MAX_BYTES {
-        return Err(format!("{name} est trop lourde : 16 Mo au plus."));
+        return Err(tr!("{name} est trop lourde : 16 Mo au plus.", "{name} is too large: 16 MB at most."));
     }
     let mut bytes = Vec::new();
     fs::File::open(path)
         .and_then(|f| f.take(MAX_BYTES + 1).read_to_end(&mut bytes))
-        .map_err(|e| format!("Lecture de {name} impossible : {e}"))?;
+        .map_err(|e| tr!("Lecture de {name} impossible : {e}", "Couldn't read {name}: {e}"))?;
     let ext = check_bytes(&name, &bytes)?;
     Ok((bytes, ext))
 }
@@ -222,7 +222,7 @@ pub fn file(root: &Path, id: &str, kind: Kind, picked: &Picked) -> Option<PathBu
 
 /// Copie une image vérifiée dans le dossier du jeu (tmp puis renommage, anciennes versions retirées).
 pub fn save(root: &Path, id: &str, kind: Kind, bytes: &[u8], ext: &str) -> Result<PathBuf, String> {
-    images::store(&folder(root, id), kind.as_str(), bytes, ext).map_err(|e| format!("Copie de l'image impossible : {e}"))
+    images::store(&folder(root, id), kind.as_str(), bytes, ext).map_err(|e| tr!("Copie de l'image impossible : {e}", "Couldn't copy the image: {e}"))
 }
 
 /// Retire une image perso (toutes extensions), puis le dossier du jeu s'il est vide.
@@ -340,6 +340,17 @@ mod tests {
         b.extend_from_slice(&h.to_be_bytes());
         b.extend_from_slice(&w.to_be_bytes());
         b
+    }
+
+    #[test]
+    fn refusals_in_english() {
+        crate::i18n::with(crate::i18n::Lang::En, || {
+            assert_eq!(check_bytes("a.png", &png(4, 4)).unwrap_err(), "a.png is too small (4 × 4).");
+            assert_eq!(check_bytes("a.png", b"pas une image").unwrap_err(), "a.png isn't a PNG, JPEG or WebP image.");
+            assert_eq!(check_image(Path::new(r"C:\x\a.gif")).unwrap_err(), "Pick a PNG, JPEG or WebP image.");
+            assert_eq!(Kind::Hero.title(), "Background image");
+        });
+        assert_eq!(Kind::Hero.title(), "Image de fond");
     }
 
     fn webp(chunk: &[u8; 4], payload: &[u8]) -> Vec<u8> {

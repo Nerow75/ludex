@@ -1,19 +1,21 @@
 import { PLATFORM_LABEL, type Footprint, type FootprintFolder } from "./api";
 import { formatSize } from "./format";
+import { t } from "./i18n";
 
 /** Taille ou état d'un dossier de la vue avancée. */
 export function folderSize(f: FootprintFolder): string {
-  if (!f.exists) return "Supprimé";
-  if (f.bytes === null) return f.kind === "install" ? "Mesure en cours" : "Taille inconnue";
-  return f.bytes === 0 ? "Vide" : formatSize(f.bytes);
+  const l = t.fiche.footprint;
+  if (!f.exists) return l.deleted;
+  if (f.bytes === null) return f.kind === "install" ? l.measuring : l.unknownSize;
+  return f.bytes === 0 ? l.empty : formatSize(f.bytes);
 }
 
 /** Où se trouve un élément rangé dans un autre dossier de la liste, `null` : à part. */
 export function insideLabel(f: Footprint, x: FootprintFolder): string | null {
   if (!x.inside) return null;
-  if (x.inside === "install") return "dans le dossier du jeu";
+  if (x.inside === "install") return t.fiche.footprint.insideGame;
   const parent = f.folders.find((p) => p.item === x.inside);
-  return parent ? `dans « ${parent.label} »` : null;
+  return parent ? t.fiche.footprint.inside(parent.label) : null;
 }
 
 /**
@@ -34,14 +36,15 @@ export function presentBytes(f: Footprint): { bytes: number; unknown: boolean } 
 
 /** Ligne d'état sous le titre. */
 export function footprintStatus(f: Footprint): string {
+  const l = t.fiche.footprint;
   if (f.installed) {
     const { bytes, unknown } = presentBytes(f);
-    if (bytes === 0) return unknown ? "Installé, taille en cours de mesure" : "Installé";
+    if (bytes === 0) return unknown ? l.installedMeasuring : l.installed;
     const extra = f.folders.some((x) => x.kind !== "install" && x.exists);
-    return `Installé : ${formatSize(bytes)} sur le PC${unknown ? " au moins" : ""}${extra ? ", sauvegardes et caches compris" : ""}`;
+    return l.installedSize(formatSize(bytes), unknown, extra);
   }
-  if (f.leftovers === 0) return "Désinstallé : plus rien aux emplacements connus de Ludex";
-  return `Désinstallé : ${f.leftovers} reste${f.leftovers > 1 ? "s" : ""} encore sur le PC`;
+  if (f.leftovers === 0) return l.clean;
+  return l.left(f.leftovers);
 }
 
 /** Bouton principal de la vue avancée. */
@@ -63,21 +66,26 @@ export function mainAction(f: Footprint): MainAction {
 
 /** Ce que fait le bouton principal, en une phrase. */
 export function actionHint(f: Footprint, action: MainAction): string {
+  const l = t.fiche.footprint;
   switch (action?.kind) {
     case "steam":
-      return "Steam demande confirmation puis supprime le dossier du jeu. Les autres emplacements restent : la vue les montre ensuite.";
+      return l.hintSteam;
     case "run":
-      return "Le désinstalleur officiel du jeu demande sa propre confirmation. Ludex ne supprime rien lui-même.";
+      return l.hintRun;
     case "settings":
-      return "Jeu du Microsoft Store : il se désinstalle depuis Paramètres > Applications de Windows.";
+      return l.hintSettings;
     case "folder":
-      return f.platform === "other"
-        ? "Aucun désinstalleur trouvé pour ce jeu : supprime son dossier à la main."
-        : `Aucun désinstalleur trouvé : désinstalle-le depuis ${PLATFORM_LABEL[f.platform]}, ou supprime son dossier à la main.`;
+      return f.platform === "other" ? l.hintFolderOther : l.hintFolder(PLATFORM_LABEL[f.platform]);
     default:
-      return f.installed ? "Dossier du jeu introuvable." : "";
+      return f.installed ? l.notFound : "";
   }
 }
 
-/** « 2024-01-15 » → « 15/01/2024 ». */
-export const installDay = (date: string | null) => (date ? date.split("-").reverse().join("/") : null);
+/** « 2024-01-15 » → « 15/01/2024 » (en anglais : « 01/15/2024 »). */
+export function installDay(date: string | null): string | null {
+  if (!date) return null;
+  const [y, m, d] = date.split("-");
+  // Forme inattendue : à l'envers, comme avant.
+  if (m === undefined || d === undefined) return date.split("-").reverse().join("/");
+  return t.fiche.footprint.day(y, m, d);
+}

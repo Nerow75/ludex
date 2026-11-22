@@ -25,9 +25,15 @@ pub enum LinkError {
 impl fmt::Display for LinkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            LinkError::NotLudex => "Ce lien n'est pas un lien Ludex.",
-            LinkError::UnknownAction => "Lien Ludex inconnu : seul « ludex://launch/<jeu> » est compris.",
-            LinkError::BadId => "Lien Ludex illisible : identifiant du jeu absent ou invalide.",
+            LinkError::NotLudex => tr_str!("Ce lien n'est pas un lien Ludex.", "This isn't a Ludex link."),
+            LinkError::UnknownAction => tr_str!(
+                "Lien Ludex inconnu : seul « ludex://launch/<jeu> » est compris.",
+                "Unknown Ludex link: only \"ludex://launch/<game>\" is understood."
+            ),
+            LinkError::BadId => tr_str!(
+                "Lien Ludex illisible : identifiant du jeu absent ou invalide.",
+                "Unreadable Ludex link: game ID missing or invalid."
+            ),
         })
     }
 }

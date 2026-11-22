@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import type { PerfSeries, SessionPerf } from "./api";
 import {
   areaPath,
@@ -108,5 +109,31 @@ describe("textes", () => {
     expect(lacksGpu(perf())).toBe(true);
     expect(lacksGpu(perf({ series: [series({ metric: "gpu" })] }))).toBe(false);
     expect(shownSessions([perf(), perf({ series: [] }), perf({ times: [] })])).toHaveLength(1);
+  });
+});
+
+describe("textes en anglais", () => {
+  afterEach(() => setLang("fr"));
+
+  it("écrit les % et les mémoires à l'anglaise", () => {
+    setLang("en");
+    expect(formatMetric("cpu", 34.2)).toBe("34%");
+    expect(formatMetric("gpu", 4.56)).toBe("4.6%");
+    expect(formatMetric("memory", 850)).toBe("850 MB");
+    expect(formatMetric("vram", 3584)).toBe("3.5 GB");
+    expect(formatMetric("memory", 1_048_576)).toBe("1,024 GB");
+  });
+
+  it("résume une courbe et donne la phrase d'en-tête", () => {
+    setLang("en");
+    expect(seriesSummary(series(), perf())).toBe("Processor: game 34% on average, 78% at peak; whole PC 45% on average, 90% at peak.");
+    const memory = series({ metric: "memory", game: { avg: 3584, peak: 4096 }, pc: { avg: 16384, peak: 20480 } });
+    expect(seriesSummary(memory, perf())).toBe(
+      "Memory: game 3.5 GB on average, 4 GB at peak; whole PC 16 GB on average, 20 GB at peak out of 64 GB installed.",
+    );
+    expect(perfHeadline([perf()])).toBe(
+      "Measured during the last session launched from Ludex, every 5 seconds: the game compared with the whole PC.",
+    );
+    expect(perfHeadline([perf(), perf()])).toContain("during the last 2 sessions launched");
   });
 });

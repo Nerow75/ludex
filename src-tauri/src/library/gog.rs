@@ -72,11 +72,11 @@ fn skip_reason(e: &Entry, galaxy: bool) -> Option<&'static str> {
     if e.name.is_empty() {
         None
     } else if !e.depends_on.is_empty() {
-        Some("Contenu additionnel (DLC)")
+        Some(tr_str!("Contenu additionnel (DLC)", "Additional content (DLC)"))
     } else if !Path::new(&e.path).is_dir() {
-        Some("Dossier d'installation introuvable")
+        Some(tr_str!("Dossier d'installation introuvable", "Install folder not found"))
     } else if !galaxy && !Path::new(&e.exe).is_file() {
-        Some("Exécutable introuvable (GOG Galaxy absent)")
+        Some(tr_str!("Exécutable introuvable (GOG Galaxy absent)", "Executable not found (GOG Galaxy not installed)"))
     } else {
         None
     }

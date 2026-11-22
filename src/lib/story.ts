@@ -3,6 +3,7 @@
 // (`storyImage.ts`) dessinent les mêmes pages.
 import type { RareUnlock, Recap, RecapPeriod } from "./api";
 import { formatDuration } from "./format";
+import { formatNumber, lang, locale, t } from "./i18n";
 
 /** Durée d'une page quand la story avance seule. */
 export const STORY_PAGE_MS = 5000;
@@ -51,42 +52,41 @@ export interface Profile {
   line: string;
 }
 
-interface Words {
-  /** « cette semaine », « cette semaine-là ». */
-  current: string;
-  past: string;
-  /** « la semaine précédente », puis « à la semaine précédente » (« au mois précédent »). */
-  previous: string;
-  versus: string;
-  /** Fin de la story de la période en cours. */
-  next: string;
-  /** Seuils du profil, qui grandissent avec la période. */
+/** Seuils du profil, qui grandissent avec la période. */
+interface Thresholds {
   explorer: number;
   hunter: number;
   regular: number;
   zapper: number;
 }
 
-const WORDS: Record<RecapPeriod, Words> = {
-  week: { current: "cette semaine", past: "cette semaine-là", previous: "la semaine précédente", versus: "à la semaine précédente", next: "À la semaine prochaine", explorer: 2, hunter: 10, regular: 5, zapper: 4 },
-  month: { current: "ce mois-ci", past: "ce mois-là", previous: "le mois précédent", versus: "au mois précédent", next: "Au mois prochain", explorer: 3, hunter: 25, regular: 10, zapper: 6 },
-  year: { current: "cette année", past: "cette année-là", previous: "l'année précédente", versus: "à l'année précédente", next: "À l'année prochaine", explorer: 6, hunter: 100, regular: 21, zapper: 12 },
+const THRESHOLDS: Record<RecapPeriod, Thresholds> = {
+  week: { explorer: 2, hunter: 10, regular: 5, zapper: 4 },
+  month: { explorer: 3, hunter: 25, regular: 10, zapper: 6 },
+  year: { explorer: 6, hunter: 100, regular: 21, zapper: 12 },
 };
 
-const WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-const WEEKDAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
-const MOMENTS = ["la nuit", "le matin", "l'après-midi", "le soir"];
-const MOMENT_HOURS = ["de minuit à 6 h", "de 6 h à midi", "de midi à 18 h", "de 18 h à minuit"];
+/** Mots de la période (« cette semaine », « à la semaine précédente »…), dans la langue actuelle. */
+const words = (period: RecapPeriod) => t.activity.period[period];
 
-const integer = new Intl.NumberFormat("fr-FR");
-const decimal = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
-const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
-const dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
-const dayFull = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-const hourMinute = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+/** Formats de dates de la langue actuelle, gardés par locale et options. */
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+function df(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale()}|${JSON.stringify(options)}`;
+  let f = dateFormats.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale(), options);
+    dateFormats.set(key, f);
+  }
+  return f;
+}
+const monthYear = () => df({ month: "long", year: "numeric" });
+const dayMonth = () => df({ day: "numeric", month: "long" });
+const dayFull = () => df({ weekday: "long", day: "numeric", month: "long" });
+/** « 20:30 » en français, « 8:30 PM » en anglais. */
+const hourMinute = () => df(lang() === "en" ? { hour: "numeric", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const plural = (n: number, one: string, many: string) => `${integer.format(n)} ${n > 1 ? many : one}`;
 const percent = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
@@ -101,10 +101,8 @@ export function periodTitle(r: Pick<Recap, "period" | "start" | "end">): string 
   const start = parseDay(r.start);
   const end = parseDay(r.end);
   if (r.period === "year") return String(start.getFullYear());
-  if (r.period === "month") return capitalize(monthYear.format(start));
-  if (start.getFullYear() !== end.getFullYear()) return `${dayMonth.format(start)} ${start.getFullYear()} au ${dayMonth.format(end)} ${end.getFullYear()}`;
-  if (start.getMonth() !== end.getMonth()) return `${dayMonth.format(start)} au ${dayMonth.format(end)} ${end.getFullYear()}`;
-  return `${start.getDate()} au ${dayMonth.format(end)} ${end.getFullYear()}`;
+  if (r.period === "month") return capitalize(monthYear().format(start));
+  return t.activity.weekRange(start, end);
 }
 
 /** Une story n'a de sens qu'avec du temps de jeu mesuré dans la période. */
@@ -112,14 +110,15 @@ export const hasStory = (r: Recap) => r.totalSecs > 0;
 
 /** Comparaison avec la période précédente (au même stade pour la période en cours), `null` sans rien à comparer. */
 export function storyComparison(r: Recap): string | null {
-  const w = WORDS[r.period];
+  const w = words(r.period);
+  const c = t.activity.compare;
   const current = r.back === 0 && r.elapsedDays < r.days.length;
   const prev = current ? r.previousToDateSecs : r.previousSecs;
-  const when = current ? " au même stade" : "";
-  if (prev === 0) return `Rien de mesuré ${w.previous}${when}`;
+  const when = current ? c.sameStage : "";
+  if (prev === 0) return c.nothing(w.previous, when);
   const pct = Math.round(((r.totalSecs - prev) / prev) * 100);
-  if (pct === 0) return `Autant que ${w.previous}${when}`;
-  return `${pct > 0 ? "+" : "−"}${integer.format(Math.abs(pct))} % par rapport ${w.versus}${when}`;
+  if (pct === 0) return c.same(w.previous, when);
+  return c.change(`${pct > 0 ? "+" : "−"}${formatNumber(Math.abs(pct))}`, w.versus, when);
 }
 
 /**
@@ -128,7 +127,10 @@ export function storyComparison(r: Recap): string | null {
  * Aucun seuil atteint : « Le joueur tranquille ».
  */
 export function playerProfile(r: Recap, title: (gameId: string) => string): Profile {
-  const w = WORDS[r.period];
+  const w = words(r.period);
+  const s = THRESHOLDS[r.period];
+  const p = t.activity.profile;
+  const when = r.back === 0 ? w.current : w.past;
   const moments = sum(r.momentSecs);
   const weekdays = sum(r.weekdaySecs);
   const average = r.sessions > 0 ? r.totalSecs / r.sessions : 0;
@@ -141,50 +143,46 @@ export function playerProfile(r: Recap, title: (gameId: string) => string): Prof
   const candidates: { profile: Profile; score: number }[] = [
     {
       score: moments > 0 ? r.momentSecs[0] / moments / 0.4 : 0,
-      profile: { id: "night", title: "Le noctambule", line: `${percent(r.momentSecs[0], moments)} % de ton temps de jeu entre minuit et 6 h` },
+      profile: { id: "night", title: p.night.title, line: p.night.line(percent(r.momentSecs[0], moments)) },
     },
     {
       score: moments > 0 ? r.momentSecs[1] / moments / 0.45 : 0,
-      profile: { id: "early", title: "Le lève-tôt", line: `${percent(r.momentSecs[1], moments)} % de ton temps de jeu entre 6 h et midi` },
+      profile: { id: "early", title: p.early.title, line: p.early.line(percent(r.momentSecs[1], moments)) },
     },
     {
       score: Math.max(average / 7200, longest / 14400),
-      profile: {
-        id: "marathon",
-        title: "Le marathonien",
-        line: `${formatDuration(average || 60)} par session en moyenne, ${formatDuration(longest || 60)} pour la plus longue`,
-      },
+      profile: { id: "marathon", title: p.marathon.title, line: p.marathon.line(formatDuration(average || 60), formatDuration(longest || 60)) },
     },
     {
-      score: news >= 0.4 * Math.max(1, r.games) ? news / w.explorer : 0,
-      profile: { id: "explorer", title: "L'explorateur", line: `${plural(news, "nouveau jeu lancé", "nouveaux jeux lancés")} ${r.back === 0 ? w.current : w.past}` },
+      score: news >= 0.4 * Math.max(1, r.games) ? news / s.explorer : 0,
+      profile: { id: "explorer", title: p.explorer.title, line: p.explorer.line(news, when) },
     },
     {
-      score: r.achievements / w.hunter,
-      profile: { id: "hunter", title: "Le chasseur de succès", line: `${plural(r.achievements, "succès débloqué", "succès débloqués")} ${r.back === 0 ? w.current : w.past}` },
+      score: r.achievements / s.hunter,
+      profile: { id: "hunter", title: p.hunter.title, line: p.hunter.line(r.achievements, when) },
     },
     {
-      score: r.bestStreak / w.regular,
-      profile: { id: "regular", title: "Le régulier", line: `${plural(r.bestStreak, "jour", "jours")} de jeu d'affilée, sans en sauter un` },
+      score: r.bestStreak / s.regular,
+      profile: { id: "regular", title: p.regular.title, line: p.regular.line(r.bestStreak) },
     },
     {
       score: top && r.sessions >= 3 && r.games >= 1 ? topShare / 0.7 : 0,
-      profile: { id: "loyal", title: "Le fidèle", line: top ? `${percent(top.secs, r.totalSecs)} % de ton temps sur ${title(top.gameId)}` : "" },
+      profile: { id: "loyal", title: p.loyal.title, line: top ? p.loyal.line(percent(top.secs, r.totalSecs), title(top.gameId)) : "" },
     },
     {
       score: r.sessions >= 3 && weekdays > 0 ? weekend / weekdays / 0.6 : 0,
-      profile: { id: "weekend", title: "Le joueur du week-end", line: `${percent(weekend, weekdays)} % de ton temps le samedi et le dimanche` },
+      profile: { id: "weekend", title: p.weekend.title, line: p.weekend.line(percent(weekend, weekdays)) },
     },
     {
-      score: topShare < 0.4 ? r.games / w.zapper : 0,
-      profile: { id: "zapper", title: "Le touche-à-tout", line: `${plural(r.games, "jeu différent", "jeux différents")}, aucun ne prend le dessus` },
+      score: topShare < 0.4 ? r.games / s.zapper : 0,
+      profile: { id: "zapper", title: p.zapper.title, line: p.zapper.line(r.games) },
     },
   ];
   let best: { profile: Profile; score: number } | null = null;
   for (const c of candidates) {
     if (c.score >= 1 && (!best || c.score > best.score)) best = c;
   }
-  return best?.profile ?? { id: "casual", title: "Le joueur tranquille", line: `${plural(r.sessions, "session", "sessions")}, sans se presser` };
+  return best?.profile ?? { id: "casual", title: p.casual.title, line: p.casual.line(r.sessions) };
 }
 
 export interface StoryContext {
@@ -213,7 +211,9 @@ const page = (kind: StoryKind, fields: Partial<StoryPage>): StoryPage => ({
 /** Pages de la story, dans l'ordre ; vide si la période n'a aucun temps de jeu. */
 export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
   if (!hasStory(r)) return [];
-  const w = WORDS[r.period];
+  const a = t.activity;
+  const s = a.story;
+  const w = words(r.period);
   const when = r.back === 0 ? w.current : w.past;
   const game = (id: string | undefined | null) => (id && ctx.known(id) ? id : null);
   const first = r.top[0]?.gameId ?? null;
@@ -224,7 +224,7 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
       gameId: game(first),
       eyebrow: periodTitle(r),
       value: formatDuration(r.totalSecs),
-      title: `de jeu ${when}`,
+      title: s.totalTitle(when),
       detail: storyComparison(r),
     }),
   );
@@ -234,8 +234,8 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("top", {
         gameId: game(first),
-        eyebrow: "Les plus joués",
-        title: r.top.length === 1 ? `Ton jeu ${when}` : `Ton top ${r.top.length}`,
+        eyebrow: s.topEyebrow,
+        title: r.top.length === 1 ? s.topOne(when) : s.topMany(r.top.length),
         items: r.top.map((g) => ({ gameId: g.gameId, label: ctx.title(g.gameId), value: formatDuration(g.secs), share: g.secs / max })),
       }),
     );
@@ -247,11 +247,11 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("rhythm", {
         gameId: game(r.top[1]?.gameId ?? first),
-        eyebrow: "Ton rythme",
-        value: capitalize(WEEKDAYS[r.favoriteWeekday]),
-        title: "Ton jour de jeu préféré",
-        detail: moment === null ? null : `Et surtout ${MOMENTS[moment]}, ${MOMENT_HOURS[moment]}`,
-        bars: r.weekdaySecs.map((secs, i) => ({ label: WEEKDAY_LETTERS[i], share: secs / max, active: i === r.favoriteWeekday })),
+        eyebrow: s.rhythmEyebrow,
+        value: capitalize(a.weekdays[r.favoriteWeekday]),
+        title: s.rhythmTitle,
+        detail: moment === null ? null : s.rhythmDetail(a.moments[moment], a.momentSpan[moment]),
+        bars: r.weekdaySecs.map((secs, i) => ({ label: a.weekdayLetters[i], share: secs / max, active: i === r.favoriteWeekday })),
       }),
     );
   }
@@ -261,10 +261,10 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("longest", {
         gameId: game(r.longest.gameId),
-        eyebrow: "Ta plus longue session",
+        eyebrow: s.longestEyebrow,
         value: formatDuration(r.longest.secs),
         title: ctx.title(r.longest.gameId),
-        detail: `${capitalize(dayFull.format(start))}, à partir de ${hourMinute.format(start)}`,
+        detail: s.longestDetail(capitalize(dayFull().format(start)), hourMinute().format(start)),
         logo: true,
       }),
     );
@@ -275,10 +275,10 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("streak", {
         gameId: game(r.top[2]?.gameId ?? first),
-        eyebrow: "Ta série",
-        value: plural(r.bestStreak, "jour", "jours"),
-        title: "de jeu d'affilée",
-        detail: running ? `Série en cours : ${plural(r.currentStreak, "jour", "jours")}` : `Ta plus longue série ${when}`,
+        eyebrow: s.streakEyebrow,
+        value: a.days(r.bestStreak),
+        title: s.streakTitle,
+        detail: running ? s.streakRunning(a.days(r.currentStreak)) : s.streakLongest(when),
       }),
     );
   }
@@ -288,11 +288,11 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("discoveries", {
         gameId: game(r.newGames[0].gameId),
-        eyebrow: "Nouveautés",
-        value: integer.format(n),
-        title: n > 1 ? "nouveaux jeux lancés" : "nouveau jeu lancé",
-        detail: n > 5 ? `Les 5 premiers, et ${plural(n - 5, "autre", "autres")}` : null,
-        items: r.newGames.slice(0, 5).map((g) => ({ gameId: g.gameId, label: ctx.title(g.gameId), value: dayMonth.format(new Date(g.firstPlayed * 1000)), share: 0 })),
+        eyebrow: s.newEyebrow,
+        value: formatNumber(n),
+        title: s.newTitle(n),
+        detail: n > 5 ? s.newMore(n - 5) : null,
+        items: r.newGames.slice(0, 5).map((g) => ({ gameId: g.gameId, label: ctx.title(g.gameId), value: dayMonth().format(new Date(g.firstPlayed * 1000)), share: 0 })),
       }),
     );
   }
@@ -303,10 +303,10 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
     pages.push(
       page("achievements", {
         gameId: game(rare?.gameId ?? most?.gameId),
-        eyebrow: "Succès Steam",
-        value: integer.format(r.achievements),
-        title: r.achievements > 1 ? "succès débloqués" : "succès débloqué",
-        detail: most && r.achievementGames.length > 1 ? `dont ${integer.format(most.count)} dans ${ctx.title(most.gameId)}` : most ? `dans ${ctx.title(most.gameId)}` : null,
+        eyebrow: s.achEyebrow,
+        value: formatNumber(r.achievements),
+        title: s.achTitle(r.achievements),
+        detail: most && r.achievementGames.length > 1 ? s.achSome(most.count, ctx.title(most.gameId)) : most ? s.achIn(ctx.title(most.gameId)) : null,
         achievement: rare,
       }),
     );
@@ -316,7 +316,7 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
   pages.push(
     page("profile", {
       gameId: game(r.top[3]?.gameId ?? first),
-      eyebrow: "Ton profil de joueur",
+      eyebrow: s.profileEyebrow,
       title: profile.title,
       detail: profile.line,
     }),
@@ -327,8 +327,8 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
       gameId: game(first),
       eyebrow: periodTitle(r),
       value: formatDuration(r.totalSecs),
-      title: r.back === 0 ? w.next : "Fin du récap",
-      detail: `${plural(r.sessions, "session", "sessions")} · ${plural(r.games, "jeu", "jeux")}`,
+      title: r.back === 0 ? w.next : s.endPast,
+      detail: `${a.sessions(r.sessions)} · ${a.games(r.games)}`,
     }),
   );
 
@@ -336,7 +336,8 @@ export function storyPages(r: Recap, ctx: StoryContext): StoryPage[] {
 }
 
 /** « Débloqué par 1,2 % des joueurs Steam ». */
-export const rarityText = (percent: number) => `Débloqué par ${decimal.format(percent < 0.1 ? 0.1 : percent)} % des joueurs Steam${percent < 0.1 ? " ou moins" : ""}`;
+export const rarityText = (percent: number) =>
+  t.activity.story.rarity(formatNumber(percent < 0.1 ? 0.1 : percent, { maximumFractionDigits: 1 }), percent < 0.1);
 
 export type StoryAction = "next" | "prev" | "pause" | "close";
 

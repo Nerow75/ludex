@@ -6,6 +6,7 @@
 //! Chaque changement, d'ici ou du menu de la zone de notification, est annoncé par l'événement
 //! `settings-changed` : la page ouverte et la fenêtre de recherche rapide (thème) suivent.
 
+use crate::i18n::{self, Lang, Language};
 use crate::library::{Platform, ScanResult};
 use crate::store::{Accent, Settings, Theme};
 use crate::{AppState, blocking, lock, quick, refresh_tray, save_and_rescan, saves_root, update_settings, wait_scan};
@@ -25,6 +26,10 @@ pub struct SettingsInfo {
     theme: Theme,
     /// Couleur d'accent de l'interface.
     accent: Accent,
+    /// Langue choisie (`system` : celle de Windows).
+    language: Language,
+    /// Langue effective (celle de Windows résolue), pour le front.
+    language_resolved: Lang,
     /// Raccourci au format du plugin (« Alt+Space »), vide si désactivé.
     quick_shortcut: String,
     /// Le même, lisible (« Alt+Espace », « Désactivé »).
@@ -56,6 +61,8 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
     Ok(SettingsInfo {
         theme: s.theme,
         accent: s.accent,
+        language: s.language,
+        language_resolved: i18n::current(),
         quick_shortcut: s.quick_shortcut.clone(),
         quick_shortcut_label: quick::label(&s.quick_shortcut),
         launch_at_startup,
@@ -126,11 +133,44 @@ pub fn set_accent(app: AppHandle, accent: Accent) -> Result<SettingsInfo, String
     publish(&app)
 }
 
+/// Applique la langue des réglages à Rust (textes, menu de la zone de notification, caches des
+/// fiches et des configurations requises, propres à une langue). Vrai si elle a changé.
+pub fn apply_language<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let Some(state) = app.try_state::<AppState>() else { return false };
+    let Ok(language) = lock(&state.data).map(|d| d.settings.language) else { return false };
+    let lang = i18n::resolve(language);
+    if lang == i18n::current() {
+        return false;
+    }
+    i18n::set(lang);
+    crate::reload_language_caches(&state);
+    refresh_tray(app, true);
+    true
+}
+
+/// Langue de l'interface, appliquée tout de suite : réglages publiés (les fenêtres suivent), puis
+/// rescan (textes calculés au scan, tags et descriptions dans la nouvelle langue) ; la
+/// bibliothèque relue est renvoyée.
+#[tauri::command]
+pub async fn set_language(app: AppHandle, language: Language) -> Result<ScanResult, String> {
+    update_settings(&app, |s| s.language = language);
+    apply_language(&app);
+    publish(&app)?;
+    let handle = app.clone();
+    blocking(move || {
+        let state = handle.state::<AppState>();
+        let scanning = wait_scan(&state);
+        let ((), scan) = save_and_rescan(&handle, &state, scanning, |_| ())?;
+        Ok(scan)
+    })
+    .await
+}
+
 /// Nouveau raccourci de la recherche rapide, enregistré tout de suite. Vide : désactivé.
 #[tauri::command]
 pub fn set_quick_shortcut(app: AppHandle, text: String) -> Result<SettingsInfo, String> {
     if text.len() > MAX_SHORTCUT {
-        return Err("Raccourci trop long.".into());
+        return Err(tr!("Raccourci trop long.", "Shortcut too long."));
     }
     let text = text.trim().to_string();
     let previous = lock(&app.state::<AppState>().data)?.settings.quick_shortcut.clone();
@@ -243,6 +283,8 @@ mod tests {
         let info = SettingsInfo {
             theme: Theme::System,
             accent: Accent::Pink,
+            language: Language::En,
+            language_resolved: Lang::En,
             quick_shortcut: "Alt+Space".into(),
             quick_shortcut_label: quick::label("Alt+Space"),
             launch_at_startup: false,
@@ -257,7 +299,7 @@ mod tests {
             notifications_blocked: true,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
+        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""language":"en""#, r#""languageResolved":"en""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#] {
             assert!(text.contains(part), "{text}");
         }
     }

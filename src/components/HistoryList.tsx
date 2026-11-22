@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { lastSessions, PLATFORM_LABEL, type PastSession } from "../lib/api";
 import { formatDate } from "../lib/format";
 import { historyGroups } from "../lib/history";
+import { t, useLang } from "../lib/i18n";
 import { recentGames } from "../lib/library";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
@@ -16,7 +17,10 @@ import { EmptyState } from "./States";
  */
 export function HistoryList({ games, playing, openGame, play }: SectionContext) {
   const list = useMemo(() => recentGames(games, games.length), [games]);
-  const groups = useMemo(() => historyGroups(list), [list]);
+  const language = useLang();
+  // Libellés des périodes (« Aujourd'hui ») relus au changement de langue.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => historyGroups(list), [list, language]);
   const [sessions, setSessions] = useState<ReadonlyMap<string, PastSession>>(() => new Map());
 
   // Relu à l'ouverture et quand une partie commence ou se termine.
@@ -31,12 +35,12 @@ export function HistoryList({ games, playing, openGame, play }: SectionContext) 
   }, [playing]);
 
   if (list.length === 0) {
-    return <EmptyState title="Aucun jeu lancé pour l'instant">Les jeux lancés depuis Ludex ou leur launcher apparaîtront ici, le plus récent en haut</EmptyState>;
+    return <EmptyState title={t.library.history.emptyTitle}>{t.library.history.emptyBody}</EmptyState>;
   }
   return (
     <section aria-labelledby="history-title">
       <div className="bar">
-        <h2 id="history-title">Historique<span><span className="sr-only">, </span>{list.length}</span></h2>
+        <h2 id="history-title">{t.library.history.title}<span><span className="sr-only">, </span>{list.length}</span></h2>
       </div>
       {/* Par période, en grille qui suit la largeur ; flèches à l'écran (`data-nav-2d`). */}
       <div className="hist-groups" data-nav-2d>
@@ -60,9 +64,9 @@ export function HistoryList({ games, playing, openGame, play }: SectionContext) 
                       <Cover game={g} className="hist__cover" />
                       <span className="hist__title">{g.title}</span>
                       <span className="hist__meta"><LauncherIcon platform={g.platform} size={12} />{PLATFORM_LABEL[g.platform]}</span>
-                      <span className="hist__when">{live ? <span className="live">En jeu</span> : last.text}</span>
+                      <span className="hist__when">{live ? <span className="live">{t.library.inGame}</span> : last.text}</span>
                     </button>
-                    <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${g.title}`} onClick={() => play(g)}>
+                    <button type="button" className="card__play" tabIndex={-1} aria-label={t.library.playGame(g.title)} onClick={() => play(g)}>
                       <PlayIcon />
                     </button>
                   </li>

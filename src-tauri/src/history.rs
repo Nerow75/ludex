@@ -73,11 +73,11 @@ pub type SharedHistory = Arc<Mutex<Vec<PastSession>>>;
 /// Écrit dans un fichier temporaire puis le renomme : jamais de fichier à moitié écrit.
 fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).map_err(|e| format!("Dossier de données inaccessible : {e}"))?;
+        fs::create_dir_all(dir).map_err(|e| tr!("Dossier de données inaccessible : {e}", "Data folder unreachable: {e}"))?;
     }
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, text).map_err(|e| format!("Enregistrement impossible : {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Enregistrement impossible : {e}"))
+    fs::write(&tmp, text).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| tr!("Enregistrement impossible : {e}", "Couldn't save: {e}"))
 }
 
 /// Une session par ligne : lisible et comparable à l'œil.
@@ -171,7 +171,7 @@ impl Journal {
         }
         let result = if text.is_empty() {
             match fs::remove_file(&self.open_path) {
-                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Suppression impossible : {e}")),
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(tr!("Suppression impossible : {e}", "Couldn't delete: {e}")),
                 _ => Ok(()),
             }
         } else {

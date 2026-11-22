@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { backupSaves, gameSaves, onSavesBackup, openSaveCopy, openSaveLocation, restoreSaves, type BackupReason, type GameSaves, type SavesCopy } from "../lib/api";
 import { formatBytes, formatDateTime } from "../lib/format";
+import { live, t } from "../lib/i18n";
 
-const REASON: Record<BackupReason, string> = {
-  auto: "fin de partie",
-  manual: "manuelle",
-  before_restore: "avant restauration",
-};
+const REASON: Record<BackupReason, string> = live(() => t.fiche.saves.reason);
 
-const files = (n: number) => `${n} fichier${n > 1 ? "s" : ""}`;
+const files = (n: number) => t.fiche.saves.files(n);
 
 interface Props {
   gameId: string;
@@ -52,7 +49,7 @@ export function SavesPanel({ gameId, playing = false }: Props) {
     setMessage(null);
     try {
       const out = await backupSaves(gameId);
-      setMessage({ text: out.unchanged ? "Rien n'a changé depuis la dernière copie." : `Copie faite : ${files(out.copy.files)}, ${formatBytes(out.copy.size)}.` });
+      setMessage({ text: out.unchanged ? t.fiche.saves.unchanged : t.fiche.saves.done(files(out.copy.files), formatBytes(out.copy.size)) });
       reload();
     } catch (e) {
       setMessage({ text: String(e), error: true });
@@ -67,8 +64,8 @@ export function SavesPanel({ gameId, playing = false }: Props) {
     setMessage(null);
     try {
       const out = await restoreSaves(gameId, copy.id);
-      const safety = out.safety ? " L'état remplacé a été copié juste avant." : "";
-      setMessage({ text: `Copie du ${formatDateTime(copy.created)} restaurée (${files(out.restored)}).${safety}` });
+      const safety = out.safety ? t.fiche.saves.safety : "";
+      setMessage({ text: t.fiche.saves.restored(formatDateTime(copy.created), files(out.restored), safety) });
       reload();
     } catch (e) {
       setMessage({ text: String(e), error: true });
@@ -79,62 +76,62 @@ export function SavesPanel({ gameId, playing = false }: Props) {
 
   const reveal = (open: Promise<void>) => open.catch((e) => setMessage({ text: String(e), error: true }));
 
-  if (!saves) return <p className="saves__note">{message?.text ?? "Recherche des sauvegardes…"}</p>;
+  if (!saves) return <p className="saves__note">{message?.text ?? t.fiche.saves.searching}</p>;
   const known = saves.name !== null;
   return (
     <div className="saves">
-      {saves.status === "loading" && !known && <p className="saves__note">Base des sauvegardes en cours de téléchargement.</p>}
-      {saves.status === "unavailable" && !known && <p className="saves__note">Base des sauvegardes indisponible : vérifie la connexion.</p>}
-      {saves.status === "ready" && !known && <p className="saves__note">Emplacement des sauvegardes inconnu pour ce jeu.</p>}
+      {saves.status === "loading" && !known && <p className="saves__note">{t.fiche.saves.loading}</p>}
+      {saves.status === "unavailable" && !known && <p className="saves__note">{t.fiche.saves.unavailable}</p>}
+      {saves.status === "ready" && !known && <p className="saves__note">{t.fiche.saves.unknown}</p>}
 
       {known && (
         <section>
-          <h4>Sur ce PC</h4>
+          <h4>{t.fiche.saves.onThisPc}</h4>
           {saves.locations.length === 0 ? (
-            <p className="saves__note">Aucune sauvegarde trouvée.</p>
+            <p className="saves__note">{t.fiche.saves.none}</p>
           ) : (
             <ul className="saves__list">
               {saves.locations.map((l) => (
                 <li key={l.path}>
                   <span className="path" title={l.path}>{l.path}</span>
                   <span className="saves__meta">{files(l.files)}, {formatBytes(l.size)}</span>
-                  <button type="button" className="btn-ghost" data-nav title={`Ouvrir ${l.path}`} onClick={() => reveal(openSaveLocation(gameId, l.path))}>
-                    Ouvrir
+                  <button type="button" className="btn-ghost" data-nav title={t.fiche.saves.openPath(l.path)} onClick={() => reveal(openSaveLocation(gameId, l.path))}>
+                    {t.fiche.saves.open}
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {saves.registry && <p className="saves__note">Une partie des données est dans le registre Windows : elle n'est pas copiée.</p>}
+          {saves.registry && <p className="saves__note">{t.fiche.saves.registry}</p>}
         </section>
       )}
 
       {saves.copies.length > 0 && (
         <section>
-          <h4>Copies</h4>
+          <h4>{t.fiche.saves.copies}</h4>
           <ul className="saves__list">
             {saves.copies.map((c) => (
               <li key={c.id}>
                 <span>{formatDateTime(c.created)}</span>
                 <span className="saves__meta">{REASON[c.reason]}, {files(c.files)}, {formatBytes(c.size)}</span>
-                <button type="button" className="btn-ghost saves__open" data-nav title="Montrer la copie dans l'Explorateur" onClick={() => reveal(openSaveCopy(gameId, c.id))}>
-                  Ouvrir
+                <button type="button" className="btn-ghost saves__open" data-nav title={t.fiche.saves.showCopy} onClick={() => reveal(openSaveCopy(gameId, c.id))}>
+                  {t.fiche.saves.open}
                 </button>
                 {confirming === c.id ? (
                   <span className="saves__confirm">
-                    <span>Remplacer les sauvegardes actuelles ? Elles seront copiées avant.</span>
-                    <button type="button" className="btn-ghost" disabled={busy} onClick={() => restore(c)}>Restaurer</button>
-                    <button type="button" className="btn-ghost" onClick={() => setConfirming(null)}>Annuler</button>
+                    <span>{t.fiche.saves.confirm}</span>
+                    <button type="button" className="btn-ghost" disabled={busy} onClick={() => restore(c)}>{t.fiche.saves.restore}</button>
+                    <button type="button" className="btn-ghost" onClick={() => setConfirming(null)}>{t.fiche.saves.cancel}</button>
                   </span>
                 ) : (
                   <button
                     type="button"
                     className="btn-ghost"
                     disabled={busy || !known}
-                    title={playing ? "Ferme le jeu avant de restaurer" : undefined}
+                    title={playing ? t.fiche.saves.closeGame : undefined}
                     onClick={() => setConfirming(c.id)}
                   >
-                    Restaurer
+                    {t.fiche.saves.restore}
                   </button>
                 )}
               </li>
@@ -146,14 +143,14 @@ export function SavesPanel({ gameId, playing = false }: Props) {
       <div className="saves__acts">
         {known && (
           <button type="button" className="btn-ghost" disabled={busy || saves.locations.length === 0} onClick={backup}>
-            Sauvegarder maintenant
+            {t.fiche.saves.backupNow}
           </button>
         )}
         {message && <span className={message.error ? "saves__msg is-error" : "saves__msg"} role="status">{message.text}</span>}
       </div>
       <p className="saves__note">
-        Copies dans <span className="path" title={saves.dir}>{saves.dir}</span>
-        {saves.auto ? ", à la fin de chaque partie lancée depuis Ludex." : ". Copie automatique désactivée."}
+        {t.fiche.saves.copiesIn} <span className="path" title={saves.dir}>{saves.dir}</span>
+        {saves.auto ? t.fiche.saves.autoOn : t.fiche.saves.autoOff}
       </p>
     </div>
   );

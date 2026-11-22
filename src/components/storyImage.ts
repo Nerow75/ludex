@@ -5,6 +5,7 @@
 // (jamais de canvas « tainté »). Rust reçoit seulement les octets (`save_story_image`).
 import type { Game } from "../lib/api";
 import { titleColor } from "../lib/color";
+import { t } from "../lib/i18n";
 import { rarityText, type StoryPage } from "../lib/story";
 
 export const STORY_WIDTH = 1080;
@@ -169,7 +170,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
   canvas.width = STORY_WIDTH;
   canvas.height = STORY_HEIGHT;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas indisponible");
+  if (!ctx) throw new Error(t.activity.story.canvasUnavailable);
   const W = STORY_WIDTH;
   const H = STORY_HEIGHT;
 
@@ -214,7 +215,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
   ctx.fillStyle = c.onArt2;
   ctx.font = `500 ${36}px ${c.body}`;
   ctx.textAlign = "right";
-  ctx.fillText("Récap", W - PAD, PAD + 32);
+  ctx.fillText(t.activity.story.brand, W - PAD, PAD + 32);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
@@ -343,7 +344,7 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
     const width = W - PAD - pad - left;
     const gameTitle = byId.get(rare.gameId)?.title;
     const lines: { font: string; color: string; text: string; size: number }[] = [
-      { font: `500 32px ${c.body}`, color: c.accent, text: "Le plus rare", size: 32 },
+      { font: `500 32px ${c.body}`, color: c.accent, text: t.activity.story.rarest, size: 32 },
       { font: `600 46px ${c.body}`, color: c.onArt, text: rare.name, size: 46 },
       { font: `400 34px ${c.body}`, color: c.onArt2, text: rarityText(rare.percent), size: 34 },
       ...(gameTitle ? [{ font: `400 34px ${c.body}`, color: c.onArt2, text: gameTitle, size: 34 }] : []),
@@ -387,6 +388,6 @@ export async function drawStoryPage(page: StoryPage, byId: Map<string, Game>): P
   }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) throw new Error("Image impossible à produire");
+  if (!blob) throw new Error(t.activity.story.imageFailed);
   return new Uint8Array(await blob.arrayBuffer());
 }

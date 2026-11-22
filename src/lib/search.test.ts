@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "./i18n";
 import { maxTypos, prefixDistance, prepareQuery, RANK_ALIAS, RANK_META, searchRank, titleRank } from "./search";
 import { fiche, jeu } from "../test/jeu";
 
@@ -122,5 +123,21 @@ describe("searchRank : alias choisis par l'utilisateur", () => {
   it("sans alias ni correspondance, rien ne change", () => {
     expect(searchRank(jeu({ title: "Hades", aliases: [] }), "cod")).toBeNull();
     expect(searchRank(jeu({ title: "Hades", aliases: ["roguelike"] }), "zelda")).toBeNull();
+  });
+});
+
+describe("genre dans la langue de l'interface", () => {
+  afterEach(() => setLang("fr"));
+  const forza = jeu({ title: "Forza Horizon 5", details: fiche({ genres: ["Course", "Stratégie"], tags: ["Monde ouvert"] }) });
+
+  it("en anglais, un genre se trouve par son nom anglais et par son nom français", () => {
+    setLang("en");
+    expect(searchRank(forza, "racing")).toBe(RANK_META);
+    expect(searchRank(forza, "strategy")).toBe(RANK_META);
+    expect(searchRank(forza, "course")).toBe(RANK_META);
+  });
+  it("en français, le nom anglais ne trouve rien", () => {
+    expect(searchRank(forza, "racing")).toBeNull();
+    expect(searchRank(forza, "stratégie")).toBe(RANK_META);
   });
 });

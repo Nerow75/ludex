@@ -1,5 +1,6 @@
 import type { Game } from "../lib/api";
 import { relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { Art, Logo } from "./Art";
 import { PlayIcon } from "./Icons";
 
@@ -18,7 +19,7 @@ export function ResumeRow({ games, playing, onSelect, onPlay, nav = false }: Pro
   if (games.length === 0) return null;
   return (
     <section className="resume" aria-labelledby="resume-title">
-      <h2 id="resume-title">Reprendre</h2>
+      <h2 id="resume-title">{t.common.resume}</h2>
       <div className="resume__grid">
         {games.map((g, i) => {
           const live = playing.has(g.id);
@@ -30,13 +31,13 @@ export function ResumeRow({ games, playing, onSelect, onPlay, nav = false }: Pro
                 data-nav={nav || undefined}
                 onClick={() => onSelect(g)}
                 onDoubleClick={() => onPlay(g)}
-                aria-label={`${g.title}, ${live ? "en jeu" : relativeTime(g.lastPlayed)}`}
+                aria-label={`${g.title}, ${live ? t.common.a11y.inGame : relativeTime(g.lastPlayed)}`}
               >
                 <Art game={g} />
                 <Logo game={g} />
-                <small>{live ? <span className="live">En jeu</span> : relativeTime(g.lastPlayed)}</small>
+                <small>{live ? <span className="live">{t.common.inGame}</span> : relativeTime(g.lastPlayed)}</small>
               </button>
-              <button type="button" className="card__play" tabIndex={-1} aria-label={`Jouer à ${g.title}`} onClick={() => onPlay(g)}>
+              <button type="button" className="card__play" tabIndex={-1} aria-label={t.common.playGame(g.title)} onClick={() => onPlay(g)}>
                 <PlayIcon />
               </button>
             </div>
