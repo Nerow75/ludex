@@ -2,7 +2,7 @@
 
 **Français** · [English](PRIVACY.en.md)
 
-Ludex est un lanceur de jeux local. Il n'a ni compte, ni serveur, ni télémétrie : aucune statistique d'usage, aucun rapport de plantage, aucun identifiant de ton PC n'est envoyé. Ce document liste tout ce que Ludex contacte sur Internet et ce qu'il y envoie. Il est tenu à jour à partir du code (version 0.2.0).
+Ludex est un lanceur de jeux local. Il n'a ni serveur ni télémétrie et ne demande aucun compte (les comptes GOG et Epic Games et la clé Web API Steam sont facultatifs et coupés par défaut) : aucune statistique d'usage, aucun rapport de plantage, aucun identifiant de ton PC n'est envoyé. Ce document liste tout ce que Ludex contacte sur Internet et ce qu'il y envoie. Il est tenu à jour à partir du code (version 0.2.0).
 
 ## Ce que Ludex lit sur ton PC
 
@@ -52,6 +52,33 @@ Toutes les requêtes partent directement de ton PC vers le service, en HTTPS, sa
 | --- | --- | --- |
 | `howlongtobeat.com` | Après un scan, une requête toutes les 1,2 s, chaque titre gardé 30 jours | Une demande de jeton de recherche (`init`), puis les mots du titre du jeu ; si l'adresse de recherche a changé, lecture de la page d'accueil et de ses scripts pour la retrouver |
 
+### Comptes facultatifs : GOG et Epic Games (désactivés par défaut)
+
+Seulement si tu connectes ces comptes dans Paramètres > Comptes, pour la section « Pas installés » (jeux possédés qui ne sont pas sur ce PC). La connexion se fait sur la page de la boutique, dans une fenêtre à part en navigation privée : Ludex ne voit jamais ton identifiant ni ton mot de passe. Il garde seulement les jetons de la boutique, chiffrés pour ton compte Windows (DPAPI) dans `comptes.bin`, jamais montrés à l'interface, dans le journal, le Diagnostic ni l'export. « Se déconnecter » efface les jetons et la liste.
+
+| Hôte | Quand | Envoyé |
+| --- | --- | --- |
+| `auth.gog.com`, `embed.gog.com`, `login.gog.com` | Connexion (page de GOG), puis échange et renouvellement des jetons | Le code de connexion donné par GOG, puis le jeton de renouvellement ; identifiant public du client GOG Galaxy |
+| `embed.gog.com/user/data/games` | Liste de tes jeux, relue après 6 h ou par « Relire » | Le jeton d'accès de GOG |
+| `api.gog.com/products` | Fiches publiques des jeux possédés (gardées 30 jours), puis l'installeur d'un jeu quand tu cliques sur « Installer » | Numéros GOG des jeux ; le jeton d'accès seulement pour demander le lien de téléchargement |
+| `*.gog.com` (serveurs de téléchargement de GOG) | Téléchargement de l'installeur, après ton clic sur « Installer » | Rien d'autre que l'adresse donnée par GOG |
+| `www.epicgames.com` | Connexion (page d'Epic, dans sa fenêtre) | Ce que tu saisis sur la page d'Epic, que Ludex ne lit pas |
+| `account-public-service-prod03.ol.epicgames.com` | Échange, renouvellement et fin des jetons (à la déconnexion) | Le code de connexion donné par Epic, puis le jeton de renouvellement ; identifiant public du client du launcher Epic |
+| `library-service.live.use1a.on.epicgames.com` | Liste de tes jeux, relue après 6 h ou par « Relire » | Le jeton d'accès d'Epic |
+| `catalog-public-service-prod06.ol.epicgames.com` | Fiches des jeux possédés (titre, type, plateforme, image), gardées 30 jours | Numéros de catalogue des jeux ; le jeton d'accès d'Epic |
+
+Ludex ne télécharge rien pour Epic : « Installer dans Epic » ouvre le launcher Epic de ton PC sur le jeu.
+
+### Clé Web API Steam facultative (absente par défaut)
+
+Sans clé, la section « Pas installés » montre les jeux Steam déjà lancés sur ton compte, lus sur ton PC (`localconfig.vdf` et `appinfo.vdf` de Steam) : rien n'est envoyé. Seulement si tu colles ta clé Web API Steam personnelle dans Paramètres > Comptes, Ludex demande la liste complète de tes jeux à Steam. La clé est vérifiée par cette même requête, puis chiffrée pour ton compte Windows (DPAPI) dans `comptes.bin`, jamais montrée à l'interface, dans le journal, le Diagnostic ni l'export. « Retirer la clé » l'efface avec la liste.
+
+| Hôte | Quand | Envoyé |
+| --- | --- | --- |
+| `api.steampowered.com/IPlayerService/GetOwnedGames` | À l'enregistrement de la clé, puis liste relue après 6 h ou par « Relire » | Ta clé Web API et l'identifiant Steam (SteamID64) du compte de ce PC |
+
+« Obtenir une clé » ouvre `steamcommunity.com/dev/apikey` dans ton navigateur. « Installer dans Steam » ouvre Steam sur le jeu (`steam://install/<numéro>`) : Ludex ne télécharge rien pour Steam.
+
 ### Images
 
 Ces adresses sont construites par Ludex à partir d'un numéro Steam ou d'un nom d'image ; Ludex télécharge certaines images dans son cache, l'interface en affiche d'autres directement.
@@ -62,11 +89,14 @@ Ces adresses sont construites par Ludex à partir d'un numéro Steam ou d'un nom
 | `store-images.s-microsoft.com` | Jaquettes et images de fond trouvées dans le Microsoft Store | Adresse de l'image |
 | `clan.akamai.steamstatic.com`, `clan.fastly.steamstatic.com` | Images des actualités Steam | Adresse de l'image |
 | `images.steamusercontent.com` | Vignettes des mods Workshop | Adresse de la vignette |
+| `shared.akamai.steamstatic.com` | En-têtes des jeux Steam pas installés | Adresse de l'image (numéro Steam du jeu dedans) |
+| `images.gog-statics.com` | Vignettes des jeux GOG pas installés (compte GOG connecté) | Adresse de la vignette |
+| `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Vignettes des jeux Epic pas installés (compte Epic connecté) | Adresse de la vignette |
 
 ## Ce qui n'est jamais envoyé
 
 - Ton nom d'utilisateur Windows, tes chemins de dossiers, le nom de ton PC.
-- Ton identifiant de compte Steam (lu sur le disque pour trouver ton temps de jeu, jamais transmis).
+- Ton identifiant de compte Steam (lu sur le disque pour trouver ton temps de jeu), sauf à `api.steampowered.com` si tu enregistres une clé Web API Steam.
 - Ton temps de jeu, ton historique, tes favoris, statuts, notes, collections, options de lancement.
 - Le contenu de tes fichiers, de tes sauvegardes ou de tes captures.
 

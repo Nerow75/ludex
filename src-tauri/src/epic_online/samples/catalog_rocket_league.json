@@ -1,0 +1,415 @@
+{
+ "530145df28a24424923f5828cc9031a1": {
+  "id": "530145df28a24424923f5828cc9031a1",
+  "title": "Rocket League®",
+  "description": "Rocket League®",
+  "keyImages": [
+   {
+    "type": "DieselGameBoxTall",
+    "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/RocketTall_1200x1600-fab62ea387aa4da2a1e67835db3bb300",
+    "md5": "b9e2062248d7ac053c3b822fe7ee9ff9",
+    "width": 1200,
+    "height": 1600,
+    "size": 291314,
+    "uploadedDate": "2026-09-25T17:53:40.519Z"
+   },
+   {
+    "type": "DieselGameBox",
+    "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/Rocket_Wide_2560x1440-b102a5ee64c64a9199673ad09fae6e42",
+    "md5": "db8af634179771afd08195355f7ada46",
+    "width": 2560,
+    "height": 1440,
+    "size": 568572,
+    "uploadedDate": "2026-09-25T17:53:45.058Z"
+   }
+  ],
+  "categories": [
+   {
+    "path": "public"
+   },
+   {
+    "path": "games"
+   },
+   {
+    "path": "applications"
+   }
+  ],
+  "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+  "status": "ACTIVE",
+  "creationDate": "2019-07-17T15:21:47.846Z",
+  "lastModifiedDate": "2026-11-17T14:18:01.109Z",
+  "customAttributes": {
+   "CanRunOffline": {
+    "type": "STRING",
+    "value": "true"
+   },
+   "PresenceId": {
+    "type": "STRING",
+    "value": "9773aa1aa54f4f7b80e44bef04986cea"
+   },
+   "CanSkipCabinedWarning": {
+    "type": "STRING",
+    "value": "true"
+   },
+   "MonitorPresence": {
+    "type": "STRING",
+    "value": "true"
+   },
+   "extraLaunchOption_001_Args": {
+    "type": "STRING",
+    "value": "-noeac"
+   },
+   "UseAccessControl": {
+    "type": "STRING",
+    "value": "false"
+   },
+   "AllowUriCmdArgs": {
+    "type": "STRING",
+    "value": "false"
+   },
+   "RequirementsJson": {
+    "type": "STRING",
+    "value": "[]"
+   },
+   "CanSkipKoreanIdVerification": {
+    "type": "STRING",
+    "value": "true"
+   },
+   "extraLaunchOption_001_Name": {
+    "type": "STRING",
+    "value": "Launch without Anti-Cheat"
+   },
+   "FolderName": {
+    "type": "STRING",
+    "value": "rocketleague"
+   }
+  },
+  "entitlementName": "530145df28a24424923f5828cc9031a1",
+  "entitlementType": "EXECUTABLE",
+  "itemType": "DURABLE",
+  "releaseInfo": [
+   {
+    "id": "772482dec53e40d69697fc65fdae860c",
+    "appId": "Sugar",
+    "platform": [
+     "Windows"
+    ],
+    "dateAdded": "2020-09-23T00:00:00.000Z"
+   }
+  ],
+  "developer": "Psyonix LLC",
+  "developerId": "o-98larctxyhn55kqjq5xjb9wzjl9hf9",
+  "eulaIds": [
+   "(egstore)"
+  ],
+  "endOfSupport": false,
+  "dlcItemList": [
+   {
+    "id": "8eeee1bbc27442fd914a0b97b940869d",
+    "title": "S7M2 Audience",
+    "description": "S7M2 Audience",
+    "keyImages": [],
+    "categories": [
+     {
+      "path": "addons"
+     }
+    ],
+    "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+    "status": "ACTIVE",
+    "creationDate": "2022-04-29T20:24:27.039Z",
+    "lastModifiedDate": "2023-11-30T19:24:33.207Z",
+    "customAttributes": {
+     "SupportedPlatforms": {
+      "type": "STRING",
+      "value": "Windows"
+     }
+    },
+    "entitlementName": "8eeee1bbc27442fd914a0b97b940869d",
+    "entitlementType": "AUDIENCE",
+    "itemType": "DURABLE",
+    "releaseInfo": [],
+    "developer": "Psyonix LLC",
+    "developerId": "o-98larctxyhn55kqjq5xjb9wzjl9hf9",
+    "eulaIds": [
+     "egstore"
+    ],
+    "endOfSupport": false,
+    "mainGameItem": {
+     "id": "530145df28a24424923f5828cc9031a1",
+     "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+     "unsearchable": false
+    },
+    "mainGameItemList": [
+     {
+      "id": "530145df28a24424923f5828cc9031a1",
+      "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+      "unsearchable": false
+     }
+    ],
+    "ageGatings": {},
+    "applicationId": "",
+    "requiresSecureAccount": false,
+    "unsearchable": true
+   }
+  ],
+  "mainGameItemList": [],
+  "ageGatings": {},
+  "applicationId": "fghi4567OXA1CdeeCuAmUWMhmfiO3EAl",
+  "unsearchable": true
+ },
+ "8eeee1bbc27442fd914a0b97b940869d": {
+  "id": "8eeee1bbc27442fd914a0b97b940869d",
+  "title": "S7M2 Audience",
+  "description": "S7M2 Audience",
+  "keyImages": [],
+  "categories": [
+   {
+    "path": "addons"
+   }
+  ],
+  "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+  "status": "ACTIVE",
+  "creationDate": "2022-04-29T20:24:27.039Z",
+  "lastModifiedDate": "2023-11-30T19:24:33.207Z",
+  "customAttributes": {
+   "SupportedPlatforms": {
+    "type": "STRING",
+    "value": "Windows"
+   }
+  },
+  "entitlementName": "8eeee1bbc27442fd914a0b97b940869d",
+  "entitlementType": "AUDIENCE",
+  "itemType": "DURABLE",
+  "releaseInfo": [],
+  "developer": "Psyonix LLC",
+  "developerId": "o-98larctxyhn55kqjq5xjb9wzjl9hf9",
+  "eulaIds": [
+   "egstore"
+  ],
+  "endOfSupport": false,
+  "mainGameItem": {
+   "id": "530145df28a24424923f5828cc9031a1",
+   "title": "Rocket League®",
+   "description": "Rocket League®",
+   "keyImages": [
+    {
+     "type": "DieselGameBoxTall",
+     "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/RocketTall_1200x1600-fab62ea387aa4da2a1e67835db3bb300",
+     "md5": "b9e2062248d7ac053c3b822fe7ee9ff9",
+     "width": 1200,
+     "height": 1600,
+     "size": 291314,
+     "uploadedDate": "2026-09-25T17:53:40.519Z"
+    },
+    {
+     "type": "DieselGameBox",
+     "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/Rocket_Wide_2560x1440-b102a5ee64c64a9199673ad09fae6e42",
+     "md5": "db8af634179771afd08195355f7ada46",
+     "width": 2560,
+     "height": 1440,
+     "size": 568572,
+     "uploadedDate": "2026-09-25T17:53:45.058Z"
+    }
+   ],
+   "categories": [
+    {
+     "path": "public"
+    },
+    {
+     "path": "games"
+    },
+    {
+     "path": "applications"
+    }
+   ],
+   "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+   "status": "ACTIVE",
+   "creationDate": "2019-07-17T15:21:47.846Z",
+   "lastModifiedDate": "2026-11-17T14:18:01.109Z",
+   "customAttributes": {
+    "CanRunOffline": {
+     "type": "STRING",
+     "value": "true"
+    },
+    "PresenceId": {
+     "type": "STRING",
+     "value": "9773aa1aa54f4f7b80e44bef04986cea"
+    },
+    "CanSkipCabinedWarning": {
+     "type": "STRING",
+     "value": "true"
+    },
+    "MonitorPresence": {
+     "type": "STRING",
+     "value": "true"
+    },
+    "extraLaunchOption_001_Args": {
+     "type": "STRING",
+     "value": "-noeac"
+    },
+    "UseAccessControl": {
+     "type": "STRING",
+     "value": "false"
+    },
+    "AllowUriCmdArgs": {
+     "type": "STRING",
+     "value": "false"
+    },
+    "RequirementsJson": {
+     "type": "STRING",
+     "value": "[]"
+    },
+    "CanSkipKoreanIdVerification": {
+     "type": "STRING",
+     "value": "true"
+    },
+    "extraLaunchOption_001_Name": {
+     "type": "STRING",
+     "value": "Launch without Anti-Cheat"
+    },
+    "FolderName": {
+     "type": "STRING",
+     "value": "rocketleague"
+    }
+   },
+   "entitlementName": "530145df28a24424923f5828cc9031a1",
+   "entitlementType": "EXECUTABLE",
+   "itemType": "DURABLE",
+   "releaseInfo": [
+    {
+     "id": "772482dec53e40d69697fc65fdae860c",
+     "appId": "Sugar",
+     "platform": [
+      "Windows"
+     ],
+     "dateAdded": "2020-09-23T00:00:00.000Z"
+    }
+   ],
+   "developer": "Psyonix LLC",
+   "developerId": "o-98larctxyhn55kqjq5xjb9wzjl9hf9",
+   "eulaIds": [
+    "(egstore)"
+   ],
+   "endOfSupport": false,
+   "mainGameItemList": [],
+   "ageGatings": {},
+   "applicationId": "fghi4567OXA1CdeeCuAmUWMhmfiO3EAl",
+   "unsearchable": true
+  },
+  "mainGameItemList": [
+   {
+    "id": "530145df28a24424923f5828cc9031a1",
+    "title": "Rocket League®",
+    "description": "Rocket League®",
+    "keyImages": [
+     {
+      "type": "DieselGameBoxTall",
+      "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/RocketTall_1200x1600-fab62ea387aa4da2a1e67835db3bb300",
+      "md5": "b9e2062248d7ac053c3b822fe7ee9ff9",
+      "width": 1200,
+      "height": 1600,
+      "size": 291314,
+      "uploadedDate": "2026-09-25T17:53:40.519Z"
+     },
+     {
+      "type": "DieselGameBox",
+      "url": "https://cdn1.epicgames.com/item/9773aa1aa54f4f7b80e44bef04986cea/Rocket_Wide_2560x1440-b102a5ee64c64a9199673ad09fae6e42",
+      "md5": "db8af634179771afd08195355f7ada46",
+      "width": 2560,
+      "height": 1440,
+      "size": 568572,
+      "uploadedDate": "2026-09-25T17:53:45.058Z"
+     }
+    ],
+    "categories": [
+     {
+      "path": "public"
+     },
+     {
+      "path": "games"
+     },
+     {
+      "path": "applications"
+     }
+    ],
+    "namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+    "status": "ACTIVE",
+    "creationDate": "2019-07-17T15:21:47.846Z",
+    "lastModifiedDate": "2026-11-17T14:18:01.109Z",
+    "customAttributes": {
+     "CanRunOffline": {
+      "type": "STRING",
+      "value": "true"
+     },
+     "PresenceId": {
+      "type": "STRING",
+      "value": "9773aa1aa54f4f7b80e44bef04986cea"
+     },
+     "CanSkipCabinedWarning": {
+      "type": "STRING",
+      "value": "true"
+     },
+     "MonitorPresence": {
+      "type": "STRING",
+      "value": "true"
+     },
+     "extraLaunchOption_001_Args": {
+      "type": "STRING",
+      "value": "-noeac"
+     },
+     "UseAccessControl": {
+      "type": "STRING",
+      "value": "false"
+     },
+     "AllowUriCmdArgs": {
+      "type": "STRING",
+      "value": "false"
+     },
+     "RequirementsJson": {
+      "type": "STRING",
+      "value": "[]"
+     },
+     "CanSkipKoreanIdVerification": {
+      "type": "STRING",
+      "value": "true"
+     },
+     "extraLaunchOption_001_Name": {
+      "type": "STRING",
+      "value": "Launch without Anti-Cheat"
+     },
+     "FolderName": {
+      "type": "STRING",
+      "value": "rocketleague"
+     }
+    },
+    "entitlementName": "530145df28a24424923f5828cc9031a1",
+    "entitlementType": "EXECUTABLE",
+    "itemType": "DURABLE",
+    "releaseInfo": [
+     {
+      "id": "772482dec53e40d69697fc65fdae860c",
+      "appId": "Sugar",
+      "platform": [
+       "Windows"
+      ],
+      "dateAdded": "2020-09-23T00:00:00.000Z"
+     }
+    ],
+    "developer": "Psyonix LLC",
+    "developerId": "o-98larctxyhn55kqjq5xjb9wzjl9hf9",
+    "eulaIds": [
+     "(egstore)"
+    ],
+    "endOfSupport": false,
+    "mainGameItemList": [],
+    "ageGatings": {},
+    "applicationId": "fghi4567OXA1CdeeCuAmUWMhmfiO3EAl",
+    "unsearchable": true
+   }
+  ],
+  "ageGatings": {},
+  "applicationId": "",
+  "requiresSecureAccount": false,
+  "unsearchable": true
+ }
+}

@@ -27,10 +27,12 @@ pub enum Service {
     Workshop,
     Wishlist,
     Gog,
+    Epic,
+    Steam,
 }
 
 impl Service {
-    pub const ALL: [Service; 10] = [
+    pub const ALL: [Service; 12] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -41,6 +43,8 @@ impl Service {
         Service::Workshop,
         Service::Wishlist,
         Service::Gog,
+        Service::Epic,
+        Service::Steam,
     ];
 
     pub fn label(self) -> &'static str {
@@ -55,6 +59,8 @@ impl Service {
             Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
             Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
             Service::Gog => tr_str!("Compte GOG", "GOG account"),
+            Service::Epic => tr_str!("Compte Epic Games", "Epic Games account"),
+            Service::Steam => tr_str!("Jeux Steam possédés", "Owned Steam games"),
         }
     }
 
@@ -71,6 +77,8 @@ impl Service {
             Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
             Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
             Service::Gog => tr_str!("API de GOG", "GOG API"),
+            Service::Epic => tr_str!("API d'Epic Games", "Epic Games API"),
+            Service::Steam => tr_str!("API Web de Steam (clé personnelle)", "Steam Web API (personal key)"),
         }
     }
 
@@ -169,6 +177,10 @@ pub struct Diagnostic {
     pub discord: crate::discord::Status,
     /// Compte GOG connecté ou non (jamais d'identifiant).
     pub gog: crate::gog_online::AccountState,
+    /// Compte Epic connecté ou non (jamais d'identifiant).
+    pub epic: crate::gog_online::AccountState,
+    /// Clé Web API Steam enregistrée ou non (jamais la clé).
+    pub steam_key: crate::gog_online::AccountState,
     /// Rapport texte anonymisé, prêt à copier.
     pub report: String,
 }
@@ -191,6 +203,10 @@ pub struct Inputs<'a> {
     pub discord: crate::discord::Status,
     /// État du compte GOG.
     pub gog: crate::gog_online::AccountState,
+    /// État du compte Epic.
+    pub epic: crate::gog_online::AccountState,
+    /// État de la clé Web API Steam.
+    pub steam_key: crate::gog_online::AccountState,
 }
 
 /// Sources dans l'ordre du scan.
@@ -298,6 +314,8 @@ pub fn build(input: Inputs, locations: impl Fn(Platform) -> Vec<Location>, when:
         services,
         discord: input.discord,
         gog: input.gog,
+        epic: input.epic,
+        steam_key: input.steam_key,
         report: String::new(),
     };
     diag.report = report(&diag, privacy, when);
@@ -511,6 +529,8 @@ pub fn report(d: &Diagnostic, privacy: &Privacy, when: &dyn Fn(u64) -> String) -
     out.push(String::new());
     out.push(tr!("Statut Discord : {}", "Discord status: {}", d.discord.text()));
     out.push(tr!("Compte GOG : {}", "GOG account: {}", d.gog.text()));
+    out.push(tr!("Compte Epic Games : {}", "Epic Games account: {}", crate::epic_online::state_text(d.epic)));
+    out.push(tr!("Clé Web API Steam : {}", "Steam Web API key: {}", crate::steam_owned::state_text(d.steam_key)));
     anonymize(&(out.join("\n") + "\n"), privacy)
 }
 
@@ -547,6 +567,8 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             busy,
             discord: app.try_state::<crate::discord::Presence>().map(|p| p.status()).unwrap_or_default(),
             gog: crate::gog_online::diag_state(&app),
+            epic: crate::epic_online::diag_state(&app),
+            steam_key: crate::steam_owned::diag_state(&app),
         };
         let privacy = Privacy::of_this_pc();
         let mut diag = build(input, crate::library::locations, &local_time, &privacy);
@@ -686,6 +708,8 @@ mod tests {
             busy: vec![Service::Art],
             discord: crate::discord::Status { state: crate::discord::State::Absent, error: Some("Discord n'est pas ouvert.".into()) },
             gog: crate::gog_online::AccountState::Connected,
+            epic: crate::gog_online::AccountState::Expired,
+            steam_key: crate::gog_online::AccountState::Connected,
         };
         let locations = |p: Platform| match p {
             Platform::Steam => vec![
@@ -713,6 +737,7 @@ mod tests {
         assert!(text.contains("- Durées de vie (HowLongToBeat) : "));
         assert!(text.contains("réponse 429"));
         assert!(text.contains(", lecture en cours\n"));
+        assert!(text.contains("Compte Epic Games : à reconnecter") && text.contains("Clé Web API Steam : enregistrée\n"));
         // Rien de personnel : ni nom d'utilisateur, ni compte Steam, ni titres des jeux manuels.
         for secret in ["Anne", "52870646", "Titre très perso", "Autre titre perso"] {
             assert!(!text.contains(secret), "{secret} dans le rapport :\n{text}");
@@ -740,6 +765,8 @@ mod tests {
                 busy: Vec::new(),
                 discord: crate::discord::Status::default(),
                 gog: crate::gog_online::AccountState::default(),
+                epic: crate::gog_online::AccountState::default(),
+                steam_key: crate::gog_online::AccountState::default(),
             };
             let locations = |p: Platform| match p {
                 Platform::Steam => vec![Location { label: "Account playtime".into(), path: r"E:\Steam\userdata\52870646\config\localconfig.vdf".into(), found: false }],
@@ -789,6 +816,8 @@ mod tests {
             busy: Vec::new(),
             discord: crate::discord::Status::default(),
             gog: crate::gog_online::AccountState::default(),
+            epic: crate::gog_online::AccountState::default(),
+            steam_key: crate::gog_online::AccountState::default(),
         };
         let d = build(input, crate::library::locations, &local_time, &Privacy::of_this_pc());
         println!("{}", d.report);

@@ -14,11 +14,12 @@ import {
 } from "../lib/api";
 import { gogPercent, gogProgressText, jobActive, librarySummary } from "../lib/gog";
 import { t } from "../lib/i18n";
+import { accountNote, storeName } from "../lib/notInstalled";
 import type { SectionContext } from "../lib/sections";
-import { EmptyState } from "./States";
+import { LauncherIcon } from "./LauncherIcon";
 
-/** Vignette 16:9 de GOG ; cadre vide si absente ou si elle ne se charge pas. */
-function Tile({ url }: { url: string | null }) {
+/** Vignette 16:9 d'une boutique ; cadre vide si absente ou si elle ne se charge pas. */
+export function Tile({ url }: { url: string | null }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) return <span className="wish__img gog__img" aria-hidden="true" />;
   return <img className="wish__img gog__img" src={url} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
@@ -71,11 +72,11 @@ function JobBar({ job, ctx, onDismiss, onRetry }: { job: GogProgress; ctx: Secti
 }
 
 /**
- * Section « Pas installés » : jeux GOG possédés qui ne sont pas sur ce PC (compte GOG facultatif,
- * connecté dans les Paramètres). « Installer » ouvre le sélecteur de dossier côté Rust ; le front
- * n'envoie que l'id numérique du jeu.
+ * Groupe GOG de la section « Pas installés » : jeux GOG possédés qui ne sont pas sur ce PC
+ * (compte GOG facultatif, connecté dans les Paramètres). « Installer » ouvre le sélecteur de
+ * dossier côté Rust ; le front n'envoie que l'id numérique du jeu.
  */
-export function GogView(ctx: SectionContext) {
+export function GogGroup({ ctx, onCount }: { ctx: SectionContext; onCount?: (n: number | null) => void }) {
   const [lib, setLib] = useState<GogLibrary | null>(null);
   const [job, setJob] = useState<GogProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +110,11 @@ export function GogView(ctx: SectionContext) {
     };
   }, [load]);
 
+  const state = lib?.account.state;
+  useEffect(() => {
+    onCount?.(lib && state === "connected" ? lib.games.length : null);
+  }, [lib, state, onCount]);
+
   const install = async (game: GogGame) => {
     setError(null);
     try {
@@ -124,19 +130,20 @@ export function GogView(ctx: SectionContext) {
   };
 
   const running = jobActive(job);
-  const state = lib?.account.state;
+  const note = lib ? accountNote(lib.account.state, "gog") : null;
   return (
-    <section className="wishes gog" aria-label={g.title}>
-      <div className="bar">
-        <h2>
-          {g.title}
+    <section className="ni__group" aria-labelledby="ni-gog">
+      <div className="ni__head">
+        <h3 id="ni-gog" className="with-icon">
+          <LauncherIcon platform="gog" size={18} />
+          {storeName("gog")}
           {lib && state === "connected" && (
-            <span>
+            <span className="ni__count">
               <span className="sr-only">, </span>
               {lib.games.length}
             </span>
           )}
-        </h2>
+        </h3>
         {state === "connected" && (
           <button type="button" className="btn-ghost" data-nav disabled={busy} onClick={() => load(true)}>
             {busy ? g.refreshing : g.refresh}
@@ -147,17 +154,13 @@ export function GogView(ctx: SectionContext) {
       {!lib && !error && <p className="wishes__note" role="status">{g.loading}</p>}
       {error && <p className="wishes__msg" role="alert">{error}</p>}
 
-      {lib && state !== "connected" && (
-        <EmptyState
-          title={state === "expired" ? g.expiredTitle : g.offTitle}
-          action={
-            <button type="button" className="btn-ghost" data-nav onClick={ctx.openSettings}>
-              {g.openSettings}
-            </button>
-          }
-        >
-          {state === "expired" ? g.expiredBody : g.offBody}
-        </EmptyState>
+      {note && (
+        <p className="wishes__note ni__off">
+          {note}{" "}
+          <button type="button" className="btn-ghost set__small" data-nav onClick={ctx.openSettings}>
+            {t.library.notInstalled.connect}
+          </button>
+        </p>
       )}
 
       {lib && state === "connected" && (
@@ -173,7 +176,7 @@ export function GogView(ctx: SectionContext) {
               <JobBar job={job} ctx={ctx} onDismiss={() => dismiss(job.id)} onRetry={() => install({ id: job.id, title: job.title, imageUrl: null })} />
             </div>
           )}
-          {lib.games.length === 0 && !job && <EmptyState title={g.emptyTitle}>{g.emptyBody}</EmptyState>}
+          {lib.games.length === 0 && !job && <p className="wishes__note">{g.emptyTitle}. {g.emptyBody}</p>}
           {lib.games.length > 0 && (
             <ul className="wishes__list" aria-label={g.subtitle}>
               {lib.games.map((game) => {

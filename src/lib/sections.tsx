@@ -15,7 +15,7 @@ import { StatsView } from "../components/StatsView";
 import { TagsView } from "../components/TagsView";
 import { StorageView } from "../components/StorageView";
 import { WishlistView } from "../components/WishlistView";
-import { GogView } from "../components/GogView";
+import { NotInstalledView } from "../components/NotInstalledView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -205,13 +205,13 @@ export const SECTIONS: readonly Section[] = [
     group: TOOLS_GROUP,
     render: (ctx) => <WishlistView {...ctx} />,
   },
-  // Jeux GOG possédés pas installés sur ce PC (compte GOG facultatif, voir les Paramètres).
+  // Jeux possédés (GOG, Epic) pas installés sur ce PC (comptes facultatifs, voir les Paramètres).
   {
     id: "gog",
     get label() { return text().gog; },
     icon: DownloadIcon,
     group: TOOLS_GROUP,
-    render: (ctx) => <GogView {...ctx} />,
+    render: (ctx) => <NotInstalledView {...ctx} />,
   },
 ];
 

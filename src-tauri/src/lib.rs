@@ -7,6 +7,8 @@ mod covers;
 mod deeplink;
 mod diagnostic;
 mod discord;
+mod epic_online;
+mod steam_owned;
 mod footprint;
 mod gog_online;
 mod history;
@@ -2883,6 +2885,9 @@ pub fn run() {
             app.manage(welcome);
             // Compte GOG facultatif : jetons relus dans le coffre chiffré (aucune requête ici).
             app.manage(gog_online::Gog::new(&app.state::<AppState>().data_dir));
+            // Compte Epic facultatif : même coffre, autre case.
+            app.manage(epic_online::Epic::new(&app.state::<AppState>().data_dir));
+            app.manage(steam_owned::SteamOwned::new(&app.state::<AppState>().data_dir));
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             update::spawn_check(app.handle().clone());
@@ -2928,6 +2933,9 @@ pub fn run() {
             // notification), le front apprend qu'elle n'est plus ouverte.
             tauri::WindowEvent::Destroyed if window.label() == gog_online::LOGIN_LABEL => gog_online::login_closed(window.app_handle()),
             tauri::WindowEvent::CloseRequested { .. } if window.label() == gog_online::LOGIN_LABEL => {}
+            // Fenêtre de connexion à Epic : même règle.
+            tauri::WindowEvent::Destroyed if window.label() == epic_online::LOGIN_LABEL => epic_online::login_closed(window.app_handle()),
+            tauri::WindowEvent::CloseRequested { .. } if window.label() == epic_online::LOGIN_LABEL => {}
             // Retour sur Ludex : annonces en attente, et après un long moment, relecture des
             // launchers sans surveillance.
             tauri::WindowEvent::Focused(true) => {
@@ -2961,6 +2969,17 @@ pub fn run() {
             gog_online::gog_install_resume,
             gog_online::gog_install_cancel,
             gog_online::gog_install_dismiss,
+            epic_online::epic_account,
+            epic_online::epic_login,
+            epic_online::epic_logout,
+            epic_online::epic_library,
+            epic_online::epic_install,
+            steam_owned::steam_owned,
+            steam_owned::steam_key,
+            steam_owned::steam_key_save,
+            steam_owned::steam_key_remove,
+            steam_owned::steam_key_page,
+            steam_owned::steam_install,
             launch_game,
             open_install_dir,
             set_favorite,

@@ -9,7 +9,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 ## Principes
 
 - **Lecture locale** : Ludex lit les fichiers et le registre des launchers installés, en lecture seule. Le jeu est toujours lancé par son launcher d'origine (ou par son exécutable quand il n'en a pas).
-- **Aucun compte** : aucune connexion à Steam, Epic, GOG ou autre. Ludex ne demande ni identifiant ni jeton.
+- **Aucun compte obligatoire** : la bibliothèque se lit sans connexion à Steam, Epic, GOG ou autre. Seule la section « Pas installés » peut utiliser, si tu le choisis, ton compte GOG ou Epic Games (coupés par défaut, connexion sur la page de la boutique : Ludex ne voit jamais ton mot de passe) ou ta clé Web API Steam.
 - **Aucune télémétrie** : ni statistiques d'usage, ni rapport de plantage envoyé. Les quelques services publics contactés (images, fiches, durées de vie, mises à jour) sont listés plus bas, avec ce qui leur est envoyé.
 - **Tes données restent chez toi** : favoris, collections, notes, temps de jeu mesuré et réglages sont dans `%APPDATA%\com.ludex.app`. Tu peux les exporter dans une archive pour changer de PC.
 
@@ -41,6 +41,7 @@ Ludex réunit dans une seule bibliothèque les jeux installés sur ton PC Window
 - Recherche rapide de n'importe où (Alt+Espace par défaut), zone de notification, Jump List et raccourcis sur le Bureau.
 - Stockage : place des jeux par disque et jeux à désinstaller.
 - Liste de souhaits Steam avec alertes de promo, sans compte.
+- « Pas installés » : jeux possédés qui ne sont pas sur ce PC. Steam sans compte (jeux déjà lancés sur ton compte, ou tous avec une clé Web API facultative), GOG et Epic Games par des comptes facultatifs ; installation par Steam, par l'installeur officiel de GOG ou par le launcher Epic qu'ouvre Ludex.
 - Thèmes sombre, clair, noir OLED et contraste élevé, cinq couleurs d'accent, interface en français et en anglais.
 
 <table>
@@ -110,7 +111,7 @@ Ludex vérifie les nouvelles versions 8 secondes après son ouverture, puis tout
 
 ## Confidentialité
 
-Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulement les services publics ci-dessous, sans identifiant, et toujours depuis ton PC (aucun serveur de Ludex au milieu). Chaque service voit ton adresse IP, comme pour toute connexion. Le détail, requête par requête, est dans [PRIVACY.md](PRIVACY.md).
+Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulement les services publics ci-dessous, sans identifiant (sauf les comptes GOG et Epic Games et la clé Web API Steam, facultatifs et coupés par défaut), et toujours depuis ton PC (aucun serveur de Ludex au milieu). Chaque service voit ton adresse IP, comme pour toute connexion. Le détail, requête par requête, est dans [PRIVACY.md](PRIVACY.md).
 
 | Service | Pourquoi | Ce qui est envoyé |
 | --- | --- | --- |
@@ -121,8 +122,11 @@ Ludex ne crée aucun compte et n'envoie aucune télémétrie. Il contacte seulem
 | `displaycatalog.mp.microsoft.com` | Jaquettes des jeux absents de Steam | Titres de ces jeux |
 | `howlongtobeat.com` | Durée de vie | Titres des jeux |
 | CDN d'images de Steam et du Microsoft Store | Jaquettes, images, vignettes | Adresse de chaque image |
+| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`), seulement compte connecté | Jeux GOG pas installés, installeur | Jetons de GOG (chiffrés sur ton PC), numéros GOG des jeux |
+| Epic Games (`*.epicgames.com`), seulement compte connecté | Jeux Epic pas installés | Jetons d'Epic (chiffrés sur ton PC), numéros de catalogue des jeux |
+| API Web de Steam (`api.steampowered.com`), seulement clé enregistrée | Liste complète des jeux Steam possédés | Ta clé Web API (chiffrée sur ton PC), identifiant Steam du compte |
 
-Jamais envoyés : nom d'utilisateur Windows, chemins de dossiers, identifiant de compte Steam, temps de jeu, favoris, notes, collections, contenu de tes fichiers. Le journal d'erreurs et le rapport de diagnostic restent sur ton PC (le rapport n'est copié que si tu cliques sur « Copier le rapport », et il est anonymisé).
+Jamais envoyés : nom d'utilisateur Windows, chemins de dossiers, identifiant de compte Steam (sauf avec la clé Web API facultative), temps de jeu, favoris, notes, collections, contenu de tes fichiers. Le journal d'erreurs et le rapport de diagnostic restent sur ton PC (le rapport n'est copié que si tu cliques sur « Copier le rapport », et il est anonymisé).
 
 ## Développement
 

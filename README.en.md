@@ -9,7 +9,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 ## Principles
 
 - **Local reading**: Ludex reads the files and registry entries of the installed launchers, read only. A game is always started by its own launcher (or by its executable when it has none).
-- **No account**: no sign-in to Steam, Epic, GOG or anything else. Ludex never asks for a login or a token.
+- **No account required**: the library is read without signing in to Steam, Epic, GOG or anything else. Only the "Not installed" section can use, if you choose, your GOG or Epic Games account (off by default, sign-in on the store's own page: Ludex never sees your password) or your Steam Web API key.
 - **No telemetry**: no usage statistics, no crash report sent. The few public services contacted (images, game details, time to beat, updates) are listed below, with what is sent to them.
 - **Your data stays with you**: favorites, collections, notes, measured playtime and settings live in `%APPDATA%\com.ludex.app`. You can export them to an archive to move to another PC.
 
@@ -41,6 +41,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 - Quick search from anywhere (Alt+Space by default), tray icon, Jump List and desktop shortcuts.
 - Storage: space used by games on each drive and games to uninstall.
 - Steam wishlist with sale alerts, without an account.
+- "Not installed": games you own that aren't on this PC. Steam without an account (games already launched on your account, or all of them with an optional Web API key), GOG and Epic Games through optional accounts; installed by Steam, by GOG's official installer or by the Epic launcher that Ludex opens.
 - Dark, light, OLED black and high contrast themes, five accent colors, interface in English and French.
 
 <table>
@@ -110,7 +111,7 @@ Ludex checks for new versions 8 seconds after it opens, then every 12 hours. Whe
 
 ## Privacy
 
-Ludex creates no account and sends no telemetry. It only contacts the public services below, without any identifier, always straight from your PC (no Ludex server in between). Each service sees your IP address, as with any connection. The request-by-request detail is in [PRIVACY.en.md](PRIVACY.en.md).
+Ludex creates no account and sends no telemetry. It only contacts the public services below, without any identifier (except the GOG and Epic Games accounts and the Steam Web API key, optional and off by default), always straight from your PC (no Ludex server in between). Each service sees your IP address, as with any connection. The request-by-request detail is in [PRIVACY.en.md](PRIVACY.en.md).
 
 | Service | Why | What is sent |
 | --- | --- | --- |
@@ -121,8 +122,11 @@ Ludex creates no account and sends no telemetry. It only contacts the public ser
 | `displaycatalog.mp.microsoft.com` | Covers of games not on Steam | Titles of those games |
 | `howlongtobeat.com` | Time to beat | Game titles |
 | Steam and Microsoft Store image CDNs | Covers, artwork, thumbnails | The address of each image |
+| GOG (`auth.gog.com`, `embed.gog.com`, `api.gog.com`), only with the account connected | GOG games not installed, installer | GOG's tokens (encrypted on your PC), GOG game numbers |
+| Epic Games (`*.epicgames.com`), only with the account connected | Epic games not installed | Epic's tokens (encrypted on your PC), game catalog numbers |
+| Steam Web API (`api.steampowered.com`), only with a key saved | Full list of owned Steam games | Your Web API key (encrypted on your PC), the account's Steam ID |
 
-Never sent: Windows user name, folder paths, Steam account identifier, playtime, favorites, notes, collections, contents of your files. The error log and the diagnostics report stay on your PC (the report is only copied when you click "Copy report", and it is anonymized).
+Never sent: Windows user name, folder paths, Steam account identifier (except with the optional Web API key), playtime, favorites, notes, collections, contents of your files. The error log and the diagnostics report stay on your PC (the report is only copied when you click "Copy report", and it is anonymized).
 
 ## Development
 

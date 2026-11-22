@@ -1,0 +1,6 @@
+{
+ "responseMetadata": { "stateToken": "jeton-d-etat-fabrique" },
+ "records": [
+  { "namespace": "b1c2d3e4f5a60718293a4b5c6d7e8f91", "catalogItemId": "33333333333333333333333333333333", "appName": "Hades", "productId": "b1c2d3e4f5a60718293a4b5c6d7e8f91", "sandboxName": "Live", "sandboxType": "PUBLIC", "recordType": "APPLICATION" }
+ ]
+}
