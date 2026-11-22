@@ -263,7 +263,7 @@ pub fn refresh_manifest(data_dir: &Path) -> Result<Manifest, String> {
         }
         Err(e) => match current {
             Some(m) => {
-                eprintln!("Base des sauvegardes non vérifiée : {e}");
+                log::warn!("Base des sauvegardes non vérifiée : {e}");
                 Ok(m)
             }
             None => Err(tr!("Base des sauvegardes non téléchargée : {e}", "Save database not downloaded: {e}")),

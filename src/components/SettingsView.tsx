@@ -518,9 +518,9 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
           </section>
 
           <section className="set__group" aria-labelledby="set-discord">
-            <h3 id="set-discord">Statut Discord</h3>
+            <h3 id="set-discord">{tx.discord.title}</h3>
             <Switch
-              label="Montrer mes parties dans Discord"
+              label={tx.discord.show}
               detail={discordHelp(info.discordAvailable, info.discordHideName)}
               checked={info.discordAvailable && info.discordPresence}
               disabled={!info.discordAvailable}
@@ -528,8 +528,8 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
             />
             {info.discordAvailable && info.discordPresence && (
               <Switch
-                label="Masquer le nom du jeu"
-                detail="Ni titre, ni launcher, ni image : seulement « En jeu »."
+                label={tx.discord.hideName}
+                detail={tx.discord.hideNameDetail}
                 checked={info.discordHideName}
                 onChange={(v) => toggle({ discordHideName: v }, () => setDiscordHideName(v))}
               />

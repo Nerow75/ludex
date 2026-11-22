@@ -50,7 +50,7 @@ impl Welcome {
                 // avant la fin du premier scan (ses caches feraient sinon croire à un habitué).
                 // Un habitué l'enregistrera avec la prochaine écriture des préférences.
                 if new && let Err(e) = data.save(&state.data_path) {
-                    eprintln!("Premier lancement non enregistré : {e}");
+                    log::error!("Premier lancement non enregistré : {e}");
                 }
                 new
             }

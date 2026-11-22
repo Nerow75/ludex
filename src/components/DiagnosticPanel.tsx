@@ -1,8 +1,9 @@
 // Diagnostic des launchers (bas des Paramètres) : état de chaque source au dernier scan, chemins et
 // clés lus, jeux écartés, services en ligne, versions. « Copier le rapport » met dans le presse-papiers
-// le texte anonymisé préparé par Rust (`diagnostic.rs`), pour déboguer un PC qui n'est pas le sien.
+// le texte anonymisé préparé par Rust (`diagnostic.rs`), pour déboguer un PC qui n'est pas le sien,
+// avec la fin du journal d'erreurs ; « Ouvrir le journal » montre `ludex.log` dans l'Explorateur.
 import { useCallback, useEffect, useState } from "react";
-import { diagnostic as getDiagnostic, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
+import { diagnostic as getDiagnostic, openLog, scanLibrary, type DiagSource, type Diagnostic, type ScanResult } from "../lib/api";
 import { problems, serviceState, sourceDetail, sourceState, sourceTone } from "../lib/diagnostic";
 import { discordState } from "../lib/discord";
 import { relativeTime } from "../lib/format";
@@ -116,6 +117,11 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
       });
   };
 
+  const showLog = () => {
+    setCopied(null);
+    openLog().catch((e) => setError(String(e)));
+  };
+
   const toggle = (id: string) =>
     setOpen((s) => {
       const next = new Set(s);
@@ -144,6 +150,7 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
           <button type="button" className="btn-ghost set__small" data-nav disabled={rereading} onClick={reread}>
             {rereading ? d.reading : d.reread}
           </button>
+          <button type="button" className="btn-ghost set__small" data-nav onClick={showLog}>{d.openLog}</button>
           <button type="button" className="btn-ghost set__small is-primary" data-nav onClick={copy}>{d.copy}</button>
         </div>
       </div>
@@ -175,8 +182,8 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
           );
         })}
       </ul>
-      <h4 className="diag__title">Applications de ce PC</h4>
-      <ul className="diag__srcs" aria-label="Applications de ce PC">
+      <h4 className="diag__title">{t.settings.discord.appsTitle}</h4>
+      <ul className="diag__srcs" aria-label={t.settings.discord.appsTitle}>
         {(() => {
           const st = discordState(diag.discord);
           return (
@@ -184,8 +191,8 @@ export function DiagnosticPanel({ scan, onScan }: Props) {
               <div className="diag__head is-static">
                 <span className="diag__dot" aria-hidden="true" />
                 <span className="diag__name">
-                  <span>Statut Discord</span>
-                  <small>client Discord de ce PC, aucun réseau</small>
+                  <span>{t.settings.discord.diagName}</span>
+                  <small>{t.settings.discord.diagDetail}</small>
                 </span>
                 <span className="diag__state" title={st.text}>{st.text}</span>
               </div>

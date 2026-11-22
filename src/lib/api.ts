@@ -997,10 +997,13 @@ export interface Diagnostic {
   services: DiagService[];
   /** Statut Discord (client Discord de ce PC, aucun réseau). */
   discord: DiscordStatus;
-  /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier. */
+  /** Rapport texte anonymisé (nom d'utilisateur, compte Steam), prêt à copier, terminé par les
+   * 50 dernières lignes du journal d'erreurs. */
   report: string;
 }
 export const diagnostic = () => invoke<Diagnostic>("diagnostic");
+/** Journal d'erreurs (`logfile.rs`) montré dans l'Explorateur : chemin reconstruit côté Rust. */
+export const openLog = () => invoke<void>("open_log");
 
 /** Contenu d'un export de données (`transfer.rs`), en nombres d'éléments. */
 export interface TransferSummary {

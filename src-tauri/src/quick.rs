@@ -119,7 +119,7 @@ pub fn resume<R: Runtime>(app: &AppHandle<R>, text: &str) {
     if let Ok(Some(shortcut)) = parse(text)
         && let Err(e) = manager.register(shortcut)
     {
-        eprintln!("Recherche rapide désactivée : raccourci « {text} » non remis ({e}).");
+        log::warn!("Recherche rapide désactivée : raccourci « {text} » non remis ({e}).");
     }
 }
 
@@ -137,13 +137,13 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>, text: &str) {
     let shortcut = match parse(text) {
         Ok(Some(s)) => s,
         Ok(None) => return,
-        Err(e) => return eprintln!("Recherche rapide désactivée : {e}"),
+        Err(e) => return log::warn!("Recherche rapide désactivée : {e}"),
     };
     if let Err(e) = app.global_shortcut().register(shortcut) {
-        return eprintln!("Recherche rapide désactivée : le raccourci « {text} » est peut-être déjà pris par une autre application ({e}).");
+        return log::warn!("Recherche rapide désactivée : le raccourci « {text} » est peut-être déjà pris par une autre application ({e}).");
     }
     if let Err(e) = create(app) {
-        eprintln!("Fenêtre de recherche rapide non créée : {e}");
+        log::warn!("Fenêtre de recherche rapide non créée : {e}");
     }
 }
 
@@ -181,7 +181,7 @@ pub fn toggle<R: Runtime>(app: &AppHandle<R>) {
         let app = app.clone();
         std::thread::spawn(move || match create(&app) {
             Ok(window) => show(&app, &window),
-            Err(e) => eprintln!("Fenêtre de recherche rapide non créée : {e}"),
+            Err(e) => log::warn!("Fenêtre de recherche rapide non créée : {e}"),
         });
         return;
     };

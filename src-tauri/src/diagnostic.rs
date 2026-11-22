@@ -2,7 +2,8 @@
 //! jeux écartés et durée de lecture, d'après le dernier scan (aucun rescan) ; état des services en
 //! ligne depuis le démarrage ; versions de Ludex, de Windows et de WebView2. Le rapport texte à
 //! copier est anonymisé : nom d'utilisateur Windows et numéro de compte Steam remplacés, aucun
-//! contenu de `user-data.json` hormis le nombre de jeux ajoutés à la main.
+//! contenu de `user-data.json` hormis le nombre de jeux ajoutés à la main. Le rapport se termine par
+//! les 50 dernières lignes du journal d'erreurs (`logfile.rs`).
 
 use crate::library::{Game, Location, Platform, Skipped, SourceReport};
 use crate::{AppState, blocking, lock};
@@ -499,7 +500,7 @@ pub fn report(d: &Diagnostic, privacy: &Privacy, when: &dyn Fn(u64) -> String) -
         out.push(format!("- {} ({}){colon}{ok}, {err}{busy}", s.label, s.host));
     }
     out.push(String::new());
-    out.push(format!("Statut Discord : {}", d.discord.text()));
+    out.push(tr!("Statut Discord : {}", "Discord status: {}", d.discord.text()));
     anonymize(&(out.join("\n") + "\n"), privacy)
 }
 
@@ -536,7 +537,12 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             busy,
             discord: app.try_state::<crate::discord::Presence>().map(|p| p.status()).unwrap_or_default(),
         };
-        Ok(build(input, crate::library::locations, &local_time, &Privacy::of_this_pc()))
+        let privacy = Privacy::of_this_pc();
+        let mut diag = build(input, crate::library::locations, &local_time, &privacy);
+        // Dernières lignes du journal d'erreurs (`logfile.rs`), anonymisées comme le reste.
+        let dir = crate::logfile::dir().map(PathBuf::from).unwrap_or_else(|| state.data_dir.clone());
+        diag.report.push_str(&crate::logfile::report_section(&crate::logfile::tail(&dir, crate::logfile::TAIL_LINES), &privacy));
+        Ok(diag)
     })
     .await
 }
@@ -720,6 +726,7 @@ mod tests {
                 games: &games,
                 manual: vec![("Titre très perso".into(), false)],
                 busy: Vec::new(),
+                discord: crate::discord::Status::default(),
             };
             let locations = |p: Platform| match p {
                 Platform::Steam => vec![Location { label: "Account playtime".into(), path: r"E:\Steam\userdata\52870646\config\localconfig.vdf".into(), found: false }],

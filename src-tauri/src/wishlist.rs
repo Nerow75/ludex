@@ -642,7 +642,7 @@ pub fn wishlist_add(state: tauri::State<'_, AppState>, appid: u32) -> Result<Wis
         let mut cache = lock(&state.wishlist.cache)?;
         cache.record(appid, offer, now(), false);
         if let Err(e) = cache.save() {
-            eprintln!("Cache de la liste de souhaits non enregistré : {e}");
+            log::warn!("Cache de la liste de souhaits non enregistré : {e}");
         }
     }
     current(&state)
@@ -711,7 +711,7 @@ fn sweep(app: &AppHandle, state: &AppState) {
                 // Réessayée au prochain scan : la journée n'est pas comptée comme relue. Les
                 // promos des lots déjà lus restent notées et signalées.
                 diagnostic::failed(diagnostic::Service::Wishlist, &e);
-                eprintln!("Relecture des prix de la liste de souhaits interrompue : {e}");
+                log::warn!("Relecture des prix de la liste de souhaits interrompue : {e}");
                 complete = false;
                 break;
             }
@@ -723,7 +723,7 @@ fn sweep(app: &AppHandle, state: &AppState) {
             cache.retain(&list);
         }
         if let Err(e) = cache.save() {
-            eprintln!("Cache de la liste de souhaits non enregistré : {e}");
+            log::warn!("Cache de la liste de souhaits non enregistré : {e}");
         }
     }
     if let Ok(view) = current(state) {

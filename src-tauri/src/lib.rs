@@ -15,6 +15,7 @@ mod journal;
 mod jumplist;
 mod launch_args;
 mod library;
+mod logfile;
 mod metadata;
 mod recap;
 mod relocate;
@@ -233,7 +234,7 @@ fn tidy_images(state: &AppState) {
         cache.purge();
         covers::purge(cache.root(), chosen.iter().map(String::as_str).chain(games.iter().map(|g| g.id.as_str())));
         if let Err(e) = cache.save() {
-            eprintln!("Index des images non enregistré : {e}");
+            log::warn!("Index des images non enregistré : {e}");
         }
     }
 }
@@ -243,7 +244,7 @@ fn publish_image(app: &tauri::AppHandle, state: &AppState, job: &images::Job, fi
     if let Ok(mut cache) = lock(&state.images) {
         cache.record(job);
         if let Err(e) = cache.save() {
-            eprintln!("Index des images non enregistré : {e}");
+            log::warn!("Index des images non enregistré : {e}");
         }
     }
     let event = lock(&state.games).ok().and_then(|mut games| {
@@ -263,7 +264,7 @@ fn download_image(app: &tauri::AppHandle, state: &AppState, agent: &ureq::Agent,
                 diagnostic::ok(diagnostic::Service::Images);
                 publish_image(app, state, &job, file);
             }
-            Err(e) => eprintln!("Image non enregistrée ({}) : {e}", job.url),
+            Err(e) => log::warn!("Image non enregistrée ({}) : {e}", job.url),
         },
         images::Fetch::Missing => {
             diagnostic::ok(diagnostic::Service::Images);
@@ -273,7 +274,7 @@ fn download_image(app: &tauri::AppHandle, state: &AppState, agent: &ureq::Agent,
         }
         images::Fetch::Failed(e) => {
             diagnostic::failed(diagnostic::Service::Images, &e);
-            eprintln!("Image non téléchargée ({}) : {e}", job.url);
+            log::warn!("Image non téléchargée ({}) : {e}", job.url);
             return false;
         }
     }
@@ -313,7 +314,7 @@ fn resolve_images(app: tauri::AppHandle) {
     let Some(state) = app.try_state::<AppState>() else { return };
     // Disque des données débranché : rien n'est téléchargé (ni créé ailleurs).
     if relocate::unavailable(&state) {
-        eprintln!("Dossier des données de Ludex introuvable : images non téléchargées.");
+        log::warn!("Dossier des données de Ludex introuvable : images non téléchargées.");
         return;
     }
     if state.images_busy.swap(true, Ordering::SeqCst) {
@@ -501,11 +502,11 @@ fn sweep_news(app: &tauri::AppHandle, state: &AppState) {
             Err(e) => {
                 // Réessayée au prochain scan : la journée n'est pas comptée comme vérifiée.
                 diagnostic::failed(diagnostic::Service::News, &e);
-                eprintln!("Vérification des actualités interrompue : {e}");
+                log::warn!("Vérification des actualités interrompue : {e}");
                 if let Ok(cache) = lock(&state.news)
                     && let Err(e) = cache.save()
                 {
-                    eprintln!("Cache des actualités non enregistré : {e}");
+                    log::warn!("Cache des actualités non enregistré : {e}");
                 }
                 return;
             }
@@ -517,7 +518,7 @@ fn sweep_news(app: &tauri::AppHandle, state: &AppState) {
         cache.swept(at);
         let alerts = cache.alerts(&games, at);
         if let Err(e) = cache.save() {
-            eprintln!("Cache des actualités non enregistré : {e}");
+            log::warn!("Cache des actualités non enregistré : {e}");
         }
         alerts
     };
@@ -562,13 +563,13 @@ fn refresh_news(state: &AppState, appid: u32) -> Result<(), String> {
             let mut cache = lock(&state.news)?;
             cache.record(appid, items, news::now());
             if let Err(e) = cache.save() {
-                eprintln!("Cache des actualités non enregistré : {e}");
+                log::warn!("Cache des actualités non enregistré : {e}");
             }
             Ok(())
         }
         Err(e) => {
             diagnostic::failed(diagnostic::Service::News, &e);
-            eprintln!("Actualités de {appid} non relues : {e}");
+            log::warn!("Actualités de {appid} non relues : {e}");
             if lock(&state.news)?.known(appid) { Ok(()) } else { Err(tr!("Actualités indisponibles : {e}", "News unavailable: {e}")) }
         }
     }
@@ -584,7 +585,7 @@ async fn game_news(app: AppHandle, id: String, seen: bool) -> Result<Vec<news::N
         refresh_news(&state, appid)?;
         let mut cache = lock(&state.news)?;
         if seen && cache.mark_seen(appid) && let Err(e) = cache.save() {
-            eprintln!("Cache des actualités non enregistré : {e}");
+            log::warn!("Cache des actualités non enregistré : {e}");
         }
         Ok(cache.news(appid))
     })
@@ -634,7 +635,7 @@ fn resolve_saves(app: tauri::AppHandle) {
                 }
             }
             Err(e) => {
-                eprintln!("{e}");
+                log::warn!("{e}");
                 if let Ok(mut known) = lock(&state.saves) {
                     known.status = saves::Status::Unavailable;
                 }
@@ -718,7 +719,7 @@ fn auto_backup<R: Runtime>(app: &AppHandle<R>, game_id: &str) {
         Ok(o) => SavesEvent { id: game.id, title: game.title, copy: Some(o.copy), unchanged: o.unchanged, error: None },
         Err(e) if e == saves::NOTHING_FOUND => return,
         Err(e) => {
-            eprintln!("Copie des sauvegardes de {} impossible : {e}", game.title);
+            log::error!("Copie des sauvegardes de {} impossible : {e}", game.title);
             notify_user(app, notify::saves_error_note(&game.id, &game.title, &e));
             SavesEvent { id: game.id, title: game.title, copy: None, unchanged: false, error: Some(e) }
         }
@@ -946,12 +947,12 @@ fn sizes_to_measure(state: &AppState) -> Vec<storage::Job> {
 fn measure_size(app: &tauri::AppHandle, state: &AppState, job: &storage::Job) {
     let bytes = match storage::dir_size(&job.dir) {
         Ok(bytes) => bytes,
-        Err(e) => return eprintln!("Taille de {} non mesurée : {e}", job.dir.display()),
+        Err(e) => return log::warn!("Taille de {} non mesurée : {e}", job.dir.display()),
     };
     if let Ok(mut cache) = lock(&state.sizes) {
         cache.record(job, bytes, storage::now());
         if let Err(e) = cache.save() {
-            eprintln!("Tailles des jeux non enregistrées : {e}");
+            log::warn!("Tailles des jeux non enregistrées : {e}");
         }
     }
     let changed = lock(&state.games).map(|mut games| storage::publish(job, bytes, &mut games)).unwrap_or_default();
@@ -1138,7 +1139,7 @@ fn on_session_update<R: Runtime>(app: &tauri::AppHandle<R>, update: session::Upd
     {
         data.add_playtime(&event.id, update.credit_secs);
         if let Err(e) = data.save(&state.data_path) {
-            eprintln!("Temps de jeu non enregistré : {e}");
+            log::error!("Temps de jeu non enregistré : {e}");
         }
         if let Ok(mut games) = lock(&state.games)
             && let Some(g) = games.iter_mut().find(|g| g.id == event.id)
@@ -1384,7 +1385,7 @@ async fn scan_library(app: tauri::AppHandle) -> Result<ScanResult, String> {
             if let Err(e) = progressive_scan(&worker, &state, scanning, move |scan| {
                 let _ = first.send(Ok(scan));
             }) {
-                eprintln!("Premier scan impossible : {e}");
+                log::error!("Premier scan impossible : {e}");
                 let _ = tx.send(Err(e)); // sans effet si les premiers jeux sont déjà partis
             }
         });
@@ -1489,7 +1490,7 @@ fn auto_rescan(app: &tauri::AppHandle, only_if_stale: bool) -> bool {
                 }
             }
         }
-        Err(e) => eprintln!("Rescan automatique impossible : {e}"),
+        Err(e) => log::error!("Rescan automatique impossible : {e}"),
     }
     true
 }
@@ -1546,7 +1547,7 @@ fn refresh_global(state: &AppState, appids: &[u32]) {
     if let Ok(mut cache) = lock(&state.global) {
         cache.record(fetched);
         if let Err(e) = cache.save() {
-            eprintln!("Pourcentages des succès non enregistrés : {e}");
+            log::warn!("Pourcentages des succès non enregistrés : {e}");
         }
     }
 }
@@ -1597,12 +1598,12 @@ async fn game_requirements(app: AppHandle, id: String) -> Result<Option<requirem
                         let mut cache = lock(&state.requirements)?;
                         cache.record(appid, html);
                         if let Err(e) = cache.save() {
-                            eprintln!("Cache des configurations non enregistré : {e}");
+                            log::warn!("Cache des configurations non enregistré : {e}");
                         }
                     }
                     Err(e) => {
                         diagnostic::failed(diagnostic::Service::Requirements, &e);
-                        eprintln!("Configuration requise non lue : {e}");
+                        log::warn!("Configuration requise non lue : {e}");
                     }
                 }
             }
@@ -1661,14 +1662,14 @@ async fn refresh_mods(app: AppHandle, id: String) -> Result<Option<workshop::Mod
                         }
                         Err(e) => {
                             diagnostic::failed(diagnostic::Service::Workshop, &e);
-                            eprintln!("Mods Workshop non lus : {e}");
+                            log::warn!("Mods Workshop non lus : {e}");
                             break;
                         }
                     }
                 }
                 state.workshop_busy.store(false, Ordering::SeqCst);
                 if changed && let Err(e) = lock(&state.workshop)?.save() {
-                    eprintln!("Cache des mods Workshop non enregistré : {e}");
+                    log::warn!("Cache des mods Workshop non enregistré : {e}");
                 }
             }
         }
@@ -2359,14 +2360,14 @@ fn refresh_tray<R: Runtime>(app: &AppHandle<R>, force: bool) {
         match tray::build(&handle, &entries) {
             Ok(menu) => {
                 if let Err(e) = icon.set_menu(Some(menu)) {
-                    eprintln!("Menu de la zone de notification non mis à jour : {e}");
+                    log::warn!("Menu de la zone de notification non mis à jour : {e}");
                 }
             }
-            Err(e) => eprintln!("Menu de la zone de notification non construit : {e}"),
+            Err(e) => log::warn!("Menu de la zone de notification non construit : {e}"),
         }
     });
     if let Err(e) = queued {
-        eprintln!("Menu de la zone de notification non mis à jour : {e}");
+        log::warn!("Menu de la zone de notification non mis à jour : {e}");
     }
 }
 
@@ -2388,7 +2389,7 @@ fn update_settings<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut stor
     if let Ok(mut data) = lock(&state.data) {
         change(&mut data.settings);
         if let Err(e) = data.save(&state.data_path) {
-            eprintln!("Réglages non enregistrés : {e}");
+            log::error!("Réglages non enregistrés : {e}");
         }
     }
 }
@@ -2421,7 +2422,7 @@ fn on_tray_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         Some(tray::Action::Open) => show_main(app),
         Some(tray::Action::ToggleAutostart) => {
             if let Err(e) = set_autostart(app, !autostart_enabled(app)) {
-                eprintln!("{e}");
+                log::warn!("{e}");
             }
             refresh_tray(app, true);
             // La page Paramètres, si elle est ouverte, suit.
@@ -2475,7 +2476,7 @@ fn open_links<R: Runtime>(app: &AppHandle<R>, urls: Vec<String>) {
 fn open_link<R: Runtime>(app: &AppHandle<R>, link: &str) {
     let Some(state) = app.try_state::<AppState>() else { return };
     let refuse = |id: String, error: String| {
-        eprintln!("Lien {link} refusé : {error}");
+        log::warn!("Lien {link} refusé : {error}");
         if app.get_webview_window(MAIN_WINDOW).is_some_and(|w| w.is_visible().unwrap_or(false)) {
             let event = TrayLaunchEvent { id, title: this_game(), last_played: None, error: Some(error) };
             let _ = app.emit_to(MAIN_WINDOW, TRAY_LAUNCH_EVENT, event);
@@ -2551,7 +2552,7 @@ fn hide_to_tray<R: Runtime>(window: &tauri::Window<R>, state: &AppState) {
         if first {
             data.settings.tray_hint_shown = true;
             if let Err(e) = data.save(&state.data_path) {
-                eprintln!("Réglages non enregistrés : {e}");
+                log::error!("Réglages non enregistrés : {e}");
             }
         }
         first
@@ -2740,6 +2741,11 @@ async fn show_screenshot(app: tauri::AppHandle, id: Option<String>, key: String)
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Journal d'erreurs et paniques avant tout le reste : dossier de données de cet identifiant
+    // (`%APPDATA%\com.ludex.app`), le même que `app_data_dir`.
+    let context = tauri::generate_context!();
+    logfile::init(logfile::data_dir(&context.config().identifier));
+    logfile::install_panic_hook();
     // Avant toute fenêtre : même identifiant que les raccourcis de l'installeur (Jump List).
     jumplist::set_process_app_id();
     tauri::Builder::default()
@@ -2780,6 +2786,14 @@ pub fn run() {
             });
         })
         .setup(|app| {
+            // Ici seulement : une seconde instance (relayée par `single-instance`) s'arrête avant.
+            log::info!(
+                "Démarrage de Ludex {}, {}, WebView2 {}{}",
+                app.package_info().version,
+                diagnostic::windows_version(),
+                tauri::webview_version().unwrap_or_else(|_| "version inconnue".to_string()),
+                if std::env::args().any(|a| a == tray::MINIMIZED_ARG) { ", lancé avec Windows" } else { "" }
+            );
             let dir = app.path().app_data_dir()?;
             let data_path = store::file_in(dir.clone());
             let handle = app.handle().clone();
@@ -2874,7 +2888,7 @@ pub fn run() {
             // Liens `ludex://` : schéma enregistré par l'installeur ; en debug, vers cet exécutable.
             #[cfg(debug_assertions)]
             if let Err(e) = app.deep_link().register_all() {
-                eprintln!("Schéma ludex:// non enregistré : {e}");
+                log::warn!("Schéma ludex:// non enregistré : {e}");
             }
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| open_links(&handle, event.urls().iter().map(|u| u.to_string()).collect()));
@@ -3016,6 +3030,7 @@ pub fn run() {
             settings::set_source_enabled,
             settings::show_all_hidden,
             diagnostic::diagnostic,
+            logfile::open_log,
             window_controls::window_enter_couch,
             window_controls::window_leave_couch,
             window_controls::window_couch_fullscreen,
@@ -3025,7 +3040,7 @@ pub fn run() {
             transfer::cancel_import,
             transfer::apply_import
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while running tauri application")
         .run(|app, event| {
             // Ludex se ferme : activité Discord effacée (Discord l'efface aussi en voyant le

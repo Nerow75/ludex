@@ -492,11 +492,11 @@ impl MetaCache {
                 // Liste connue mais ancienne : on la garde, les tags restent nommés.
                 Err(e) if !self.tag_names.is_empty() => {
                     crate::diagnostic::failed(crate::diagnostic::Service::Details, tr!("noms des tags : {e}", "tag names: {e}"));
-                    eprintln!("Noms des tags non relus : {e}");
+                    log::warn!("Noms des tags non relus : {e}");
                 }
                 Err(e) => {
                     crate::diagnostic::failed(crate::diagnostic::Service::Details, tr!("noms des tags : {e}", "tag names: {e}"));
-                    eprintln!("Lecture des fiches interrompue (noms des tags) : {e}");
+                    log::warn!("Lecture des fiches interrompue (noms des tags) : {e}");
                     return false;
                 }
             }
@@ -513,7 +513,7 @@ impl MetaCache {
                     crate::diagnostic::ok(crate::diagnostic::Service::Details);
                     self.record(results);
                     if let Err(e) = self.save() {
-                        eprintln!("Cache des fiches non enregistré : {e}");
+                        log::warn!("Cache des fiches non enregistré : {e}");
                     }
                     if self.outdated() {
                         return true;
@@ -522,7 +522,7 @@ impl MetaCache {
                 }
                 Err(e) => {
                     crate::diagnostic::failed(crate::diagnostic::Service::Details, &e);
-                    eprintln!("Lecture des fiches interrompue : {e}");
+                    log::warn!("Lecture des fiches interrompue : {e}");
                     return false;
                 }
             }

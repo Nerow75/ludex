@@ -103,7 +103,7 @@ fn wait_for(pipe: &mut dyn Pipe, n: usize, deadline: Instant) -> Result<(), Erro
             return Ok(());
         }
         if Instant::now() >= deadline {
-            return Err(Error::Io("Discord ne répond pas.".into()));
+            return Err(Error::Io(tr!("Discord ne répond pas.", "Discord isn't responding.")));
         }
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -217,7 +217,7 @@ impl Pipe for NamedPipe {
 /// Ouvre le premier tube `<base>-0` à `<base>-9` qui répond.
 #[cfg(windows)]
 pub fn open_pipe(base: &str) -> io::Result<Box<dyn Pipe>> {
-    let mut last = io::Error::new(io::ErrorKind::NotFound, "Discord n'est pas ouvert.");
+    let mut last = io::Error::new(io::ErrorKind::NotFound, tr!("Discord n'est pas ouvert.", "Discord isn't running."));
     for n in 0..PIPES {
         match std::fs::OpenOptions::new().read(true).write(true).open(format!("{base}-{n}")) {
             Ok(file) => return Ok(Box::new(NamedPipe(file))),
@@ -255,18 +255,18 @@ impl Shown {
 /// Ligne sous le nom du jeu : le launcher.
 pub fn launcher_line(platform: Platform) -> &'static str {
     match platform {
-        Platform::Steam => "Sur Steam",
-        Platform::Epic => "Sur Epic Games",
-        Platform::Gog => "Sur GOG",
-        Platform::Ubisoft => "Sur Ubisoft Connect",
-        Platform::Ea => "Sur l'appli EA",
-        Platform::Battlenet => "Sur Battle.net",
-        Platform::Rockstar => "Sur Rockstar Games",
-        Platform::Xbox => "Sur Xbox",
-        Platform::Riot => "Sur Riot Games",
-        Platform::Amazon => "Sur Amazon Games",
-        Platform::Itch => "Sur itch.io",
-        Platform::Other => "Lancé depuis Ludex",
+        Platform::Steam => tr_str!("Sur Steam", "On Steam"),
+        Platform::Epic => tr_str!("Sur Epic Games", "On Epic Games"),
+        Platform::Gog => tr_str!("Sur GOG", "On GOG"),
+        Platform::Ubisoft => tr_str!("Sur Ubisoft Connect", "On Ubisoft Connect"),
+        Platform::Ea => tr_str!("Sur l'appli EA", "On the EA app"),
+        Platform::Battlenet => tr_str!("Sur Battle.net", "On Battle.net"),
+        Platform::Rockstar => tr_str!("Sur Rockstar Games", "On Rockstar Games"),
+        Platform::Xbox => tr_str!("Sur Xbox", "On Xbox"),
+        Platform::Riot => tr_str!("Sur Riot Games", "On Riot Games"),
+        Platform::Amazon => tr_str!("Sur Amazon Games", "On Amazon Games"),
+        Platform::Itch => tr_str!("Sur itch.io", "On itch.io"),
+        Platform::Other => tr_str!("Lancé depuis Ludex", "Launched from Ludex"),
     }
 }
 
@@ -280,8 +280,8 @@ pub fn field(text: &str) -> String {
         return format!("{}…", cut.trim_end());
     }
     match count {
-        0 => "Un jeu".to_string(),
-        1 => format!("Jeu {clean}"),
+        0 => tr!("Un jeu", "A game"),
+        1 => tr!("Jeu {clean}", "Game {clean}"),
         _ => clean,
     }
 }
@@ -301,7 +301,7 @@ pub fn activity(shown: Option<&Shown>, start: u64, hide_name: bool, rich: bool) 
     let Some(shown) = shown.filter(|_| !hide_name) else {
         // Nom caché (ou jeu pas encore relu) : ni titre, ni launcher, ni image du jeu.
         return json!({
-            "details": "En jeu",
+            "details": tr_str!("En jeu", "In game"),
             "timestamps": timestamps,
             "assets": { "large_image": LOGO_ASSET, "large_text": "Ludex" },
             "instance": false,
@@ -356,12 +356,12 @@ impl Status {
     /// État en une ligne, pour le rapport du Diagnostic.
     pub fn text(&self) -> String {
         match self.state {
-            State::Unconfigured => "pas configuré dans cette version de Ludex".to_string(),
-            State::Off => "désactivé dans les Paramètres".to_string(),
-            State::Waiting => "activé, aucune partie en cours".to_string(),
-            State::Connected => "connecté, partie affichée".to_string(),
-            State::Absent => format!("Discord absent ou fermé ({})", self.error.as_deref().unwrap_or("aucun tube")),
-            State::Refused => format!("refusé par Discord : {}", self.error.as_deref().unwrap_or("raison inconnue")),
+            State::Unconfigured => tr!("pas configuré dans cette version de Ludex", "not set up in this version of Ludex"),
+            State::Off => tr!("désactivé dans les Paramètres", "turned off in Settings"),
+            State::Waiting => tr!("activé, aucune partie en cours", "on, no game running"),
+            State::Connected => tr!("connecté, partie affichée", "connected, game shown"),
+            State::Absent => tr!("Discord absent ou fermé ({})", "Discord missing or closed ({})", self.error.as_deref().unwrap_or(tr_str!("aucun tube", "no pipe"))),
+            State::Refused => tr!("refusé par Discord : {}", "refused by Discord: {}", self.error.as_deref().unwrap_or(tr_str!("raison inconnue", "unknown reason"))),
         }
     }
 }
@@ -514,7 +514,7 @@ impl Core {
                 }
                 Err(Error::Refused(msg)) if self.rich => {
                     // Forme complète refusée (client Discord ancien) : logo et textes seulement.
-                    eprintln!("Statut Discord : forme complète refusée ({msg}), forme simple à la place.");
+                    log::warn!("Statut Discord : forme complète refusée ({msg}), forme simple à la place.");
                     self.rich = false;
                     wanted = self.wanted()?;
                     if let Some(client) = self.client.as_mut()
@@ -618,7 +618,7 @@ impl Presence {
             }
         });
         if let Err(e) = spawned {
-            eprintln!("Statut Discord indisponible : {e}");
+            log::warn!("Statut Discord indisponible : {e}");
         }
         Presence { tx, status }
     }

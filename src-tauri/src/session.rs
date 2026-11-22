@@ -452,14 +452,14 @@ impl Tracker {
                 journal.save_open(&open);
                 for (id, perf) in measured {
                     if let Err(e) = store.record(&id, perf) {
-                        eprintln!("Performances non enregistrées : {e}");
+                        log::error!("Performances non enregistrées : {e}");
                     }
                 }
                 updates.into_iter().for_each(&on_update);
             }
         });
         if let Err(e) = spawned {
-            eprintln!("Surveillance des sessions indisponible : {e}");
+            log::error!("Surveillance des sessions indisponible : {e}");
         }
         Tracker { tx, phases, history, perf }
     }

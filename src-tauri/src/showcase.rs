@@ -163,7 +163,7 @@ pub fn fetch(appids: &[u32]) -> Vec<(u32, Option<Percents>)> {
                             }
                         }
                         Err(e) => {
-                            eprintln!("Pourcentages des succès interrompus : {e}");
+                            log::warn!("Pourcentages des succès interrompus : {e}");
                             stop.store(true, AtomicOrdering::Relaxed);
                         }
                     }
