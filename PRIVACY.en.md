@@ -6,7 +6,7 @@ Ludex is a local game launcher. It has no server and no telemetry and asks for n
 
 ## What Ludex reads on your PC
 
-To find your games, Ludex reads, read only, the files and registry keys of the installed launchers (Steam libraries, Epic manifests, the local databases of GOG Galaxy, Amazon Games and itch.io, Ubisoft, Rockstar and Xbox registry entries…), the "Jeux" or "Games" folders on your drives and known save folders. None of this leaves your PC.
+To find your games, Ludex reads, read only, the files and registry keys of the installed launchers (Steam libraries, Epic manifests, the local databases of GOG Galaxy, Amazon Games and itch.io, Ubisoft, Rockstar and Xbox registry entries…), the "Jeux" or "Games" folders on your drives, the settings of installed emulators (game folders only) and known save folders. For emulated games, Ludex reads file names and, for a Switch game, a few header bytes (title number); never the rest of a ROM, nor BIOS, firmware or keys. None of this leaves your PC.
 
 What Ludex writes stays in `%APPDATA%\com.ludex.app` (preferences, play history, caches, error log) and, for save backups, in the folder you pick (`Documents\Ludex\Sauvegardes` by default).
 
@@ -25,6 +25,13 @@ Every request goes straight from your PC to the service, over HTTPS, without coo
 | Host | When | Sent |
 | --- | --- | --- |
 | `raw.githubusercontent.com` | At most once a week, after a scan | Nothing: downloads the [Ludusavi](https://github.com/mtkennerly/ludusavi-manifest) manifest; an unchanged manifest isn't downloaded again (`If-None-Match` with the tag GitHub gave) |
+
+### Emulated game covers
+
+| Host | When | Sent |
+| --- | --- | --- |
+| `api.github.com` | After a scan, for each console with emulated games, once a month at most (no redirects) | The console's repository name at [libretro-thumbnails](https://github.com/libretro-thumbnails) ("Nintendo_-_Game_Boy_Advance"): reads the list of covers |
+| `raw.githubusercontent.com` | For a game whose name matches a cover in the list | The image address (console and cover name) |
 
 ### Steam (no account)
 
@@ -100,6 +107,7 @@ These addresses are built by Ludex from a Steam number or an image name; Ludex d
 | `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images of Epic free games, thumbnails of Epic games not installed (Epic account connected) | The image address (resized by the CDN) |
 | `shared.akamai.steamstatic.com` | Headers of Steam games not installed | Image address (with the game's Steam number) |
 | `images.gog-statics.com` | Thumbnails of GOG games not installed (GOG account connected) | The thumbnail address |
+| `raw.githubusercontent.com` | Emulated game covers (libretro-thumbnails) | The image address |
 
 ## Never sent
 

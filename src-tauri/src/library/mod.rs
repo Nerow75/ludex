@@ -5,6 +5,7 @@ mod achievements;
 mod amazon;
 mod battlenet;
 mod ea;
+pub mod emulation;
 mod epic;
 mod gog;
 mod itch;
@@ -40,6 +41,8 @@ pub enum Platform {
     Amazon,
     /// Appli itch (itch.io).
     Itch,
+    /// Jeux d'émulateurs : ROMs lancées par un émulateur installé (`emulation/`).
+    Emulation,
     /// Lanceurs tiers et jeux sans launcher, trouvés dans les dossiers de jeux.
     Other,
 }
@@ -68,6 +71,7 @@ impl Platform {
             Platform::Ea => "EA",
             Platform::Amazon => "Amazon Games",
             Platform::Itch => "itch.io",
+            Platform::Emulation => tr_str!("Émulation", "Emulation"),
             Platform::Other => tr_str!("Dossiers de jeux (Autres)", "Game folders (Other)"),
         }
     }
@@ -161,6 +165,8 @@ pub struct Game {
     pub custom_art: Vec<crate::covers::Kind>,
     /// Durée de vie moyenne (HowLongToBeat, `hltb.rs`), `None` tant qu'inconnue.
     pub hltb: Option<crate::hltb::Hltb>,
+    /// Jeu d'émulateur : console et émulateur (`emulation/`), `None` pour les autres.
+    pub emulation: Option<emulation::EmuInfo>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -274,6 +280,7 @@ impl Game {
             Platform::Ea => "ea",
             Platform::Amazon => "amazon",
             Platform::Itch => "itch",
+            Platform::Emulation => "emu",
             Platform::Other => "other",
         };
         Game {
@@ -312,6 +319,7 @@ impl Game {
             aliases: Vec::new(),
             custom_art: Vec::new(),
             hltb: None,
+            emulation: None,
         }
     }
 
@@ -453,7 +461,7 @@ pub fn scan() -> ScanResult {
 
 /// Sources dans l'ordre de priorité : un jeu vu par deux launchers (même dossier) reste au premier.
 /// « Autres » passe en dernier : un dossier déjà lu par un launcher n'y est jamais repris.
-const SOURCES: [(Platform, SourceFn); 12] = [
+const SOURCES: [(Platform, SourceFn); 13] = [
     (Platform::Steam, steam::scan),
     (Platform::Epic, epic::scan),
     (Platform::Gog, gog::scan),
@@ -465,13 +473,15 @@ const SOURCES: [(Platform, SourceFn); 12] = [
     (Platform::Riot, riot::scan),
     (Platform::Amazon, amazon::scan),
     (Platform::Itch, itch::scan),
+    (Platform::Emulation, emulation::scan),
     (Platform::Other, local::scan),
 ];
 
 /// Sources lentes, lues après le premier affichage au démarrage (`scan_fast` puis `finish`) :
 /// EA, Battle.net et « Autres » parcourent les dossiers de jeux de tous les disques
-/// (`local::candidates`, partagé : la première des trois paie le parcours).
-const SLOW: [Platform; 3] = [Platform::Ea, Platform::Battlenet, Platform::Other];
+/// (`local::candidates`, partagé : la première des trois paie le parcours) ; « Émulation » cherche
+/// les émulateurs sur les disques et parcourt les dossiers de ROMs.
+const SLOW: [Platform; 4] = [Platform::Ea, Platform::Battlenet, Platform::Emulation, Platform::Other];
 
 /// Scan sans les jeux des launchers désactivés dans les Paramètres. Un launcher désactivé est lu
 /// quand même : ses dossiers restent réservés, donc « Autres » ne reprend pas ses jeux.
@@ -585,6 +595,12 @@ fn combine(reads: Vec<Read>, disabled: &[Platform]) -> (Vec<Game>, Vec<SourceRep
                 found.retain(|g| {
                     let Some(dir) = g.install_dir.as_deref() else { return true };
                     let key = dir_key(dir);
+                    // Jeu d'émulateur : une ROM n'est pas une installation, plusieurs partagent un
+                    // dossier. Jamais écarté, mais son dossier reste réservé contre « Autres ».
+                    if platform == Platform::Emulation {
+                        dirs.push((key, platform, g.title.clone()));
+                        return true;
+                    }
                     // Même dossier, ou dossier qui contient (ou est contenu dans) un jeu déjà vu.
                     let owner = dirs.iter().find(|(d, _, _)| d == &key || is_inside(&key, d) || is_inside(d, &key));
                     match owner {
@@ -613,7 +629,7 @@ fn combine(reads: Vec<Read>, disabled: &[Platform]) -> (Vec<Game>, Vec<SourceRep
 /// Jeu sans jaquette : l'icône de son exécutable (celui qu'on lance s'il est dans le dossier du
 /// jeu, sinon l'exécutable principal du dossier) servira sur la jaquette générée.
 fn add_icon(game: &mut Game) {
-    if game.cover_url.is_some() {
+    if game.cover_url.is_some() || game.icon_url.is_some() {
         return;
     }
     let Some(dir) = game.install_dir.as_deref().map(std::path::Path::new) else { return };

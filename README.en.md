@@ -28,6 +28,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 | Riot Games | Riot Client files |
 | Amazon Games | The app's local database (read only) |
 | itch.io | The app's local database (read only) |
+| Emulation | Installed emulators (Ryujinx, Eden, RetroArch, Dolphin, PCSX2, melonDS…), ROM folders from their settings or chosen in Settings |
 | Other | "Jeux" or "Games" folders on your drives, games added by hand, FiveM, RedM, Roblox, Ankama games… |
 
 ## Main features
@@ -129,6 +130,7 @@ Ludex creates no account and sends no telemetry. It only contacts the public ser
 | --- | --- | --- |
 | `github.com` | Ludex updates | Nothing (reads the latest version, then downloads the installer) |
 | `raw.githubusercontent.com` | Ludusavi save database | Nothing (downloads the list, once a week at most) |
+| `api.github.com`, `raw.githubusercontent.com` | Emulated game covers ([libretro-thumbnails](https://github.com/libretro-thumbnails)) | Console name, then the address of the matching cover |
 | `store.steampowered.com` | Covers, system requirements, wishlist | Titles of games that need artwork, Steam numbers (appids), text searched in the wishlist |
 | `api.steampowered.com` | Game details, tags, news, achievement rarity, mods | Steam numbers of games and mods, language |
 | `displaycatalog.mp.microsoft.com` | Covers of games not on Steam | Titles of those games |
@@ -173,4 +175,4 @@ Ludex is free software released under the GNU General Public License (GPL), vers
 
 Ludex is an independent project. It isn't affiliated with any of the launchers or services mentioned (Valve, Epic Games, GOG, Ubisoft, Electronic Arts, Blizzard, Rockstar Games, Microsoft, Riot Games, Amazon, itch.io, HowLongToBeat, Discord…). Their names, logos and trademarks belong to their respective owners and are only used to show where each game comes from.
 
-Launcher logos from [Simple Icons](https://simpleicons.org) (CC0) when available there. Save locations: [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest). Time to beat: [HowLongToBeat](https://howlongtobeat.com).
+Launcher logos from [Simple Icons](https://simpleicons.org) (CC0) when available there. Save locations: [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest). Time to beat: [HowLongToBeat](https://howlongtobeat.com). Emulated game covers: [libretro-thumbnails](https://github.com/libretro-thumbnails).

@@ -190,7 +190,7 @@ fn has_engine_marker(dir: &Path) -> bool {
 }
 
 /// Emplacements d'installation déclarés à Windows (programmes installés), hors dossiers trop larges.
-fn uninstall_locations() -> Vec<PathBuf> {
+pub(super) fn uninstall_locations() -> Vec<PathBuf> {
     #[cfg(windows)]
     {
         use super::reg;
@@ -513,6 +513,12 @@ fn ankama_title(dir: &str) -> String {
 pub fn scan() -> Result<Option<Vec<Game>>, String> {
     let mut games = known_launchers();
     for dir in candidates().iter().filter(|d| kind(d) == Kind::Other) {
+        // Dossier d'un émulateur (source « Émulation ») : ses jeux sont les ROMs, pas lui.
+        if super::emulation::is_emulator_dir(dir) {
+            let folder = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            super::skip(&folder, tr_str!("Émulateur (source Émulation)", "Emulator (Emulation source)"));
+            continue;
+        }
         match build(dir) {
             Some(game) => games.push(game),
             None => {

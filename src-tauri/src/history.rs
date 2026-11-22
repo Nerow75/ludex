@@ -58,6 +58,9 @@ pub struct OpenSession {
     /// Secondes de jeu mesurées, et secondes déjà ajoutées au cumul.
     pub played: u64,
     pub credited: u64,
+    /// Processus lancé par Ludex (jeu d'émulateur), absent sinon et dans les fichiers d'avant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -321,6 +324,7 @@ mod tests {
             last_seen: 1600,
             played: 600,
             credited: 600,
+            pid: None,
         };
         journal.save_open(std::slice::from_ref(&open));
         assert_eq!(Journal::open(&dir).load_open(), vec![open]);

@@ -149,7 +149,10 @@ pub struct Settings {
     pub discord_presence: bool,
     /// Statut Discord sans le nom du jeu, ni son launcher, ni son image (« En jeu »).
     #[serde(deserialize_with = "or_default")]
-    pub discord_hide_name: bool,
+    pub discord_hide_name: bool,    /// Émulation (`library/emulation`) : dossiers de ROMs choisis (propres à ce PC) et émulateur
+    /// choisi par console. Relu nettoyé : chemin invalide, console ou émulateur inconnu écartés.
+    #[serde(deserialize_with = "emulation_prefs")]
+    pub emulation: crate::library::emulation::Prefs,
 }
 
 /// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, celui de
@@ -184,6 +187,12 @@ fn or_default<'de, D: Deserializer<'de>, T: Default + serde::de::DeserializeOwne
     Ok(serde_json::from_value(raw).unwrap_or_default())
 }
 
+/// Réglages de l'émulation relus et nettoyés (illisibles = vides).
+fn emulation_prefs<'de, D: Deserializer<'de>>(d: D) -> Result<crate::library::emulation::Prefs, D::Error> {
+    let prefs: crate::library::emulation::Prefs = or_default(d)?;
+    Ok(prefs.clean())
+}
+
 /// Launchers relus sans doublon, en ignorant ceux qu'une version future aurait ajoutés.
 fn known_platforms<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Platform>, D::Error> {
     let raw = Vec::<serde_json::Value>::deserialize(d).unwrap_or_default();
@@ -216,6 +225,7 @@ impl Default for Settings {
             notifications: crate::notify::Prefs::default(),
             discord_presence: false,
             discord_hide_name: false,
+            emulation: crate::library::emulation::Prefs::default(),
         }
     }
 }

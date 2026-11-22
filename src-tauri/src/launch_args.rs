@@ -192,6 +192,10 @@ pub fn refusal(game: &Game) -> Option<&'static str> {
             "Lancé par Battle.net, qui ne transmet pas d'options : règle-les dans ses paramètres du jeu.",
             "Launched by Battle.net, which doesn't pass options on: set them in its game settings."
         )),
+        (Platform::Emulation, _) => Some(tr_str!(
+            "Jeu lancé par un émulateur : ses options se règlent dans l'émulateur.",
+            "Game launched by an emulator: its options are set in the emulator."
+        )),
         (_, Launch::Exec { .. }) if game.via_launcher => Some(tr_str!(
             "Ce jeu passe par son propre lanceur, qui ne transmet pas d'options.",
             "This game goes through its own launcher, which doesn't pass options on."

@@ -298,7 +298,10 @@ fn set_store_urls(game: &mut Game, art: &StoreArt) -> bool {
 
 /// Jeux à habiller : sans jaquette, hors Steam (dont les images viennent déjà de Steam).
 pub fn needs_art(game: &Game) -> bool {
-    game.cover_url.is_none() && game.platform != Platform::Steam
+    // Jeu d'émulateur : jamais cherché sur Steam ou le Store (le portage PC d'un même titre
+    // donnerait une fiche, des actualités et une configuration requise qui ne le concernent pas) ;
+    // ses jaquettes viennent de libretro (`retro_art.rs`).
+    game.cover_url.is_none() && game.platform != Platform::Steam && game.platform != Platform::Emulation
 }
 
 /// Images du CDN Steam, et appid retenu pour la fiche du jeu (`metadata.rs`).

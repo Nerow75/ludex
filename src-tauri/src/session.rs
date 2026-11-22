@@ -112,6 +112,14 @@ pub(crate) fn root_key(dir: &str) -> Option<String> {
 /// d'installation, plus pour Xbox le dossier de données du paquet (`%LOCALAPPDATA%\Packages\<famille>`),
 /// d'où certains paquets démarrent leurs exécutables (Minecraft Launcher et son Java).
 pub fn roots_for(game: &Game) -> Vec<String> {
+    // Jeu d'émulateur : c'est l'émulateur qui tourne, depuis son dossier (le dossier des ROMs n'a
+    // aucun exécutable). Le processus lancé par Ludex départage deux jeux du même émulateur.
+    if game.platform == Platform::Emulation {
+        return match &game.launch {
+            crate::library::Launch::Exec { path, .. } => path.parent().and_then(|d| root_key(&d.to_string_lossy())).into_iter().collect(),
+            crate::library::Launch::Uri(_) => Vec::new(),
+        };
+    }
     let mut roots: Vec<String> = game.install_dir.as_deref().and_then(root_key).into_iter().collect();
     if game.platform == Platform::Xbox
         && let Some(local) = std::env::var_os("LOCALAPPDATA")
@@ -144,6 +152,9 @@ pub struct Session {
     reported: Option<Phase>,
     /// Performances mesurées depuis le premier relevé où le jeu tournait (ou depuis la reprise).
     perf: Option<Recorder>,
+    /// Processus lancé par Ludex (jeu d'émulateur) : seul lui compte, pas un autre jeu ouvert dans le
+    /// même émulateur hors de Ludex. `None` : tout processus sous les dossiers du jeu.
+    pid: Option<u32>,
 }
 
 /// Clôt une session qui ne peut pas reprendre (PC redémarré depuis) : ce qui a été mesuré
@@ -174,7 +185,14 @@ impl Session {
             credited: 0,
             reported: None,
             perf: None,
+            pid: None,
         }
+    }
+
+    /// Suivi limité au processus lancé par Ludex (jeu d'émulateur).
+    pub fn with_pid(mut self, pid: Option<u32>) -> Self {
+        self.pid = pid;
+        self
     }
 
     /// Reprend une session enregistrée avant l'arrêt de Ludex. `None` si ses relevés précèdent ce
@@ -197,6 +215,7 @@ impl Session {
             credited: open.credited.min(played.as_secs()),
             reported: None,
             perf: None,
+            pid: open.pid,
         })
     }
 
@@ -214,13 +233,18 @@ impl Session {
         self.roots.iter().any(|root| exe.starts_with(root.as_str()))
     }
 
+    /// Le processus appartient-il au jeu ? Dossier du jeu, et processus lancé par Ludex s'il est connu.
+    fn owns_proc(&self, p: &Proc) -> bool {
+        self.owns(&p.exe) && self.pid.is_none_or(|pid| pid == p.pid)
+    }
+
     /// Un processus du jeu tourne-t-il ? Après une reprise, le premier relevé écarte les processus
     /// démarrés après le dernier relevé enregistré : ce n'est plus la même partie.
     pub fn sees(&mut self, procs: &[Proc]) -> bool {
         let before = self.resume_before.take();
         procs
             .iter()
-            .any(|p| self.owns(&p.exe) && before.is_none_or(|t| p.start == 0 || p.start <= t))
+            .any(|p| self.owns_proc(p) && before.is_none_or(|t| p.start == 0 || p.start <= t))
     }
 
     /// État à enregistrer pour une reprise. Rien tant que le jeu n'a pas été vu.
@@ -236,6 +260,7 @@ impl Session {
             last_seen: self.unix(self.last_seen?),
             played: self.played.as_secs(),
             credited: self.credited,
+            pid: self.pid,
         })
     }
 
@@ -243,7 +268,7 @@ impl Session {
     /// le jeu n'a pas été vu, ou si aucun de ses processus ne tourne à ce relevé.
     pub fn measure(&mut self, procs: &[Proc], pc: &PcLoad, now: Instant) {
         let Some(start) = self.first_seen else { return };
-        let mine: Vec<&Proc> = procs.iter().filter(|p| self.owns(&p.exe)).collect();
+        let mine: Vec<&Proc> = procs.iter().filter(|p| self.owns_proc(p)).collect();
         if mine.is_empty() {
             return;
         }
@@ -508,6 +533,12 @@ impl Tracker {
 
     /// Commence à suivre un jeu qui vient d'être lancé. Sans dossier connu, ou déjà suivi : rien.
     pub fn start(&self, game: &Game) {
+        self.start_process(game, None);
+    }
+
+    /// Comme `start`, limité au processus lancé par Ludex quand il est connu (jeu d'émulateur :
+    /// l'émulateur peut tourner pour un autre jeu en même temps).
+    pub fn start_process(&self, game: &Game, pid: Option<u32>) {
         let roots = roots_for(game);
         if roots.is_empty() {
             return;
@@ -518,7 +549,7 @@ impl Tracker {
         }
         map.insert(game.id.clone(), Phase::Detecting);
         drop(map);
-        let session = Session::new(&game.id, roots, !game.launcher_tracks_playtime, Instant::now());
+        let session = Session::new(&game.id, roots, !game.launcher_tracks_playtime, Instant::now()).with_pid(pid);
         if self.tx.send(Msg::Start(Box::new(session))).is_err()
             && let Ok(mut map) = self.phases.lock()
         {
@@ -692,6 +723,19 @@ mod tests {
         replay(&mut short, t0, 0, &[true; 5]);
         assert!(short.past().is_none());
         assert!(short.snapshot().is_some());
+    }
+
+    #[test]
+    fn emulator_sessions_follow_only_their_process() {
+        // Jeu d'émulateur : l'émulateur ouvert à côté (autre processus du même dossier) ne compte pas.
+        let t0 = Instant::now();
+        let mut other = session(true, t0).with_pid(Some(7));
+        assert!(!other.sees(&game_running(100)));
+        let mut ours = session(true, t0).with_pid(Some(1));
+        assert!(ours.sees(&game_running(100)));
+        assert_eq!(ours.snapshot().map(|o| o.pid), None); // rien à reprendre avant d'avoir vu le jeu
+        let mut any = session(true, t0);
+        assert!(any.sees(&game_running(100)));
     }
 
     /// Partie de 90 s (60 déjà cumulées), puis Ludex fermé : état enregistré au dernier relevé.

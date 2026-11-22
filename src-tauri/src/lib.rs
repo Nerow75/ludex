@@ -10,6 +10,7 @@ mod epic_free;
 mod discord;
 mod epic_online;
 mod steam_owned;
+mod emulation;
 mod footprint;
 mod gog_achievements;
 mod game_move;
@@ -27,6 +28,7 @@ mod net;
 mod recap;
 mod relocate;
 mod requirements;
+mod retro_art;
 mod screenshots;
 mod stats;
 mod saves;
@@ -221,6 +223,38 @@ fn resolve_art(app: tauri::AppHandle) {
         resolve_images(app.clone());
         resolve_details(app.clone());
         resolve_hltb(app.clone());
+    });
+}
+
+/// Jaquettes des jeux d'émulateur (`retro_art.rs`) : listes des consoles manquantes lues en
+/// arrière-plan, puis jaquettes posées et annoncées jeu par jeu, et téléchargées.
+fn resolve_retro_art(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let Ok(games) = lock(&state.games).map(|g| g.clone()) else { return };
+    let dir = state.data_dir.clone();
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        let mut found = false;
+        retro_art::resolve(&games, &dir, |_| {
+            let mut events = Vec::new();
+            if let Ok(mut games) = lock(&state.games) {
+                for g in games.iter_mut() {
+                    if retro_art::apply(g, &dir) {
+                        if let Ok(images) = lock(&state.images) {
+                            images.apply(g);
+                        }
+                        events.push(ArtEvent::of(g));
+                    }
+                }
+            }
+            found |= !events.is_empty();
+            for e in events {
+                let _ = app.emit(ART_EVENT, e);
+            }
+        });
+        if found {
+            resolve_images(app.clone());
+        }
     });
 }
 
@@ -1278,13 +1312,21 @@ fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
 /// fois. Renvoie aussi les jeux apparus et disparus depuis le scan précédent.
 fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>) -> Result<(ScanResult, watch::Changes), String> {
     // Launchers désactivés dans les Paramètres : lus, mais leurs jeux écartés.
-    let disabled = lock(&state.data)?.settings.disabled_sources.clone();
+    let disabled = settings_for_scan(state)?;
     let mut result = library::scan_except(&disabled);
     let changes = store(state, &mut result)?;
     *lock(&state.last_scan)? = Some(Instant::now());
     drop(scanning);
     after_scan(app, state);
     Ok((result, changes))
+}
+
+/// Réglages lus par le scan : launchers désactivés (renvoyés) et réglages de l'émulation (posés
+/// pour la source « Émulation »).
+fn settings_for_scan(state: &AppState) -> Result<Vec<library::Platform>, String> {
+    let data = lock(&state.data)?;
+    library::emulation::configure(&data.settings.emulation);
+    Ok(data.settings.disabled_sources.clone())
 }
 
 /// Premier scan du démarrage, en deux temps : les sources rapides sont envoyées par `shown` dès
@@ -1294,7 +1336,7 @@ fn rescan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>
 /// scan entre les deux. Tout ce qui suit un scan (recherches en ligne, tailles, sauvegardes,
 /// surveillance, menu, Jump List, date du dernier scan) attend la bibliothèque complète.
 fn progressive_scan(app: &tauri::AppHandle, state: &AppState, scanning: MutexGuard<'_, ()>, shown: impl FnOnce(ScanResult)) -> Result<(), String> {
-    let disabled = lock(&state.data)?.settings.disabled_sources.clone();
+    let disabled = settings_for_scan(state)?;
     let (mut first, pending) = library::scan_fast(&disabled);
     // Dans l'état aussi : un jeu déjà affiché peut être lancé ou ouvert pendant la suite.
     store(state, &mut first)?;
@@ -1332,6 +1374,8 @@ fn store(state: &AppState, result: &mut ScanResult) -> Result<watch::Changes, St
             data.correct_genres(g);
             // Après la fiche : son année de sortie fait partie de la clé.
             durations.apply(g);
+            // Jeux d'émulateur : boîte libretro déjà connue (`retro_art.rs`).
+            retro_art::apply(g, &state.data_dir);
             // Puis les images distantes (launcher ou `art.rs`) déjà sur disque.
             images.apply(g);
             // Taille mesurée par Ludex pour les jeux dont le launcher ne la donne pas.
@@ -1356,6 +1400,7 @@ fn after_scan(app: &tauri::AppHandle, state: &AppState) {
         w.rewatch();
     }
     resolve_art(app.clone());
+    resolve_retro_art(app.clone());
     resolve_images(app.clone());
     resolve_details(app.clone());
     resolve_hltb(app.clone());
@@ -2200,22 +2245,29 @@ fn launch<R: Runtime>(app: &AppHandle<R>, state: &AppState, id: &str) -> Result<
     // Lancement reconstruit ici depuis l'état, options de l'utilisateur comprises.
     let launch = launch_args::launch_for(&game)?;
 
-    match &launch {
+    let pid = match &launch {
         Launch::Uri(uri) => app
             .opener()
             .open_url(uri, None::<&str>)
+            .map(|_| None)
             .map_err(|e| tr!("Le launcher n'a pas répondu : {e}", "The launcher didn't respond: {e}")),
         Launch::Exec { path, args } => std::process::Command::new(path)
             .args(args)
             // Beaucoup de jeux cherchent leurs fichiers dans le dossier courant.
             .current_dir(path.parent().unwrap_or(path))
             .spawn()
-            .map(|_| ())
+            .map(|child| Some(child.id()))
             .map_err(|e| tr!("Impossible de démarrer {} : {e}", "Couldn't start {}: {e}", path.display())),
     }?;
 
     // Surveille le jeu pour l'état « En jeu » et, si son launcher ne le fait pas, son temps de jeu.
-    state.tracker.start(&game);
+    // Jeu d'émulateur : seul le processus lancé ici compte (l'émulateur peut déjà tourner pour
+    // un autre jeu, ou être ouvert seul).
+    if game.platform == library::Platform::Emulation {
+        state.tracker.start_process(&game, pid);
+    } else {
+        state.tracker.start(&game);
+    }
 
     let now = {
         let mut data = lock(&state.data)?;
@@ -2974,6 +3026,10 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            emulation::emulation_info,
+            emulation::add_rom_dir,
+            emulation::remove_rom_dir,
+            emulation::set_emulator_choice,
             scan_library,
             gog_online::gog_account,
             gog_online::gog_login,

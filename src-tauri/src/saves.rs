@@ -368,6 +368,10 @@ impl<'a> Lookup<'a> {
 
     /// Entrée du jeu : appid Steam, id GOG, titre, puis nom du dossier d'installation.
     pub fn find(&self, game: &Game) -> Option<&'a Entry> {
+        // Jeu d'émulateur : ses sauvegardes sont chez l'émulateur, pas aux emplacements du jeu PC.
+        if game.platform == Platform::Emulation {
+            return None;
+        }
         let by_steam = game.steam_appid.and_then(|id| self.steam.get(&u64::from(id)));
         let by_gog = match game.platform {
             Platform::Gog => game.platform_id.parse::<u64>().ok().and_then(|id| self.gog.get(&id)),

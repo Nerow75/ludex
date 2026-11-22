@@ -6,7 +6,7 @@ Ludex est un lanceur de jeux local. Il n'a ni serveur ni télémétrie et ne dem
 
 ## Ce que Ludex lit sur ton PC
 
-Pour trouver tes jeux, Ludex lit en lecture seule les fichiers et les clés du registre des launchers installés (bibliothèques Steam, manifestes Epic, bases locales de GOG Galaxy, Amazon Games et itch.io, registre d'Ubisoft, Rockstar, Xbox…), les dossiers « Jeux » ou « Games » de tes disques et les dossiers de sauvegardes connus. Rien de tout cela ne quitte ton PC.
+Pour trouver tes jeux, Ludex lit en lecture seule les fichiers et les clés du registre des launchers installés (bibliothèques Steam, manifestes Epic, bases locales de GOG Galaxy, Amazon Games et itch.io, registre d'Ubisoft, Rockstar, Xbox…), les dossiers « Jeux » ou « Games » de tes disques, les réglages des émulateurs installés (dossiers de jeux seulement) et les dossiers de sauvegardes connus. Pour les jeux d'émulateur, Ludex lit les noms des fichiers et, pour un jeu Switch, quelques octets de l'en-tête (numéro du titre) ; jamais le reste d'une ROM, ni BIOS, firmware ou clés. Rien de tout cela ne quitte ton PC.
 
 Ce que Ludex écrit reste dans `%APPDATA%\com.ludex.app` (préférences, historique des parties, caches, journal d'erreurs) et, pour les copies de sauvegardes, dans le dossier que tu choisis (`Documents\Ludex\Sauvegardes` par défaut).
 
@@ -25,6 +25,13 @@ Toutes les requêtes partent directement de ton PC vers le service, en HTTPS, sa
 | Hôte | Quand | Envoyé |
 | --- | --- | --- |
 | `raw.githubusercontent.com` | Au plus une fois par semaine, après un scan | Rien : téléchargement du manifeste de [Ludusavi](https://github.com/mtkennerly/ludusavi-manifest) ; un manifeste inchangé n'est pas retéléchargé (`If-None-Match` avec l'étiquette donnée par GitHub) |
+
+### Jaquettes des jeux d'émulateur
+
+| Hôte | Quand | Envoyé |
+| --- | --- | --- |
+| `api.github.com` | Après un scan, pour chaque console qui a des jeux d'émulateur, au plus une fois par mois (sans redirection) | Nom du dépôt de la console chez [libretro-thumbnails](https://github.com/libretro-thumbnails) (« Nintendo_-_Game_Boy_Advance ») : lecture de la liste des jaquettes |
+| `raw.githubusercontent.com` | Pour un jeu dont le nom correspond à une jaquette de la liste | Adresse de l'image (nom de la console et de la jaquette) |
 
 ### Steam (sans compte)
 
@@ -100,6 +107,7 @@ Ces adresses sont construites par Ludex à partir d'un numéro Steam ou d'un nom
 | `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images des jeux gratuits d'Epic, vignettes des jeux Epic pas installés (compte Epic connecté) | Adresse de l'image (réduite par le CDN) |
 | `shared.akamai.steamstatic.com` | En-têtes des jeux Steam pas installés | Adresse de l'image (numéro Steam du jeu dedans) |
 | `images.gog-statics.com` | Vignettes des jeux GOG pas installés (compte GOG connecté) | Adresse de la vignette |
+| `raw.githubusercontent.com` | Jaquettes des jeux d'émulateur (libretro-thumbnails) | Adresse de l'image |
 
 ## Ce qui n'est jamais envoyé
 

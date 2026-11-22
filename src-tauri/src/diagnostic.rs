@@ -31,10 +31,11 @@ pub enum Service {
     Epic,
     Steam,
     GogAchievements,
+    RetroArt,
 }
 
 impl Service {
-    pub const ALL: [Service; 14] = [
+    pub const ALL: [Service; 15] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -49,6 +50,7 @@ impl Service {
         Service::Epic,
         Service::Steam,
         Service::GogAchievements,
+        Service::RetroArt,
     ];
 
     pub fn label(self) -> &'static str {
@@ -67,6 +69,7 @@ impl Service {
             Service::Epic => tr_str!("Compte Epic Games", "Epic Games account"),
             Service::Steam => tr_str!("Jeux Steam possédés", "Owned Steam games"),
             Service::GogAchievements => tr_str!("Succès GOG", "GOG achievements"),
+            Service::RetroArt => tr_str!("Jaquettes des jeux d'émulateur", "Emulated game covers"),
         }
     }
 
@@ -87,6 +90,7 @@ impl Service {
             Service::Epic => tr_str!("API d'Epic Games", "Epic Games API"),
             Service::Steam => tr_str!("API Web de Steam (clé personnelle)", "Steam Web API (personal key)"),
             Service::GogAchievements => tr_str!("API gameplay de GOG", "GOG gameplay API"),
+            Service::RetroArt => tr_str!("libretro-thumbnails sur GitHub", "libretro-thumbnails on GitHub"),
         }
     }
 
@@ -218,7 +222,7 @@ pub struct Inputs<'a> {
 }
 
 /// Sources dans l'ordre du scan.
-const PLATFORMS: [Platform; 12] = [
+const PLATFORMS: [Platform; 13] = [
     Platform::Steam,
     Platform::Epic,
     Platform::Gog,
@@ -230,6 +234,7 @@ const PLATFORMS: [Platform; 12] = [
     Platform::Riot,
     Platform::Amazon,
     Platform::Itch,
+    Platform::Emulation,
     Platform::Other,
 ];
 
@@ -559,6 +564,7 @@ pub async fn diagnostic(app: tauri::AppHandle) -> Result<Diagnostic, String> {
             (Service::Requirements, &state.requirements_busy),
             (Service::News, &state.news_busy),
             (Service::Workshop, &state.workshop_busy),
+            (Service::RetroArt, &crate::retro_art::BUSY),
         ]
         .into_iter()
         .filter(|(_, flag)| flag.load(Ordering::SeqCst))
@@ -754,7 +760,7 @@ mod tests {
         assert!(!text.contains('\u{2014}'), "pas de tiret cadratin");
         // La page garde les vrais chemins (affichés sur ce PC seulement).
         assert!(d.data_dir.contains("Anne"));
-        assert_eq!(d.sources.len(), 13);
+        assert_eq!(d.sources.len(), 14); // 13 sources (Émulation comprise) + jeux ajoutés à la main
     }
 
     #[test]

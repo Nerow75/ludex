@@ -138,6 +138,8 @@ export default {
     controllerFull: "Complète",
     controllerPartial: "Partielle",
     launcher: "Launcher",
+    console: "Console",
+    emulator: "Émulateur",
     options: "Options",
     folder: "Dossier",
     noFiche: (customGenres: boolean) => `Pas de fiche Steam pour ce jeu : ni description, ni ${customGenres ? "" : "genres, ni "}tags.`,

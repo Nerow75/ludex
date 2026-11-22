@@ -803,7 +803,7 @@ export function GameStrip({
         <Art game={game} className="strip__art" />
         <div className="strip__head">
           <div className="strip__eyebrow">
-            <span className="eyebrow"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}{game.isTool ? ` · ${t.fiche.application}` : ""}</span>
+            <span className="eyebrow"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}{game.emulation ? ` · ${game.emulation.systemName}` : ""}{game.isTool ? ` · ${t.fiche.application}` : ""}</span>
             {playing && <span className="live">{t.fiche.inGame}</span>}
           </div>
           {renaming ? (
@@ -902,6 +902,12 @@ export function GameStrip({
                     </div>
                   )}
                   <div><dt>{t.fiche.overview.launcher}</dt><dd className="with-icon"><LauncherIcon platform={game.platform} />{PLATFORM_LABEL[game.platform]}</dd></div>
+                  {game.emulation && (
+                    <>
+                      <div><dt>{t.fiche.overview.console}</dt><dd>{game.emulation.systemName}</dd></div>
+                      <div><dt>{t.fiche.overview.emulator}</dt><dd>{game.emulation.emulator}</dd></div>
+                    </>
+                  )}
                   {game.launchArgs && (
                     <div className="is-wide" title={game.launchArgs}>
                       <dt>{t.fiche.overview.options}</dt><dd className="args">{shortArgs(game.launchArgs, 60)}</dd>
