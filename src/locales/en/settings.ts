@@ -75,6 +75,7 @@ export default {
       update: { label: "New Ludex version", detail: "A Ludex update is ready to install." },
       savesError: { label: "Save backup failed", detail: "The automatic backup after a session failed." },
       sale: { label: "Wishlist sale", detail: "A game on your wishlist goes on sale, prices checked once a day." },
+      freeGames: { label: "Free games on Epic", detail: "New games given away by the Epic Games Store, once a week. When off, the store is only read when you open the Wishlist section." },
     },
   },
 
@@ -198,7 +199,8 @@ export default {
       store: { name: "Microsoft Store catalog", sent: "Titles of games that aren't on Steam, to find a cover." },
       hltb: { name: "HowLongToBeat", sent: "Game titles, for the time to beat." },
       saves: { name: "Ludusavi save database (GitHub)", sent: "Nothing: downloads the list of save locations, once a week at most." },
-      images: { name: "Steam and Microsoft Store images", sent: "The address of each image shown, nothing else." },
+      epic: { name: "Epic Games Store (free games)", sent: "Nothing: reads the public list of free games, in French or English, country France." },
+      images: { name: "Steam, Microsoft Store and Epic images", sent: "The address of each image shown, nothing else." },
     },
     servicesNote:
       "No account, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",

@@ -46,6 +46,12 @@ Toutes les requêtes partent directement de ton PC vers le service, en HTTPS, sa
 | --- | --- | --- |
 | `displaycatalog.mp.microsoft.com` | Après un scan, pour un jeu sans jaquette introuvable sur Steam | Titre du jeu, puis numéro du produit trouvé ; marché `FR`, langue `fr-fr` |
 
+### Jeux gratuits d'Epic (sans compte)
+
+| Hôte | Quand | Envoyé |
+| --- | --- | --- |
+| `store-site-backend-static.ak.epicgames.com/freeGamesPromotions` | À l'ouverture de la section « Souhaits », et en fond (toutes les 6 h au plus, peu après le début ou la fin d'une offre) si la notification « Jeux gratuits sur Epic » est activée | Langue de Ludex (`fr` ou `en-US`) et pays `FR` ; rien d'autre |
+
 ### HowLongToBeat
 
 | Hôte | Quand | Envoyé |
@@ -62,6 +68,7 @@ Ces adresses sont construites par Ludex à partir d'un numéro Steam ou d'un nom
 | `store-images.s-microsoft.com` | Jaquettes et images de fond trouvées dans le Microsoft Store | Adresse de l'image |
 | `clan.akamai.steamstatic.com`, `clan.fastly.steamstatic.com` | Images des actualités Steam | Adresse de l'image |
 | `images.steamusercontent.com` | Vignettes des mods Workshop | Adresse de la vignette |
+| `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images des jeux gratuits d'Epic | Adresse de l'image (réduite par le CDN) |
 
 ## Ce qui n'est jamais envoyé
 
@@ -73,7 +80,7 @@ Ces adresses sont construites par Ludex à partir d'un numéro Steam ou d'un nom
 ## Ce qui part seulement si tu le fais
 
 - **Titres** : le titre envoyé à Steam, au Microsoft Store et à HowLongToBeat est celui que Ludex affiche. Pour un jeu « Autres », il vient du nom de l'exécutable ou du dossier ; si tu renommes un jeu, c'est le nouveau titre qui est utilisé. Les alias de recherche, eux, restent sur ton PC.
-- **Liens** : « Voir le dépôt », « Lire sur Steam », « Voir dans Steam » ouvrent ton navigateur ou Steam sur une adresse fixée par Ludex.
+- **Liens** : « Voir le dépôt », « Lire sur Steam », « Voir dans Steam », « Voir sur Epic » ouvrent ton navigateur, Steam ou le launcher Epic sur une adresse fixée par Ludex.
 - **Rapport de diagnostic** : copié dans le presse-papiers seulement quand tu cliques sur « Copier le rapport ». Il est anonymisé (dossier et nom d'utilisateur remplacés par `%USERPROFILE%` et `%USERNAME%`, compte Steam masqué) ; tu choisis à qui l'envoyer.
 - **Export des données** : une archive `.zip` écrite là où tu le choisis, jamais envoyée.
 - **Statut Discord** (désactivé par défaut) : s'il est activé, Ludex parle au client Discord de ton PC par un canal local ; c'est Discord qui affiche alors à tes amis le titre du jeu, son launcher, l'heure de début et l'image Steam du jeu (ou seulement « En jeu » si tu masques le nom). Ludex ne contacte pas les serveurs de Discord.

@@ -1075,6 +1075,18 @@ kbd {
   .wish__main { flex-basis: 100%; }
 }
 
+/* ---------- Gratuits sur Epic : en tête de la section Souhaits ---------- */
+.freebies { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--lx-radius-l); border: 1px solid var(--lx-border); background: var(--lx-surface); }
+.freebies__head { display: flex; flex-direction: column; gap: 4px; }
+.freebies__head h3 { font-size: 15px; font-weight: 600; color: var(--lx-text); }
+.freebies__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.freebie { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.freebie__img { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--lx-radius-m); background: var(--lx-surface-2); object-fit: cover; }
+.freebie__badge { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--lx-on-art); background: var(--lx-art-badge); }
+.freebie.is-now .freebie__badge { color: var(--lx-on-accent); background: var(--lx-accent); }
+.freebie__text { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.freebie__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 /* ---------- Pas installés : jeux GOG possédés, installation par l'installeur officiel ---------- */
 .gog__img { aspect-ratio: 16 / 9; }
 .gog__job { flex-basis: 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; border-radius: var(--lx-radius-m); background: var(--lx-surface); border: 1px solid var(--lx-border); }

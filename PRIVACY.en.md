@@ -46,6 +46,12 @@ Every request goes straight from your PC to the service, over HTTPS, without coo
 | --- | --- | --- |
 | `displaycatalog.mp.microsoft.com` | After a scan, for a game without a cover that isn't on Steam | Game title, then the number of the product found; market `FR`, language `fr-fr` |
 
+### Epic free games (no account)
+
+| Host | When | Sent |
+| --- | --- | --- |
+| `store-site-backend-static.ak.epicgames.com/freeGamesPromotions` | When the "Wishlist" section opens, and in the background (every 6 h at most, shortly after an offer starts or ends) if the "Free games on Epic" notification is on | Ludex language (`fr` or `en-US`) and country `FR`; nothing else |
+
 ### HowLongToBeat
 
 | Host | When | Sent |
@@ -62,6 +68,7 @@ These addresses are built by Ludex from a Steam number or an image name; Ludex d
 | `store-images.s-microsoft.com` | Covers and background art found in the Microsoft Store | The image address |
 | `clan.akamai.steamstatic.com`, `clan.fastly.steamstatic.com` | Steam news images | The image address |
 | `images.steamusercontent.com` | Workshop mod thumbnails | The thumbnail address |
+| `cdn1.epicgames.com`, `cdn2.unrealengine.com` | Images of Epic free games | The image address (resized by the CDN) |
 
 ## Never sent
 
@@ -73,7 +80,7 @@ These addresses are built by Ludex from a Steam number or an image name; Ludex d
 ## Only sent if you do it
 
 - **Titles**: the title sent to Steam, the Microsoft Store and HowLongToBeat is the one Ludex shows. For an "Other" game it comes from the executable or folder name; if you rename a game, the new title is used. Search aliases stay on your PC.
-- **Links**: "Open the repository", "Read on Steam", "View in Steam" open your browser or Steam on an address set by Ludex.
+- **Links**: "Open the repository", "Read on Steam", "View in Steam", "View on Epic" open your browser, Steam or the Epic launcher on an address set by Ludex.
 - **Diagnostics report**: copied to the clipboard only when you click "Copy report". It is anonymized (folder and user name replaced by `%USERPROFILE%` and `%USERNAME%`, Steam account hidden); you decide who to send it to.
 - **Data export**: a `.zip` archive written where you choose, never sent.
 - **Discord status** (off by default): when on, Ludex talks to the Discord client on your PC through a local channel; Discord then shows your friends the game title, its launcher, the start time and the game's Steam image (or just "In game" if you hide the name). Ludex doesn't contact Discord's servers.

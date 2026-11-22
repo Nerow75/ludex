@@ -179,6 +179,25 @@ export default {
     salesMore: (n: number) => ` et ${n} autre${s(n)}`,
   },
 
+  /** Jeux gratuits d'Epic, en tête de la section Souhaits (`FreeGames`, `freeGames.ts`). */
+  freeGames: {
+    title: "Gratuits sur Epic",
+    help: "Offerts par l'Epic Games Store. Ludex ne récupère rien à ta place : la page s'ouvre dans le launcher Epic.",
+    loading: "Lecture des jeux gratuits d'Epic…",
+    unreachable: "La boutique Epic n'a pas répondu. Nouvel essai plus tard.",
+    now: "Gratuit",
+    soon: "Bientôt",
+    until: (date: string) => `Gratuit jusqu'au ${date}`,
+    from: (start: string, end: string) => `Gratuit du ${start} au ${end}`,
+    open: "Voir sur Epic",
+    openLabel: (title: string) => `Voir ${title} sur l'Epic Games Store`,
+    checked: (when: string) => `Liste relue ${when}.`,
+    toastOne: (title: string) => `Gratuit sur Epic : ${title}`,
+    toastMany: (n: number) => `${frNum(n)} jeux gratuits sur Epic`,
+    toastDetail: "À récupérer dans la section Souhaits.",
+    ownedLabel: "déjà à toi",
+  },
+
   gog: {
     title: "Pas installés",
     subtitle: "Tes jeux GOG qui ne sont pas sur ce PC",

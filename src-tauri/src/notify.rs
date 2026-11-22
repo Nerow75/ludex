@@ -1,6 +1,6 @@
 //! Notifications Windows : téléchargement Steam terminé, actualité d'un jeu « En cours », disque
 //! presque plein, mise à jour de Ludex, copie automatique des sauvegardes ratée, promo d'un jeu de
-//! la liste de souhaits. Chaque type
+//! la liste de souhaits, jeux gratuits de la semaine sur Epic. Chaque type
 //! s'active à part (`settings.notifications` dans `user-data.json`).
 //!
 //! Toasts WinRT par la crate `windows` (déjà là), pas `tauri-plugin-notification` : le plugin ne
@@ -54,10 +54,11 @@ pub enum Kind {
     Update,
     SavesError,
     Sale,
+    FreeGames,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 6] = [Kind::Download, Kind::News, Kind::LowDisk, Kind::Update, Kind::SavesError, Kind::Sale];
+    pub const ALL: [Kind; 7] = [Kind::Download, Kind::News, Kind::LowDisk, Kind::Update, Kind::SavesError, Kind::Sale, Kind::FreeGames];
 
     /// Nom dans `user-data.json` (le même qu'en JSON pour le front).
     fn name(self) -> &'static str {
@@ -68,6 +69,7 @@ impl Kind {
             Kind::Update => "update",
             Kind::SavesError => "savesError",
             Kind::Sale => "sale",
+            Kind::FreeGames => "freeGames",
         }
     }
 
@@ -82,6 +84,8 @@ impl Kind {
             Kind::SavesError => 3600,
             // Par jeu : une promo signalée ne l'est pas de nouveau le même jour.
             Kind::Sale => 24 * 3600,
+            // Par fournée (clé = jeux gratuits du moment) : une semaine, la durée d'une fournée.
+            Kind::FreeGames => 7 * 24 * 3600,
         }
     }
 }
@@ -96,11 +100,12 @@ pub struct Prefs {
     pub update: bool,
     pub saves_error: bool,
     pub sale: bool,
+    pub free_games: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true }
+        Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true, free_games: true }
     }
 }
 
@@ -113,6 +118,7 @@ impl Prefs {
             Kind::Update => self.update,
             Kind::SavesError => self.saves_error,
             Kind::Sale => self.sale,
+            Kind::FreeGames => self.free_games,
         }
     }
 
@@ -124,6 +130,7 @@ impl Prefs {
             Kind::Update => &mut self.update,
             Kind::SavesError => &mut self.saves_error,
             Kind::Sale => &mut self.sale,
+            Kind::FreeGames => &mut self.free_games,
         };
         *slot = value;
     }
@@ -175,7 +182,7 @@ pub enum Target {
     Game { id: String, tab: Option<String> },
     /// Section Stockage.
     Storage,
-    /// Section Souhaits.
+    /// Section Souhaits (liste et jeux gratuits d'Epic).
     Wishlist,
     /// La fenêtre seulement.
     Window,
@@ -322,6 +329,32 @@ pub fn sale_note(sales: &[crate::wishlist::Sale]) -> Option<Note> {
         )
     };
     Some(Note { kind: Kind::Sale, key, title, body, target: Target::Wishlist })
+}
+
+/// Jeux gratuits du moment sur Epic (`epic_free.rs`), une notification par fournée : la clé
+/// porte les ids des jeux, triés. `until` = fin de la gratuité, déjà écrite (« 26 novembre »).
+pub fn free_games_note(games: &[crate::epic_free::Offer], until: &str) -> Option<Note> {
+    let first = games.first()?;
+    let mut ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+    ids.sort_unstable();
+    let (title, body) = if games.len() > 1 {
+        let names: Vec<&str> = games.iter().take(3).map(|g| g.title.as_str()).collect();
+        let more = match games.len() {
+            n if n > 4 => tr!(" et {} autres", " and {} more", n - 3),
+            4 => tr!(" et 1 autre", " and 1 more"),
+            _ => String::new(),
+        };
+        (
+            tr!("{} jeux gratuits sur Epic", "{} free games on Epic", games.len()),
+            tr!("{}{more}. À récupérer jusqu'au {until}.", "{}{more}. Claim them until {until}.", names.join(", ")),
+        )
+    } else {
+        (
+            tr!("Gratuit sur Epic : {}", "Free on Epic: {}", first.title),
+            tr!("À récupérer jusqu'au {until}.", "Claim it until {until}."),
+        )
+    };
+    Some(Note { kind: Kind::FreeGames, key: format!("freeGames:{}", ids.join(",")), title, body, target: Target::Wishlist })
 }
 
 /// Prix lisible : « 7,99 € » en français (`wishlist::money`), « €7.99 » en anglais (autre monnaie :
@@ -637,7 +670,7 @@ mod tests {
 
     #[test]
     fn prefs_are_all_on_by_default_and_read_without_failing() {
-        assert_eq!(Prefs::default(), Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true });
+        assert_eq!(Prefs::default(), Prefs { download: true, news: true, low_disk: true, update: true, saves_error: true, sale: true, free_games: true });
         let p: Prefs = serde_json::from_str(r#"{"news": false, "lowDisk": false, "promos": true, "update": "oui"}"#).unwrap();
         assert!(!p.news && !p.low_disk, "types connus relus");
         assert!(p.update, "valeur illisible : défaut");
@@ -656,6 +689,7 @@ mod tests {
             assert!(!p.get(kind));
         }
         assert_eq!(serde_json::from_str::<Kind>(r#""savesError""#).unwrap(), Kind::SavesError);
+        assert_eq!(serde_json::from_str::<Kind>(r#""freeGames""#).unwrap(), Kind::FreeGames);
         assert!(serde_json::from_str::<Kind>(r#""promos""#).is_err(), "type inconnu refusé par la commande");
     }
 

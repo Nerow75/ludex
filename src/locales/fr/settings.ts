@@ -77,6 +77,7 @@ export default {
       update: { label: "Nouvelle version de Ludex", detail: "Une mise à jour de Ludex est prête à installer." },
       savesError: { label: "Copie des sauvegardes ratée", detail: "La copie automatique de fin de partie a échoué." },
       sale: { label: "Promo d'un souhait", detail: "Un jeu de ta liste de souhaits passe en promo, prix relus une fois par jour." },
+      freeGames: { label: "Jeux gratuits sur Epic", detail: "Nouveaux jeux offerts par l'Epic Games Store, une fois par semaine. Coupée, la boutique n'est lue qu'à l'ouverture de la section Souhaits." },
     },
   },
 
@@ -200,7 +201,8 @@ export default {
       store: { name: "Catalogue du Microsoft Store", sent: "Titres des jeux absents de Steam, pour trouver une jaquette." },
       hltb: { name: "HowLongToBeat", sent: "Titres des jeux, pour la durée de vie." },
       saves: { name: "Base des sauvegardes Ludusavi (GitHub)", sent: "Rien : téléchargement de la liste des emplacements, une fois par semaine au plus." },
-      images: { name: "Images de Steam et du Microsoft Store", sent: "Adresse de chaque image affichée, rien d'autre." },
+      epic: { name: "Boutique Epic Games (jeux gratuits)", sent: "Rien : lecture de la liste publique des jeux offerts, en français ou en anglais, pays France." },
+      images: { name: "Images de Steam, du Microsoft Store et d'Epic", sent: "Adresse de chaque image affichée, rien d'autre." },
     },
     servicesNote:
       "Aucun compte, aucune télémétrie : ni nom d'utilisateur, ni chemin, ni identifiant de ce PC n'est envoyé. Comme pour toute connexion, chaque service voit ton adresse IP.",

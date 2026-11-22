@@ -27,10 +27,11 @@ pub enum Service {
     Workshop,
     Wishlist,
     Gog,
+    EpicFree,
 }
 
 impl Service {
-    pub const ALL: [Service; 10] = [
+    pub const ALL: [Service; 11] = [
         Service::Images,
         Service::Art,
         Service::Details,
@@ -41,6 +42,7 @@ impl Service {
         Service::Workshop,
         Service::Wishlist,
         Service::Gog,
+        Service::EpicFree,
     ];
 
     pub fn label(self) -> &'static str {
@@ -55,6 +57,7 @@ impl Service {
             Service::Workshop => tr_str!("Mods Steam Workshop", "Steam Workshop mods"),
             Service::Wishlist => tr_str!("Prix de la liste de souhaits", "Wishlist prices"),
             Service::Gog => tr_str!("Compte GOG", "GOG account"),
+            Service::EpicFree => tr_str!("Jeux gratuits d'Epic", "Epic free games"),
         }
     }
 
@@ -71,6 +74,7 @@ impl Service {
             Service::Workshop => tr_str!("API publique de Steam", "Steam public API"),
             Service::Wishlist => tr_str!("boutique Steam", "Steam store"),
             Service::Gog => tr_str!("API de GOG", "GOG API"),
+            Service::EpicFree => tr_str!("boutique Epic Games", "Epic Games Store"),
         }
     }
 

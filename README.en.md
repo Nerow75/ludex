@@ -41,6 +41,7 @@ Ludex brings the games installed on your Windows PC into a single library, whate
 - Quick search from anywhere (Alt+Space by default), tray icon, Jump List and desktop shortcuts.
 - Storage: space used by games on each drive and games to uninstall.
 - Steam wishlist with sale alerts, without an account.
+- This week's free games on the Epic Games Store (current and upcoming), with a notification for each new batch; Ludex never claims the game for you.
 - Dark, light, OLED black and high contrast themes, five accent colors, interface in English and French.
 
 <table>
@@ -120,7 +121,8 @@ Ludex creates no account and sends no telemetry. It only contacts the public ser
 | `api.steampowered.com` | Game details, tags, news, achievement rarity, mods | Steam numbers of games and mods, language |
 | `displaycatalog.mp.microsoft.com` | Covers of games not on Steam | Titles of those games |
 | `howlongtobeat.com` | Time to beat | Game titles |
-| Steam and Microsoft Store image CDNs | Covers, artwork, thumbnails | The address of each image |
+| `store-site-backend-static.ak.epicgames.com` | Epic free games | Language and country only |
+| Steam, Microsoft Store and Epic image CDNs | Covers, artwork, thumbnails | The address of each image |
 
 Never sent: Windows user name, folder paths, Steam account identifier, playtime, favorites, notes, collections, contents of your files. The error log and the diagnostics report stay on your PC (the report is only copied when you click "Copy report", and it is anonymized).
 

@@ -177,6 +177,24 @@ export default {
     salesMore: (n: number) => ` and ${n} more`,
   },
 
+  freeGames: {
+    title: "Free on Epic",
+    help: "Given away by the Epic Games Store. Ludex never claims anything for you: the page opens in the Epic launcher.",
+    loading: "Reading Epic's free games…",
+    unreachable: "The Epic store didn't respond. Ludex will try again later.",
+    now: "Free",
+    soon: "Soon",
+    until: (date: string) => `Free until ${date}`,
+    from: (start: string, end: string) => `Free from ${start} to ${end}`,
+    open: "View on Epic",
+    openLabel: (title: string) => `View ${title} on the Epic Games Store`,
+    checked: (when: string) => `List checked ${when}.`,
+    toastOne: (title: string) => `Free on Epic: ${title}`,
+    toastMany: (n: number) => `${enNum(n)} free games on Epic`,
+    toastDetail: "Claim them from the Wishlist section.",
+    ownedLabel: "already yours",
+  },
+
   gog: {
     title: "Not installed",
     subtitle: "Your GOG games that aren't on this PC",
