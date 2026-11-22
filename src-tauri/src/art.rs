@@ -168,7 +168,8 @@ fn search(agent: &ureq::Agent, title: &str) -> Result<Option<u32>, String> {
         .query("l", "french")
         .query("cc", "FR")
         .call()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[]))?
         .into_string()
         .map_err(|e| e.to_string())
         .and_then(|body| serde_json::from_str(&body).map_err(|e| e.to_string()))?;
@@ -182,7 +183,8 @@ fn assets(agent: &ureq::Agent, appid: u32) -> Result<(Option<String>, Option<Str
         .get(ITEMS)
         .query("input_json", &input)
         .call()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[]))?
         .into_string()
         .map_err(|e| e.to_string())
         .and_then(|b| serde_json::from_str(&b).map_err(|e| e.to_string()))?;
@@ -260,7 +262,8 @@ fn parse_product(body: &serde_json::Value, product: &str, title: &str) -> Option
 fn get_json(request: ureq::Request) -> Result<serde_json::Value, String> {
     request
         .call()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[]))?
         .into_string()
         .map_err(|e| e.to_string())
         .and_then(|b| serde_json::from_str(&b).map_err(|e| e.to_string()))
@@ -372,10 +375,7 @@ impl ArtCache {
     /// `on_found` reçoit chaque titre trouvé. Une erreur réseau arrête la recherche sans rien
     /// enregistrer pour les titres restants : ils seront cherchés au prochain scan.
     pub fn resolve(&mut self, titles: Vec<String>, mut on_found: impl FnMut(&str)) {
-        let agent = ureq::AgentBuilder::new()
-            .timeout(Duration::from_secs(8))
-            .user_agent("Ludex (lanceur de jeux)")
-            .build();
+        let agent = crate::net::agent(Duration::from_secs(8));
         for (i, title) in titles.iter().enumerate() {
             if i > 0 {
                 std::thread::sleep(Duration::from_millis(350));
@@ -575,7 +575,7 @@ mod tests {
     #[test]
     #[ignore]
     fn steam_search_online() {
-        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(8)).build();
+        let agent = crate::net::agent(Duration::from_secs(8));
         let games = crate::library::scan().games;
         let mut titles: Vec<String> = games.iter().filter(|g| needs_art(g)).map(|g| g.title.clone()).collect();
         titles.dedup();
@@ -594,7 +594,7 @@ mod tests {
     #[test]
     #[ignore]
     fn visuals_this_pc() {
-        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(8)).build();
+        let agent = crate::net::agent(Duration::from_secs(8));
         let download = crate::images::agent();
         let games = crate::library::scan().games;
         let (mut local, mut store, mut none) = (0, 0, Vec::new());

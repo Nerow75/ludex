@@ -360,7 +360,8 @@ fn request_tag_list(agent: &ureq::Agent, lang: Lang) -> Result<BTreeMap<u32, Str
         .get(TAG_LIST)
         .query("language", lang.steam())
         .call()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[]))?
         .into_string()
         .map_err(|e| e.to_string())?;
     parse_tag_list(&body)
@@ -382,7 +383,8 @@ fn request(agent: &ureq::Agent, appids: &[u32], lang: Lang) -> Result<Vec<(u32, 
         .get(ITEMS)
         .query("input_json", &input)
         .call()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[]))?
         .into_string()
         .map_err(|e| e.to_string())?;
     parse(&body, appids)
@@ -477,10 +479,7 @@ impl MetaCache {
     /// s'arrête en renvoyant vrai : l'appelant reprend avec le cache de la nouvelle langue.
     pub fn fetch(&mut self, appids: Vec<u32>, mut on_batch: impl FnMut(&MetaCache)) -> bool {
         let lang = self.lang();
-        let agent = ureq::AgentBuilder::new()
-            .timeout(Duration::from_secs(10))
-            .user_agent("Ludex (lanceur de jeux)")
-            .build();
+        let agent = crate::net::agent(Duration::from_secs(10));
         // Les noms d'abord : sans eux, les fiches arriveraient sans tags.
         if self.names_stale() {
             match request_tag_list(&agent, lang) {
@@ -711,7 +710,7 @@ mod tests {
     #[test]
     #[ignore]
     fn steam_details_online() {
-        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).build();
+        let agent = crate::net::agent(Duration::from_secs(10));
         let names = request_tag_list(&agent, Lang::Fr).unwrap();
         println!("{} noms de tags", names.len());
         let results = request(&agent, &[1091500, 1222670, 3932890, 271590], Lang::Fr).unwrap();

@@ -17,6 +17,7 @@ mod launch_args;
 mod library;
 mod logfile;
 mod metadata;
+mod net;
 mod recap;
 mod relocate;
 mod requirements;
