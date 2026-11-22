@@ -546,6 +546,7 @@ pub fn combine(current: &UserData, incoming: UserData, mode: Mode, seed: u64) ->
                 add_collection(&mut out.collections, c, seed);
             }
             crate::wishlist::merge(&mut out.wishlist, incoming.wishlist);
+            crate::custom_theme::merge(&mut out.settings.custom_themes, incoming.settings.custom_themes);
             out
         }
     }
@@ -765,9 +766,9 @@ pub async fn apply_import(app: AppHandle, mode: Mode) -> Result<ImportDone, Stri
         if result.settings.quick_shortcut != previous && quick::replace(&app, &result.settings.quick_shortcut, &previous).is_err() {
             result.settings.quick_shortcut = previous;
         }
-        let theme = result.settings.theme;
+        let theme = result.settings.clone();
         let ((), scan) = save_and_rescan(&app, &state, scanning, |data| *data = result)?;
-        settings::apply_theme(&app, theme);
+        settings::apply_theme(&app, &theme);
         settings::apply_language(&app);
         settings::refresh_discord(&app);
         settings::publish(&app)?;
@@ -825,6 +826,17 @@ mod tests {
         d.set_in_collection(&rpg, "steam:730", true).unwrap();
         d.settings.theme = crate::store::Theme::Oled;
         d.settings.accent = crate::store::Accent::Violet;
+        d.settings.custom_themes = vec![crate::custom_theme::CustomTheme {
+            id: "t-ab".into(),
+            name: "Papier".into(),
+            base: crate::custom_theme::Base::Light,
+            bg: "#F5F0E6".into(),
+            surface: "#EAE3D6".into(),
+            text: "#3A3A3A".into(),
+            accent: "#0D9488".into(),
+        }];
+        d.settings.custom_theme = Some("t-ab".into());
+        d.settings.couch_backdrop = crate::custom_theme::CouchBackdrop::Particles;
         d.settings.launch_screen = false;
         d.settings.discord_presence = true;
         d.settings.discord_hide_name = true;
@@ -906,6 +918,8 @@ mod tests {
         assert_eq!(back.data.collections, data.collections);
         assert_eq!(back.data.settings.theme, crate::store::Theme::Oled);
         assert_eq!(back.data.settings.accent, crate::store::Accent::Violet);
+        assert_eq!(back.data.settings.custom_themes, data.settings.custom_themes);
+        assert_eq!(back.data.settings.custom_theme.as_deref(), Some("t-ab"));
         // Seule la jaquette dont le fichier existe a voyagé, avec sa date de choix.
         assert_eq!(back.covers.len(), 1);
         assert_eq!(back.covers[0].bytes, png(600, 900));
@@ -935,6 +949,10 @@ mod tests {
         assert_eq!(result.settings.theme, crate::store::Theme::Oled);
         // Couleur d'accent : préférence de l'utilisateur comme le thème, elle suit l'archive.
         assert_eq!(result.settings.accent, crate::store::Accent::Violet);
+        // Thèmes perso et fond du mode canapé : préférences de l'utilisateur, ils suivent l'archive.
+        assert_eq!(result.settings.custom_themes.len(), 1);
+        assert_eq!(result.settings.custom_theme.as_deref(), Some("t-ab"));
+        assert_eq!(result.settings.couch_backdrop, crate::custom_theme::CouchBackdrop::Particles);
         // Écran de lancement coupé : préférence de l'utilisateur, elle suit l'archive.
         assert!(!result.settings.launch_screen);
         // Notifications : préférence de l'utilisateur, pas de ce PC (elles suivent l'archive).
@@ -1107,6 +1125,19 @@ mod tests {
         there.launched.insert("epic:Sugar".into(), 90);
         there.settings.theme = crate::store::Theme::Oled;
         there.settings.accent = crate::store::Accent::Green;
+        let theme = |id: &str, name: &str, accent: &str| crate::custom_theme::CustomTheme {
+            id: id.into(),
+            name: name.into(),
+            base: crate::custom_theme::Base::Dark,
+            bg: "#101418".into(),
+            surface: "#1B2128".into(),
+            text: "#FFFFFF".into(),
+            accent: accent.into(),
+        };
+        here.settings.custom_themes = vec![theme("t-1", "Nuit", "#14B8A6")];
+        here.settings.custom_theme = Some("t-1".into());
+        there.settings.custom_themes = vec![theme("t-1", "Autre", "#FF0000"), theme("t-2", "NUIT", "#FF0000"), theme("t-3", "Papier", "#0D9488")];
+        there.settings.custom_theme = Some("t-3".into());
         there.collections.push(Collection { id: coop.clone(), name: "COOP".into(), games: vec!["steam:440".into()] });
         there.collections.push(Collection { id: coop.clone(), name: "Solo".into(), games: vec!["steam:620".into()] });
         there.covers.insert("riot:valorant".into(), CustomArt { cover: Some(Picked { ext: "jpg".into(), at: 9 }), hero: Some(Picked { ext: "jpg".into(), at: 9 }) });
@@ -1134,6 +1165,10 @@ mod tests {
         assert_eq!(out.launched["epic:Sugar"], 90);
         assert_eq!(out.settings.theme, crate::store::Theme::Light);
         assert_eq!(out.settings.accent, crate::store::Accent::Pink); // ce PC l'emporte
+        // Thèmes perso : ceux de ce PC gardés, ceux de l'archive ajoutés (même id ou même nom écartés).
+        assert_eq!(out.settings.custom_themes.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(), ["Nuit", "Papier"]);
+        assert_eq!(out.settings.custom_themes[0].accent, "#14B8A6");
+        assert_eq!(out.settings.custom_theme.as_deref(), Some("t-1"));
         // Liste de souhaits : fusion par appid, l'entrée de ce PC reste.
         assert_eq!(out.wishlist.iter().map(|w| (w.appid, w.title.as_str())).collect::<Vec<_>>(), [(1145360, "Hades"), (1426210, "It Takes Two")]);
         // Collection de même nom : jeux réunis ; autre nom au même id : nouvel id.

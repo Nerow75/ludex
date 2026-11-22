@@ -4,6 +4,7 @@ mod art;
 mod collections;
 mod corrections;
 mod covers;
+mod custom_theme;
 mod deeplink;
 mod diagnostic;
 mod discord;
@@ -2891,8 +2892,8 @@ pub fn run() {
             update_settings(app.handle(), |s| s.launch_at_startup = enabled);
             create_tray(app)?;
             // Thème choisi dans les Paramètres (la fenêtre est créée sombre par `tauri.conf.json`).
-            let theme = lock(&app.state::<AppState>().data).map(|d| d.settings.theme).unwrap_or_default();
-            settings::apply_theme(app.handle(), theme);
+            let theme = lock(&app.state::<AppState>().data).map(|d| d.settings.clone()).unwrap_or_default();
+            settings::apply_theme(app.handle(), &theme);
             let shortcut = lock(&app.state::<AppState>().data).map(|d| d.settings.quick_shortcut.clone()).unwrap_or_default();
             quick::setup(app.handle(), &shortcut);
             // Liens `ludex://` : schéma enregistré par l'installeur ; en debug, vers cet exécutable.
@@ -3043,6 +3044,10 @@ pub fn run() {
             settings::set_discord_presence,
             settings::set_discord_hide_name,
             settings::set_accent,
+            custom_theme::save_custom_theme,
+            custom_theme::delete_custom_theme,
+            custom_theme::set_custom_theme,
+            custom_theme::set_couch_backdrop,
             settings::set_language,
             settings::set_notification,
             settings::set_launch_screen,

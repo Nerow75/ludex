@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { live, t, type Lang, type LanguageSetting } from "./i18n";
+import type { CustomTheme } from "./customTheme";
 
 export type Platform = "steam" | "epic" | "gog" | "ubisoft" | "rockstar" | "xbox" | "riot" | "battlenet" | "ea" | "amazon" | "itch" | "other";
 export type PlaytimeSource = "launcher" | "ludex";
@@ -905,7 +906,24 @@ export interface SettingsInfo {
   discordHideName: boolean;
   /** Faux tant que cette version de Ludex n'a pas d'identifiant d'application Discord. */
   discordAvailable: boolean;
+  /** Thèmes perso (`custom_theme.rs`, calculs dans `customTheme.ts`). */
+  customThemes: CustomTheme[];
+  /** Thème perso appliqué (id de la liste), `null` : le thème de base. */
+  customTheme: string | null;
+  /** Fond animé du mode canapé. */
+  couchBackdrop: CouchBackdrop;
 }
+/** Fond du mode canapé : image fixe (par défaut), dérive lente, particules, dégradé qui respire. */
+export type CouchBackdrop = "still" | "drift" | "particles" | "breathe";
+export const COUCH_BACKDROPS: readonly CouchBackdrop[] = ["still", "drift", "particles", "breathe"];
+/** Thème saisi dans l'éditeur ; sans id, un nouveau thème. */
+export type ThemeInput = Omit<CustomTheme, "id"> & { id: string | null };
+/** Enregistre (crée ou modifie) un thème perso, revérifié par Rust, et l'applique. */
+export const saveCustomTheme = (theme: ThemeInput) => invoke<SettingsInfo>("save_custom_theme", { theme });
+export const deleteCustomTheme = (id: string) => invoke<SettingsInfo>("delete_custom_theme", { id });
+/** Applique un thème perso ; `null` : retour au thème de base. */
+export const setCustomTheme = (id: string | null) => invoke<SettingsInfo>("set_custom_theme", { id });
+export const setCouchBackdrop = (backdrop: CouchBackdrop) => invoke<SettingsInfo>("set_couch_backdrop", { backdrop });
 /** Types de notifications Windows (`notify.rs`). */
 export type NotificationKind = "download" | "news" | "lowDisk" | "update" | "savesError" | "sale";
 export type NotificationPrefs = Record<NotificationKind, boolean>;

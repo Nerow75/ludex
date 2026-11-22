@@ -3,12 +3,16 @@
 // localStorage les applique dès le premier rendu, sans passer par le sombre turquoise le temps de
 // la réponse.
 import { ACCENTS, onSettingsChanged, settings, THEMES, type Accent, type Theme } from "./api";
+import { baseAttribute, deriveTheme, knownCustomTheme, setThemeVars, type CustomTheme } from "./customTheme";
 
 const KEY = "ludex.theme";
 const ACCENT_KEY = "ludex.accent";
+const CUSTOM_KEY = "ludex.customTheme";
 const LIGHT = "(prefers-color-scheme: light)";
 
 let current: Theme = "dark";
+/** Thème perso appliqué : il décide de `data-theme` (sa base) tant qu'il est là. */
+let custom: CustomTheme | null = null;
 
 /** Thème relu (localStorage, version future…) : un thème connu, sinon le sombre. */
 export function knownTheme(value: unknown): Theme {
@@ -59,7 +63,43 @@ function setAttribute(name: "theme" | "accent", value: string | null) {
 export function applyTheme(theme: Theme) {
   current = theme;
   remember(KEY, theme);
+  if (custom) return;
   setAttribute("theme", themeAttribute(theme, window.matchMedia?.(LIGHT).matches ?? false));
+}
+
+/**
+ * Pose un thème perso sur `<html>` (variables CSS calculées, `data-theme` de sa base) ; `null` le
+ * retire et rend le thème de base retenu.
+ */
+export function applyCustomTheme(theme: CustomTheme | null) {
+  custom = theme;
+  try {
+    if (theme) localStorage.setItem(CUSTOM_KEY, JSON.stringify(theme));
+    else localStorage.removeItem(CUSTOM_KEY);
+  } catch {
+    // stockage indisponible : le réglage reste côté Rust
+  }
+  const root = document.documentElement;
+  if (!theme) {
+    setThemeVars(root, null);
+    applyTheme(current);
+    return;
+  }
+  setThemeVars(root, deriveTheme(theme.base, theme));
+  setAttribute("theme", baseAttribute(theme.base));
+}
+
+function recallCustom(): CustomTheme | null {
+  try {
+    return knownCustomTheme(JSON.parse(recall(CUSTOM_KEY) ?? "null"));
+  } catch {
+    return null;
+  }
+}
+
+/** Thème perso actif des réglages (id connu de la liste), sinon `null`. */
+export function activeCustomTheme(s: { customTheme: string | null; customThemes: CustomTheme[] }): CustomTheme | null {
+  return s.customTheme ? s.customThemes.find((t) => t.id === s.customTheme) ?? null : null;
 }
 
 /** Pose `data-accent` sur `<html>` (aucun attribut : turquoise, les tokens par défaut). */
@@ -72,14 +112,18 @@ export function applyAccent(accent: Accent) {
 export function startTheme() {
   applyTheme(knownTheme(recall(KEY)));
   applyAccent(knownAccent(recall(ACCENT_KEY)));
-  const apply = (s: { theme: Theme; accent: Accent }) => {
+  const kept = recallCustom();
+  if (kept) applyCustomTheme(kept);
+  const apply = (s: { theme: Theme; accent: Accent; customTheme: string | null; customThemes: CustomTheme[] }) => {
     applyTheme(s.theme);
     applyAccent(knownAccent(s.accent));
+    const next = activeCustomTheme(s);
+    if (JSON.stringify(next) !== JSON.stringify(custom)) applyCustomTheme(next);
   };
   settings()
     .then(apply)
     .catch(() => {}); // sans réponse, le thème retenu reste
   onSettingsChanged(apply).catch(() => {});
   // Windows passe du clair au sombre (ou l'inverse) : suivi seulement en « Comme Windows ».
-  window.matchMedia?.(LIGHT).addEventListener("change", () => current === "system" && applyTheme("system"));
+  window.matchMedia?.(LIGHT).addEventListener("change", () => current === "system" && !custom && applyTheme("system"));
 }

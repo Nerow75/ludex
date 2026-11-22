@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { couchKey, couchKeyAction, couchPadAction, couchRows, initialFocus, localDate, stepRow, todaySecs } from "./couch";
+import { couchKey, dustParticles, couchKeyAction, couchPadAction, couchRows, initialFocus, localDate, stepRow, todaySecs } from "./couch";
 import { jeu, jeuAmbiance, JOUR, maintenant } from "../test/jeu";
 import { setLang } from "./i18n";
 
@@ -159,5 +159,31 @@ describe("mode canapé en anglais", () => {
       ["mood:friends", "With friends"],
       ["all", "All games"],
     ]);
+  });
+});
+
+describe("particules du fond", () => {
+  it("sont fixes d'un rendu à l'autre et restent discrètes", () => {
+    const a = dustParticles(18);
+    expect(a).toEqual(dustParticles(18));
+    expect(a).toHaveLength(18);
+    for (const p of a) {
+      expect(p.left).toBeGreaterThanOrEqual(0);
+      expect(p.left).toBeLessThan(100);
+      expect(p.size).toBeGreaterThanOrEqual(2);
+      expect(p.size).toBeLessThanOrEqual(5);
+      expect(p.duration).toBeGreaterThanOrEqual(18);
+      expect(p.duration).toBeLessThanOrEqual(34);
+      expect(p.delay).toBeGreaterThanOrEqual(0);
+      expect(p.delay).toBeLessThan(p.duration);
+      expect(Math.abs(p.drift)).toBeLessThanOrEqual(6);
+      expect(p.opacity).toBeGreaterThanOrEqual(0.18);
+      expect(p.opacity).toBeLessThanOrEqual(0.4);
+    }
+    // Réparties sur la largeur : aucune moitié vide.
+    expect(a.filter((p) => p.left < 50).length).toBeGreaterThan(5);
+    expect(a.filter((p) => p.left >= 50).length).toBeGreaterThan(5);
+    expect(dustParticles(0)).toEqual([]);
+    expect(dustParticles(-3)).toEqual([]);
   });
 });

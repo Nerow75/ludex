@@ -17,6 +17,8 @@ import {
   pauseQuickShortcut,
   PLATFORM_LABEL,
   setAccent,
+  setCouchBackdrop,
+  COUCH_BACKDROPS,
   setAutoSaves,
   setDiscordHideName,
   setDiscordPresence,
@@ -43,7 +45,8 @@ import {
   type UpdateInfo,
   type WelcomeInfo,
 } from "../lib/api";
-import { applyAccent, applyTheme } from "../lib/theme";
+import { activeCustomTheme, applyAccent, applyCustomTheme, applyTheme } from "../lib/theme";
+import { CustomThemes } from "./CustomThemes";
 import { CheckIcon } from "./Icons";
 import { NOTIFICATION_ROWS } from "../lib/notifications";
 import { discordHelp } from "../lib/discord";
@@ -207,8 +210,9 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
   };
 
   const changeTheme = (theme: SettingsInfo["theme"]) => {
+    applyCustomTheme(null); // un thème de base quitte le thème perso
     applyTheme(theme); // tout de suite, sans attendre Rust
-    setInfo((i) => i && { ...i, theme });
+    setInfo((i) => i && { ...i, theme, customTheme: null });
     setTheme(theme).then(setInfo).catch(fail);
   };
 
@@ -351,6 +355,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
 
   const sources = scan?.sources ?? [];
   const tx = t.settings;
+  const customTheme = info ? activeCustomTheme(info) : null;
 
   return (
     <section className="set" aria-label={tx.title}>
@@ -371,7 +376,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               </span>
               <div className="seg" role="radiogroup" aria-label={tx.look.theme}>
                 {THEMES.map((th) => (
-                  <button key={th} type="button" role="radio" aria-checked={info.theme === th} data-nav onClick={() => changeTheme(th)}>
+                  <button key={th} type="button" role="radio" aria-checked={info.theme === th && !info.customTheme} data-nav onClick={() => changeTheme(th)}>
                     {THEME_LABEL[th]}
                   </button>
                 ))}
@@ -380,7 +385,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
             <div className="set__row">
               <span className="set__text">
                 <span id="set-accent">{tx.look.accent}</span>
-                <small>{tx.look.accentHelp}</small>
+                <small>{customTheme ? tx.look.accentFromTheme(customTheme.name) : tx.look.accentHelp}</small>
               </span>
               <div className="swatches" role="radiogroup" aria-labelledby="set-accent">
                 {ACCENTS.map((a) => (
@@ -394,6 +399,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                     title={ACCENT_LABEL[a]}
                     data-accent={a}
                     data-nav
+                    disabled={!!customTheme}
                     onClick={() => changeAccent(a)}
                   >
                     <span>{info.accent === a && <CheckIcon />}</span>
@@ -401,6 +407,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 ))}
               </div>
             </div>
+            <CustomThemes info={info} setInfo={setInfo} onToast={onToast} />
             <div className="set__row set__row--stack">
               <span className="set__text">
                 <span id="set-language">{tx.look.language}</span>
@@ -429,6 +436,19 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
               checked={info.launchScreen}
               onChange={(v) => toggle({ launchScreen: v }, () => setLaunchScreen(v))}
             />
+            <div className="set__row set__row--stack">
+              <span className="set__text">
+                <span id="set-backdrop">{tx.look.couchBackdrop}</span>
+                <small id="set-backdrop-help">{tx.look.couchBackdropHelp}</small>
+              </span>
+              <div className="seg" role="radiogroup" aria-labelledby="set-backdrop" aria-describedby="set-backdrop-help">
+                {COUCH_BACKDROPS.map((b) => (
+                  <button key={b} type="button" role="radio" aria-checked={info.couchBackdrop === b} data-nav onClick={() => toggle({ couchBackdrop: b }, () => setCouchBackdrop(b))}>
+                    {tx.look.backdrops[b]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </section>
 
           <section className="set__group" aria-labelledby="set-quick">
