@@ -1004,6 +1004,8 @@ export interface Diagnostic {
 export const diagnostic = () => invoke<Diagnostic>("diagnostic");
 /** Journal d'erreurs (`logfile.rs`) montré dans l'Explorateur : chemin reconstruit côté Rust. */
 export const openLog = () => invoke<void>("open_log");
+/** Page du dépôt de Ludex (« À propos ») : adresse fixée côté Rust. */
+export const openRepository = () => invoke<void>("open_repository");
 
 /** Contenu d'un export de données (`transfer.rs`), en nombres d'éléments. */
 export interface TransferSummary {

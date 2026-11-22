@@ -16,6 +16,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 /// Événement `settings-changed` : réglages complets, après tout changement.
 pub const EVENT: &str = "settings-changed";
 
+/// Dépôt public de Ludex, ouvert par « À propos » (`open_repository`). Seul endroit de l'adresse :
+/// le front n'envoie rien, la commande ouvre toujours celle-ci.
+pub const REPOSITORY: &str = "https://github.com/Nerow75/ludex";
+
 /// Au-delà, le texte d'un raccourci est refusé avant toute lecture.
 const MAX_SHORTCUT: usize = 64;
 
@@ -298,9 +302,28 @@ pub fn show_all_hidden(app: AppHandle) -> Result<Vec<String>, String> {
     Ok(ids)
 }
 
+/// Ouvre la page du dépôt de Ludex dans le navigateur (« À propos »). Sans argument : l'adresse
+/// est la constante `REPOSITORY`, jamais une URL venue du front.
+#[tauri::command]
+pub fn open_repository(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(REPOSITORY, None::<&str>)
+        .map_err(|e| tr!("Impossible d'ouvrir le navigateur : {e}", "Can't open the browser: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn repository_matches_the_update_endpoint() {
+        // Les mises à jour viennent des releases du même dépôt : une seule adresse à changer.
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let endpoint = conf["plugins"]["updater"]["endpoints"][0].as_str().unwrap();
+        assert!(endpoint.starts_with(&format!("{REPOSITORY}/releases/")), "{endpoint}");
+        assert!(REPOSITORY.starts_with("https://github.com/") && !REPOSITORY.ends_with('/'));
+    }
 
     #[test]
     fn themes_map_to_window_themes() {

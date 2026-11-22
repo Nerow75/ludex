@@ -12,6 +12,7 @@ import {
   exportData,
   importData,
   onSettingsChanged,
+  openRepository,
   pauseQuickShortcut,
   PLATFORM_LABEL,
   setAccent,
@@ -67,6 +68,8 @@ interface Props {
 }
 
 const DEFAULT_SHORTCUT = "Alt+Space";
+/** Services en ligne listés dans « À propos », dans cet ordre (textes dans `settings.about.services`). */
+const ABOUT_SERVICES = ["updates", "steam", "store", "hltb", "saves", "images"] as const;
 const MODIFIER_CODES = new Set(["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight", "OSLeft", "OSRight"]);
 
 /** Modificateurs tenus, pour l'aperçu pendant la saisie. */
@@ -112,6 +115,7 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
   const [busySource, setBusySource] = useState<Platform | null>(null);
   const [confirmShow, setConfirmShow] = useState(false);
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
+  const [repoError, setRepoError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
   const captureBtn = useRef<HTMLButtonElement>(null);
@@ -278,6 +282,11 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
       .then((u) => setUpdateMsg(u ? null : t.settings.about.upToDate))
       .catch((e) => setUpdateMsg(String(e)))
       .finally(() => setChecking(false));
+  };
+
+  const openRepo = () => {
+    setRepoError(null);
+    openRepository().catch((e) => setRepoError(String(e)));
   };
 
   const exportNow = () => {
@@ -642,6 +651,25 @@ export function SettingsView({ scan, onScan, onShown, onWelcome, update, onInsta
                 <button type="button" className="btn-ghost set__small" data-nav disabled={checking} onClick={searchUpdate}>{tx.about.check}</button>
               )}
             </div>
+            <div className="set__row">
+              <span className="set__text">
+                <span>{tx.about.repo}</span>
+                <small>{tx.about.repoHelp}</small>
+              </span>
+              <button type="button" className="btn-ghost set__small" data-nav onClick={openRepo}>{tx.about.openRepo}</button>
+            </div>
+            {repoError && <p className="set__msg is-error" role="alert">{repoError}</p>}
+            <h4 className="set__sub" id="set-services">{tx.about.servicesTitle}</h4>
+            <ul className="set__services" aria-labelledby="set-services">
+              {ABOUT_SERVICES.map((key) => (
+                <li key={key}>
+                  <span>{tx.about.services[key].name}</span>
+                  <small>{tx.about.services[key].sent}</small>
+                </li>
+              ))}
+            </ul>
+            <p className="set__note">{tx.about.servicesNote}</p>
+            <p className="set__note">{tx.about.notAffiliated}</p>
           </section>
 
           <section className="set__group" aria-labelledby="set-diag">
