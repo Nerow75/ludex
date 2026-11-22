@@ -9,6 +9,7 @@ import { formatAchievements, formatClock, formatDuration, formatPlaytime, genreL
 import { t, useLang } from "../lib/i18n";
 import { spatialNext } from "../lib/spatial";
 import { Art, Logo } from "./Art";
+import { CouchFx, useCouchBackdrop } from "./CouchBackdrop";
 import { Cover } from "./Cover";
 import { lastSessionText, storyLeft, useLastSession } from "./GameStrip";
 import { CloseIcon, LudexMark, PlayIcon, StarIcon } from "./Icons";
@@ -199,6 +200,7 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
     };
   }, [control]);
 
+  const fx = useCouchBackdrop();
   const hints = t.extras.couch.hints;
   const keys = t.extras.keys;
   return (
@@ -210,8 +212,9 @@ export default function CouchMode({ games, playing, pad, onPlay, onFavorite, onE
       aria-label={t.extras.couch.dialog}
       style={ambient ? ({ ["--lx-ambient" as string]: ambient } as React.CSSProperties) : undefined}
     >
-      <div className="couch__backdrop" aria-hidden>
+      <div className={`couch__backdrop${fx.paused ? " is-paused" : ""}`} data-backdrop={fx.kind} aria-hidden>
         {backdrop.map(({ game: g, n }) => <Art key={n} game={g} className="couch__art" />)}
+        <CouchFx kind={fx.kind} />
       </div>
 
       <header className="couch__top">

@@ -168,7 +168,7 @@ fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
         .visible(false)
         .focused(false)
         .center()
-        .theme(crate::settings::window_theme(crate::settings::current_theme(app)))
+        .theme(crate::settings::current_window_theme(app))
         .background_color(Color(0x1A, 0x1A, 0x1A, 0xFF))
         .build()
 }

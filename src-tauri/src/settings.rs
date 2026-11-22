@@ -59,6 +59,12 @@ pub struct SettingsInfo {
     discord_hide_name: bool,
     /// Faux tant que cette version de Ludex n'a pas d'identifiant d'application Discord.
     discord_available: bool,
+    /// Thèmes perso (`custom_theme.rs`).
+    custom_themes: Vec<crate::custom_theme::CustomTheme>,
+    /// Thème perso appliqué (seulement un id de la liste), `null` : le thème de base.
+    custom_theme: Option<String>,
+    /// Fond animé du mode canapé.
+    couch_backdrop: crate::custom_theme::CouchBackdrop,
 }
 
 fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
@@ -88,6 +94,9 @@ fn info<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsInfo, String> {
         discord_presence: s.discord_presence,
         discord_hide_name: s.discord_hide_name,
         discord_available: crate::discord::available(),
+        custom_themes: s.custom_themes.clone(),
+        custom_theme: crate::custom_theme::active(s).map(|t| t.id.clone()),
+        couch_backdrop: s.couch_backdrop,
     })
 }
 
@@ -112,15 +121,27 @@ pub fn window_theme(theme: Theme) -> Option<tauri::Theme> {
     }
 }
 
-/// Thème des réglages, pour une fenêtre créée après le démarrage (recherche rapide).
-pub fn current_theme<R: Runtime>(app: &AppHandle<R>) -> Theme {
-    app.try_state::<AppState>().and_then(|s| lock(&s.data).ok().map(|d| d.settings.theme)).unwrap_or_default()
+/// Thème des fenêtres natives d'après les réglages : celui du thème perso appliqué (sombre ou
+/// clair selon son fond), sinon celui du thème de base.
+pub fn settings_window_theme(s: &Settings) -> Option<tauri::Theme> {
+    match crate::custom_theme::active(s) {
+        Some(t) if crate::custom_theme::is_dark(&t.bg) => Some(tauri::Theme::Dark),
+        Some(_) => Some(tauri::Theme::Light),
+        None => window_theme(s.theme),
+    }
 }
 
-/// Applique le thème à toutes les fenêtres ouvertes.
-pub fn apply_theme<R: Runtime>(app: &AppHandle<R>, theme: Theme) {
+/// Thème des réglages, pour une fenêtre créée après le démarrage (recherche rapide).
+pub fn current_window_theme<R: Runtime>(app: &AppHandle<R>) -> Option<tauri::Theme> {
+    let settings = app.try_state::<AppState>().and_then(|s| lock(&s.data).ok().map(|d| d.settings.clone())).unwrap_or_default();
+    settings_window_theme(&settings)
+}
+
+/// Applique le thème des réglages (perso compris) à toutes les fenêtres ouvertes.
+pub fn apply_theme<R: Runtime>(app: &AppHandle<R>, settings: &Settings) {
+    let theme = settings_window_theme(settings);
     for window in app.webview_windows().values() {
-        if let Err(e) = window.set_theme(window_theme(theme)) {
+        if let Err(e) = window.set_theme(theme) {
             log::warn!("Thème de la fenêtre « {} » non appliqué : {e}", window.label());
         }
     }
@@ -133,8 +154,13 @@ pub fn settings(app: AppHandle) -> Result<SettingsInfo, String> {
 
 #[tauri::command]
 pub fn set_theme(app: AppHandle, theme: Theme) -> Result<SettingsInfo, String> {
-    update_settings(&app, |s| s.theme = theme);
-    apply_theme(&app, theme);
+    // Choisir un thème de base quitte le thème perso (gardé dans la liste).
+    update_settings(&app, |s| {
+        s.theme = theme;
+        s.custom_theme = None;
+    });
+    let current = lock(&app.state::<AppState>().data)?.settings.clone();
+    apply_theme(&app, &current);
     publish(&app)
 }
 
@@ -335,6 +361,21 @@ mod tests {
     }
 
     #[test]
+    fn custom_theme_sets_the_window_theme_from_its_background() {
+        use crate::custom_theme::{Base, CustomTheme};
+        let light = CustomTheme { id: "t-1".into(), name: "Papier".into(), base: Base::Dark, bg: "#F5F0E6".into(), surface: "#EAE3D6".into(), text: "#1A1A1A".into(), accent: "#B4532A".into() };
+        let mut s = Settings { theme: Theme::Oled, custom_themes: vec![light], custom_theme: Some("t-1".into()), ..Default::default() };
+        assert_eq!(settings_window_theme(&s), Some(tauri::Theme::Light));
+        s.custom_themes[0].bg = "#10141A".into();
+        assert_eq!(settings_window_theme(&s), Some(tauri::Theme::Dark));
+        s.custom_theme = Some("t-404".into());
+        assert_eq!(settings_window_theme(&s), Some(tauri::Theme::Dark)); // thème de base (OLED)
+        s.custom_theme = None;
+        s.theme = Theme::System;
+        assert_eq!(settings_window_theme(&s), None);
+    }
+
+    #[test]
     fn info_is_sent_in_camel_case() {
         let info = SettingsInfo {
             theme: Theme::System,
@@ -356,9 +397,12 @@ mod tests {
             discord_presence: true,
             discord_hide_name: false,
             discord_available: false,
+            custom_themes: Vec::new(),
+            custom_theme: None,
+            couch_backdrop: crate::custom_theme::CouchBackdrop::Breathe,
         };
         let text = serde_json::to_string(&info).unwrap();
-        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""language":"en""#, r#""languageResolved":"en""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#, r#""discordPresence":true"#, r#""discordHideName":false"#, r#""discordAvailable":false"#] {
+        for part in [r#""theme":"system""#, r#""accent":"pink""#, r#""language":"en""#, r#""languageResolved":"en""#, r#""quickShortcutLabel":"Alt+Espace""#, r#""disabledSources":["epic"]"#, r#""hiddenGames":2"#, r#""launchScreen":false"#, r#""news":false"#, r#""notificationsBlocked":true"#, r#""discordPresence":true"#, r#""discordHideName":false"#, r#""discordAvailable":false"#, r#""customThemes":[]"#, r#""customTheme":null"#, r#""couchBackdrop":"breathe""#] {
             assert!(text.contains(part), "{text}");
         }
     }

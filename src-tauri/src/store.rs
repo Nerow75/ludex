@@ -149,10 +149,20 @@ pub struct Settings {
     pub discord_presence: bool,
     /// Statut Discord sans le nom du jeu, ni son launcher, ni son image (« En jeu »).
     #[serde(deserialize_with = "or_default")]
-    pub discord_hide_name: bool,    /// Émulation (`library/emulation`) : dossiers de ROMs choisis (propres à ce PC) et émulateur
+    pub discord_hide_name: bool,
+    /// Émulation (`library/emulation`) : dossiers de ROMs choisis (propres à ce PC) et émulateur
     /// choisi par console. Relu nettoyé : chemin invalide, console ou émulateur inconnu écartés.
     #[serde(deserialize_with = "emulation_prefs")]
     pub emulation: crate::library::emulation::Prefs,
+    /// Thèmes perso (`custom_theme.rs`) : couleurs `#RRGGBB` revérifiées à la relecture. Suivent l'export.
+    #[serde(deserialize_with = "crate::custom_theme::read_list", skip_serializing_if = "Vec::is_empty")]
+    pub custom_themes: Vec<crate::custom_theme::CustomTheme>,
+    /// Thème perso appliqué (id de `custom_themes`), par-dessus `theme`. `None` : le thème de base.
+    #[serde(deserialize_with = "or_default", skip_serializing_if = "Option::is_none")]
+    pub custom_theme: Option<String>,
+    /// Fond animé du mode canapé. Valeur inconnue : fixe, sans perdre le reste. Suit l'export.
+    #[serde(deserialize_with = "or_default")]
+    pub couch_backdrop: crate::custom_theme::CouchBackdrop,
 }
 
 /// Thème de l'interface : sombre (par défaut, celui de Ludex depuis le début), clair, celui de
@@ -226,6 +236,9 @@ impl Default for Settings {
             discord_presence: false,
             discord_hide_name: false,
             emulation: crate::library::emulation::Prefs::default(),
+            custom_themes: Vec::new(),
+            custom_theme: None,
+            couch_backdrop: crate::custom_theme::CouchBackdrop::Still,
         }
     }
 }

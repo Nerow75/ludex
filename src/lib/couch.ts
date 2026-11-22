@@ -158,3 +158,39 @@ export function stepRow(count: number, current: number, delta: number): number |
 /** Préférence retenue : Ludex rouvert en mode canapé s'il a été quitté ainsi. */
 export const COUCH_KEY = "couch";
 export const COUCH_VALUES = ["on", "off"] as const;
+
+/** Particule du fond « Particules » du mode canapé (`CouchFx`). */
+export interface Dust {
+  /** Position de départ, en % de la largeur. */
+  left: number;
+  /** Diamètre, en pixels. */
+  size: number;
+  /** Durée d'une montée, en secondes. */
+  duration: number;
+  /** Avance dans le cycle (secondes) : l'écran est déjà peuplé à l'ouverture. */
+  delay: number;
+  /** Décalage horizontal pendant la montée, en vw. */
+  drift: number;
+  opacity: number;
+}
+
+/**
+ * Particules réparties sans tirage au hasard (suite de la proportion dorée) : même fond à chaque
+ * ouverture, aucune boucle ni calcul pendant l'animation (tout en CSS).
+ */
+export function dustParticles(count: number): Dust[] {
+  const golden = 0.618033988749895;
+  return Array.from({ length: Math.max(0, Math.floor(count)) }, (_, i) => {
+    const a = (i * golden) % 1;
+    const b = (i * golden * golden + 0.37) % 1;
+    const duration = Math.round(18 + b * 16);
+    return {
+      left: Math.round(a * 1000) / 10,
+      size: 2 + Math.round(b * 3),
+      duration,
+      delay: Math.round(((i * 0.414) % 1) * duration * 10) / 10,
+      drift: Math.round((a - 0.5) * 120) / 10,
+      opacity: Math.round((0.3 + b * 0.3) * 100) / 100,
+    };
+  });
+}
