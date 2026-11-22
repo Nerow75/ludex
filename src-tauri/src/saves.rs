@@ -282,13 +282,18 @@ fn download(etag: Option<&str>) -> Result<Option<Downloaded>, String> {
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(15))
         .timeout_read(Duration::from_secs(120))
+        .redirects(0)
         .user_agent("Ludex")
         .build();
     let mut request = agent.get(MANIFEST_URL);
     if let Some(tag) = etag {
         request = request.set("If-None-Match", tag);
     }
-    let response = request.call().map_err(|e| e.to_string())?;
+    // Redirection refusée (erreur notée par l'appelant) ; 304 = inchangé.
+    let response = request
+        .call()
+        .map_err(|e| e.to_string())
+        .and_then(|r| crate::net::checked(r, &[304]))?;
     if response.status() == 304 {
         return Ok(None);
     }

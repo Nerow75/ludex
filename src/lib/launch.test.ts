@@ -6,6 +6,7 @@ import {
   autoClose,
   launchBackdrop,
   launchText,
+  outsideLaunchScreen,
   relayName,
   RELAY_HINT_MS,
   RUNNING_HOLD_MS,
@@ -105,5 +106,19 @@ describe("écran de lancement en anglais", () => {
     expect(launchText({ ...v, phase: "running" }, steam, 0)).toEqual({ status: "Have fun", detail: null });
     const failed = afterError(v, steam.id, "  ", 0);
     expect(launchText(failed, steam, 0)).toEqual({ status: "Couldn't launch the game", detail: "The launcher didn't respond." });
+  });
+});
+
+describe("outsideLaunchScreen : lancement hors de la fenêtre", () => {
+  const ok = { lastPlayed: 1000, error: null, shown: true };
+  it("montre l'écran pour un lancement réussi, fenêtre à l'écran, réglage actif", () => {
+    expect(outsideLaunchScreen(ok, true)).toBe(true);
+  });
+  it("rien si le réglage est coupé ou la fenêtre cachée ou réduite", () => {
+    expect(outsideLaunchScreen(ok, false)).toBe(false);
+    expect(outsideLaunchScreen({ ...ok, shown: false }, true)).toBe(false);
+  });
+  it("rien pour une erreur (le toast d'erreur reste)", () => {
+    expect(outsideLaunchScreen({ lastPlayed: null, error: "Le launcher n'a pas répondu", shown: true }, true)).toBe(false);
   });
 });

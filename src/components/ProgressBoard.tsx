@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { PLATFORM_LABEL, STATUS_LABEL, STATUSES, type Game, type Status } from "../lib/api";
-import { cleanTitle } from "../lib/format";
+import { byTitle } from "../lib/library";
 import { t } from "../lib/i18n";
 import type { SectionContext } from "../lib/sections";
 import { Cover } from "./Cover";
@@ -9,8 +9,7 @@ import { EmptyState } from "./States";
 /** Événement envoyé par la manette (LT/RT) à l'élément qui a le focus : `detail` = -1 ou 1. */
 export const SHIFT_EVENT = "ludex-shift";
 
-const byRecent = (a: Game, b: Game) =>
-  (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr", { sensitivity: "base" });
+const byRecent = (a: Game, b: Game) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || byTitle(a, b);
 
 /** Statut voisin dans l'ordre des colonnes ; rien avant « À faire » ni après « Abandonné ». */
 function neighbour(status: Status, delta: number): Status | null {

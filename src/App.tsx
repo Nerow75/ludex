@@ -110,6 +110,7 @@ import { SHIFT_EVENT } from "./components/ProgressBoard";
 import { spatialNext } from "./lib/spatial";
 import { installPatch } from "./lib/install";
 import { FAKE_GAMES, withFakeGames } from "./lib/fake";
+import { revealScroll } from "./lib/virtual";
 import { InlineInput } from "./components/InlineInput";
 import { DownloadIcon, GridIcon, ListIcon, LudexMark, PencilIcon, PlusIcon, RefreshIcon, SearchIcon, SlidersIcon, TrashIcon } from "./components/Icons";
 import { SettingsView } from "./components/SettingsView";
@@ -118,6 +119,7 @@ import WelcomeScreen from "./components/WelcomeScreen";
 import { gamesCount, libraryAnnouncement } from "./lib/a11y";
 import CouchMode from "./components/CouchMode";
 import { LaunchScreen } from "./components/LaunchScreen";
+import { outsideLaunchScreen } from "./lib/launch";
 import { WindowControls } from "./components/WindowControls";
 import { formatNumber, t, useLang } from "./lib/i18n";
 import { genreLabel } from "./lib/format";
@@ -173,6 +175,11 @@ export default function App() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  /** Jeu ouvert depuis ailleurs (`openGame`) : jaquette et fiche à amener à l'écran, avec le focus. */
+  const [reveal, setReveal] = useState<{ id: string; key: number } | null>(null);
+  const revealing = useRef(false);
+  /** Historique remplacé par un import : la barre latérale relit son temps récent. */
+  const [historyKey, setHistoryKey] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(() => remembered("filter", FILTERS, "all"));
   const [sort, setSort] = useState<Sort>(() => remembered("sort", SORTS, "recent"));
@@ -252,6 +259,7 @@ export default function App() {
         onImported={(done) => {
           setScan(done.scan);
           loadCollections();
+          setHistoryKey((k) => k + 1);
         }}
         onToast={showToast}
       />
@@ -332,6 +340,8 @@ export default function App() {
     setStatusFilter((f) => (matchesStatus(game, f) ? f : "any"));
     setSelectedId(game.id);
     setOpen(true);
+    revealing.current = true;
+    setReveal((r) => ({ id: game.id, key: (r?.key ?? 0) + 1 }));
   }, [goTo]);
 
   /** Jeux d'un tag ou d'une ambiance (page Tags, fiche) : « Tous les jeux », tous launchers confondus. */
@@ -394,11 +404,80 @@ export default function App() {
     };
   }, [selected?.id, selected?.coverUrl]);
 
-  // Garde la fiche dépliée (ou la jaquette sélectionnée) visible.
+  /**
+   * Défilement qui montre la jaquette (ou la ligne) d'un jeu et la fiche dépliée dessous (`revealScroll`) ;
+   * `null` si la jaquette n'est pas rendue. `ready` : la fiche est là.
+   */
+  const blockScroll = (box: HTMLElement, id: string) => {
+    const item = box.querySelector<HTMLElement>(`[data-game="${CSS.escape(id)}"]`);
+    if (!item) return null;
+    const strip = box.querySelector<HTMLElement>(":scope .strip");
+    const origin = box.getBoundingClientRect().top - box.scrollTop;
+    const top = item.getBoundingClientRect().top - origin;
+    const bottom = (strip ?? item).getBoundingClientRect().bottom - origin;
+    const pad = getComputedStyle(box);
+    const next = revealScroll(box.scrollTop, top, bottom, box.clientHeight, parseFloat(pad.scrollPaddingTop) || 0, parseFloat(pad.scrollPaddingBottom) || 0);
+    return { item, top, next, ready: !!strip };
+  };
+  const blockScrollRef = useRef(blockScroll);
+  blockScrollRef.current = blockScroll;
+
+  // Garde la jaquette sélectionnée visible, avec sa fiche dépliée dessous : la fiche est souvent plus
+  // haute que l'écran, la viser seule laissait la jaquette au-dessus. Pendant `reveal`, c'est lui qui défile.
   useEffect(() => {
-    const target = scrollRef.current?.querySelector(open ? ".strip" : ".card.is-sel, .lrow.is-sel");
-    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const box = scrollRef.current;
+    if (revealing.current || !box) return;
+    if (open && selected) {
+      const r = blockScrollRef.current(box, selected.id);
+      if (r && Math.abs(r.next - box.scrollTop) > 1) box.scrollTo({ top: r.next, behavior: "smooth" });
+      return;
+    }
+    box.querySelector(".card.is-sel, .lrow.is-sel")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected?.id, open]);
+
+  // Jeu ouvert depuis ailleurs (Historique, Vitrine, notification…) : la grille ou la liste vient d'être
+  // rendue, ses colonnes et (virtualisée) ses hauteurs se corrigent sur quelques images. Jaquette et
+  // fiche ramenées à l'écran à chaque image jusqu'à ce que leur place ne bouge plus (sans animation :
+  // le saut peut faire des milliers de pixels), focus sur la jaquette. Arrêté par une touche, un clic
+  // ou la molette (l'utilisateur reprend la main).
+  useEffect(() => {
+    if (!reveal) return;
+    const box = scrollRef.current;
+    if (!box) return;
+    let frame = 0;
+    let count = 0;
+    let still = 0;
+    let last = NaN;
+    /** Nettoyage seul (un nouveau `reveal` prend la suite) ; `finish` rend la main au défilement habituel. */
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", finish, true);
+      window.removeEventListener("pointerdown", finish, true);
+      box.removeEventListener("wheel", finish);
+    };
+    const finish = () => {
+      stop();
+      revealing.current = false;
+    };
+    const step = () => {
+      const r = blockScrollRef.current(box, reveal.id);
+      if (r) {
+        if (Math.abs(r.next - box.scrollTop) > 1) box.scrollTop = r.next;
+        const hit = r.item.querySelector<HTMLElement>(".card__hit, .lrow__hit");
+        if (hit && document.activeElement !== hit) hit.focus({ preventScroll: true });
+        // Place stable (fiche comprise) sur trois images de suite : fini.
+        still = r.ready && Math.abs(r.top - last) < 1 ? still + 1 : 0;
+        last = r.top;
+      }
+      if (still >= 3 || ++count > 60) finish();
+      else frame = requestAnimationFrame(step);
+    };
+    window.addEventListener("keydown", finish, true);
+    window.addEventListener("pointerdown", finish, true);
+    box.addEventListener("wheel", finish, { passive: true });
+    frame = requestAnimationFrame(step);
+    return stop;
+  }, [reveal]);
 
   /** Met à jour un jeu dans le scan courant sans rescanner. */
   const patchGame = useCallback((id: string, patch: Partial<Game>) => {
@@ -460,8 +539,14 @@ export default function App() {
   // Zone de notification : jeu lancé depuis son menu, et explication à la première fermeture
   // (la fenêtre se cache quelques secondes après).
   useEffect(() => {
-    const launched = onTrayLaunch(({ id, title, lastPlayed, error }) => {
+    const launched = onTrayLaunch((e) => {
+      const { id, title, lastPlayed, error } = e;
       if (lastPlayed !== null) patchGame(id, { lastPlayed });
+      // Fenêtre à l'écran (recherche rapide par-dessus, menu de la zone de notification, lien) : même
+      // écran de lancement qu'un clic sur Jouer, le jeu étant déjà parti.
+      if (outsideLaunchScreen(e, launchScreenOn.current)) {
+        setLaunching({ id, key: Date.now(), alreadyPlaying: playingRef.current.has(id), error: null });
+      }
       if (error) showToast({ title: t.app.toast.cannotLaunch(title), detail: error, error: true }, 6000);
     });
     const hint = onTrayHint(() =>
@@ -1319,7 +1404,9 @@ export default function App() {
   /** Fiche dépliée sous la rangée (grille) ou la ligne (liste) du jeu sélectionné. */
   const renderStrip = (g: Game, notch: number) => (
     <GameStrip
-      key={`strip-${g.id}`}
+      // Nouvelle ouverture par `openGame` (« Voir » d'une actualité, notification) : la fiche est
+      // recréée et relit l'onglet demandé, même si elle était déjà ouverte sur ce jeu.
+      key={`strip-${g.id}-${reveal?.id === g.id ? reveal.key : 0}`}
       game={g}
       notch={notch}
       playing={playing.has(g.id)}
@@ -1392,6 +1479,7 @@ export default function App() {
         lastGame={recent[0] ?? null}
         onOpenGame={openGame}
         playing={playing}
+        historyKey={historyKey}
         onCreateCollection={(name) => newCollection(name, null)}
         settingsActive={view.id === SETTINGS_ID}
         onSettings={() => goTo(SETTINGS_ID)}

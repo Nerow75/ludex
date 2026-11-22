@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { plan, rowAt, rowEnd, rowsBetween, rowTop, totalHeight, type Rows, type Segment } from "./virtual";
+import { plan, revealScroll, rowAt, rowEnd, rowsBetween, rowTop, totalHeight, type Rows, type Segment } from "./virtual";
 
 // Grille : rangées de 250 px séparées de 24 px (pas de 274 px).
 const grille: Rows = { count: 100, size: 250, gap: 24, extra: null };
@@ -154,5 +154,33 @@ describe("plan", () => {
       expect(hautRendu(fiche, p, k)).toBe(rowTop(fiche, k));
       expect(hautRendu(fiche, p, a)).toBe(rowTop(fiche, a));
     }
+  });
+});
+
+describe("revealScroll", () => {
+  // Écran de 800 px, marges de défilement de 16 px en haut et 56 px en bas.
+  const view = 800;
+  it("ne bouge pas un bloc déjà entier à l'écran", () => {
+    expect(revealScroll(1000, 1100, 1600, view, 16, 56)).toBe(1000);
+  });
+  it("aligne le haut d'un bloc situé au-dessus", () => {
+    expect(revealScroll(5000, 1200, 1700, view, 16, 56)).toBe(1184);
+  });
+  it("aligne aussi en haut un bloc situé en dessous", () => {
+    expect(revealScroll(0, 20000, 20500, view, 16, 56)).toBe(19984);
+  });
+  it("ne bouge plus une fois le haut aligné, même si la fiche grandit au-delà de l'écran", () => {
+    expect(revealScroll(19984, 20000, 20500, view, 16, 56)).toBe(19984);
+    expect(revealScroll(19984, 20000, 21500, view, 16, 56)).toBe(19984);
+  });
+  it("aligne le haut d'un bloc plus haut que l'écran, d'où qu'il vienne", () => {
+    expect(revealScroll(0, 20000, 21200, view, 16, 56)).toBe(19984);
+    expect(revealScroll(30000, 20000, 21200, view, 16, 56)).toBe(19984);
+  });
+  it("aligne le haut d'un bloc à moitié coupé en haut", () => {
+    expect(revealScroll(1100, 1000, 1400, view, 16, 56)).toBe(984);
+  });
+  it("ne descend jamais sous zéro", () => {
+    expect(revealScroll(400, 4, 300, view, 16, 56)).toBe(0);
   });
 });

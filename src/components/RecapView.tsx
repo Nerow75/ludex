@@ -271,7 +271,7 @@ export function RecapView({ games, playing, openGame }: SectionContext) {
 
       {r.newGames.length > 0 && (
         <>
-          <h3 className="recap__h3">{tr.newGames}<span>{r.newGames.length}</span></h3>
+          <h3 className="recap__h3">{tr.newGames}<span className="sr-only">, </span><span>{r.newGames.length}</span></h3>
           <div className="recap__chips">
             {r.newGames.map((g) => (
               <button key={g.gameId} type="button" className="recap__chip" {...nav(byId.has(g.gameId))} disabled={!byId.has(g.gameId)} onClick={() => open(g.gameId)} title={tr.firstPlayed(formatDate(g.firstPlayed))}>

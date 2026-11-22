@@ -106,3 +106,12 @@ export function launchBackdrop(game: Game): { url: string | null; kind: "hero" |
 
 /** Ligne du launcher sous le logo (« Steam », « Dossiers de jeux (Autres) »). */
 export const launcherLine = (game: Game) => PLATFORM_LABEL[game.platform];
+
+/**
+ * Jeu lancé hors de la fenêtre principale (recherche rapide, zone de notification, lien `ludex://`) :
+ * écran de lancement montré seulement si le réglage est actif, le lancement réussi et la fenêtre à
+ * l'écran (cachée ou réduite : rien, le jeu est déjà parti quand elle revient). Une erreur reste un toast.
+ */
+export function outsideLaunchScreen(e: { lastPlayed: number | null; error: string | null; shown: boolean }, screenOn: boolean): boolean {
+  return screenOn && e.shown && !e.error && e.lastPlayed !== null;
+}

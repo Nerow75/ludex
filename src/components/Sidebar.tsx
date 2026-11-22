@@ -18,6 +18,8 @@ interface Props {
   onOpenGame: (game: Game) => void;
   /** Jeux en cours : le temps récent est relu quand une partie se termine. */
   playing: ReadonlySet<string>;
+  /** Change quand l'historique est remplacé (import) : le temps récent est relu aussi. */
+  historyKey: number;
   /** Nouvelle collection, nommée sur place sous « Mes collections ». */
   onCreateCollection: (name: string) => void;
   /** Paramètres affichés, et leur ouverture (dernier élément de la barre, Ctrl+,). */
@@ -69,7 +71,7 @@ function saveOpenGroups(groups: ReadonlySet<string>) {
 }
 
 /** Barre de navigation à gauche : sections, catégories repliables, collections, puis petites stats. */
-export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, onCreateCollection, settingsActive, onSettings, onCouch }: Props) {
+export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastGame, onOpenGame, playing, historyKey, onCreateCollection, settingsActive, onSettings, onCouch }: Props) {
   const [recent, setRecent] = useState<RecentPlaytime | null>(null);
   const [creating, setCreating] = useState(false);
   const [opened, setOpened] = useState(readOpenGroups);
@@ -81,7 +83,7 @@ export function Sidebar({ sections, active, onSelect, collapsed, onToggle, lastG
     return () => {
       alive = false;
     };
-  }, [playing]);
+  }, [playing, historyKey]);
 
   const toggleGroup = (group: string) => {
     setOpened((prev) => {

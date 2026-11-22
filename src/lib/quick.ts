@@ -1,8 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Game } from "./api";
-import { cleanTitle } from "./format";
-import { recentGames, selectGames } from "./library";
+import { byTitle, recentGames, selectGames } from "./library";
 
 /** Jeux du dernier scan, sans les jeux masqués (aucun scan lancé). */
 export const quickGames = () => invoke<Game[]>("quick_games");
@@ -15,8 +14,6 @@ export const onLibraryChanged = (handler: () => void): Promise<UnlistenFn> => li
 
 /** Résultats montrés au plus. */
 export const QUICK_LIMIT = 30;
-
-const byTitle = (a: Game, b: Game) => cleanTitle(a.title).localeCompare(cleanTitle(b.title), "fr", { sensitivity: "base" });
 
 /**
  * Résultats de la recherche rapide. Sans recherche : les derniers jeux joués, puis les autres par
