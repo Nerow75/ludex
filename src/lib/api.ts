@@ -533,6 +533,8 @@ export interface DiskUsage {
   platforms: PlatformShare[];
   /** Moins de 10 % d'espace libre. */
   low: boolean;
+  /** Jeux de ce disque, masqués compris (« Jeux de ce disque »). */
+  ids: string[];
 }
 /** Jeu pas lancé depuis six mois, ou jamais lancé. */
 export interface UninstallCandidate {
@@ -623,6 +625,74 @@ export const openFootprintItem = (id: string, item: string) => invoke<void>("ope
 /** Lance le désinstalleur officiel (commande relue dans le registre côté Rust). */
 export const runUninstaller = (id: string, item: string) => invoke<void>("run_uninstaller", { id, item });
 export const openAppsSettings = () => invoke<void>("open_apps_settings");
+
+// Déplacer un jeu vers un autre disque (`game_move.rs`). Le front n'envoie qu'un id de jeu et la clé
+// d'une destination relue côté Rust : jamais un chemin.
+/** Qui déplace : Ludex, Steam, Windows (Microsoft Store), le launcher seulement, ou personne. */
+export type MoveMode = "ludex" | "steam" | "windows" | "launcher" | "refused";
+/** Destination proposée par Rust. */
+export interface MoveTarget {
+  /** Clé à renvoyer pour la choisir (dossier parent, relu côté Rust). */
+  key: string;
+  /** Dossier final du jeu. */
+  path: string;
+  letter: string;
+  name: string;
+  free: number;
+  total: number;
+  /** Dossier de jeux à créer (« D:\Jeux »). */
+  create: boolean;
+  /** Même disque : simple renommage. */
+  sameDrive: boolean;
+  enough: boolean;
+  /** Un dossier du même nom existe déjà et n'est pas vide. */
+  taken: boolean;
+}
+export type MovePhase = "preparing" | "copying" | "verifying" | "ready" | "finishing" | "done" | "failed" | "cancelled";
+/** Progression d'un déplacement (`game-move`). Octets, octets par seconde, secondes. */
+export interface MoveProgress {
+  id: string;
+  title: string;
+  phase: MovePhase;
+  copied: number;
+  total: number;
+  speed: number | null;
+  remaining: number | null;
+  from: string;
+  to: string;
+  error: string | null;
+  warnings: string[];
+}
+export interface MoveOptions {
+  id: string;
+  title: string;
+  platform: Platform;
+  mode: MoveMode;
+  reason: string | null;
+  from: string | null;
+  drive: string | null;
+  bytes: number;
+  targets: MoveTarget[];
+  /** « Autre dossier… » permis (jeux ajoutés à la main). */
+  canPick: boolean;
+  picked: MoveTarget | null;
+  /** Déplacement en cours ou fini (ce jeu ou un autre). */
+  job: MoveProgress | null;
+}
+export type MoveChoice = { kind: "folder"; key: string } | { kind: "picked" };
+export const moveOptions = (id: string) => invoke<MoveOptions>("move_options", { id });
+/** Sélecteur de dossier natif côté Rust ; `null` si annulé. */
+export const movePickFolder = (id: string) => invoke<MoveOptions | null>("move_pick_folder", { id });
+export const moveGame = (id: string, target: MoveChoice) => invoke<MoveProgress>("move_game", { id, target });
+/** Copie vérifiée : bascule et suppression de l'ancien dossier. */
+export const moveGameFinish = () => invoke<MoveProgress>("move_game_finish");
+export const moveGameCancel = () => invoke<MoveProgress | null>("move_game_cancel");
+export const moveGameDismiss = () => invoke<void>("move_game_dismiss");
+export const moveGameStatus = () => invoke<MoveProgress | null>("move_game_status");
+/** Page Stockage des paramètres de Steam. */
+export const openSteamStorage = () => invoke<void>("open_steam_storage");
+export const onGameMove = (handler: (progress: MoveProgress) => void): Promise<UnlistenFn> =>
+  listen<MoveProgress>("game-move", (e) => handler(e.payload));
 /** Taille d'un jeu mesurée par Ludex (dossier d'installation), après le scan. */
 export interface SizeEvent {
   id: string;

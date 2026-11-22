@@ -418,6 +418,7 @@ pub fn game_folders() -> Vec<PathBuf> {
 }
 
 pub use local::set_installing;
+pub use local::{is_move_leftover, path_id, MOVE_SUFFIXES};
 
 pub use achievements::Achievement;
 

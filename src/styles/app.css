@@ -263,6 +263,31 @@ kbd {
 .store__action { position: absolute; right: 8px; top: 50%; height: 36px; margin-top: -18px; padding: 0 12px; font-size: 13px; }
 .store__action[aria-expanded="true"] { background: var(--lx-surface-2); }
 .store__panel { list-style: none; }
+/* Déplacer un jeu (`MovePanel.tsx`) : deux boutons sur une ligne du Stockage, liste par disque. */
+.store__acts { position: absolute; right: 8px; top: 50%; margin-top: -18px; display: flex; gap: 8px; }
+.store__acts .store__action { position: static; margin-top: 0; }
+.store__item--two .store__row { padding-right: 280px; }
+.disk__list { margin-top: 12px; }
+.disk__list > summary { display: inline-flex; align-items: center; gap: 8px; padding: 4px 8px; margin-left: -8px; border-radius: var(--lx-radius-s); font-size: 13px; color: var(--lx-text-2); cursor: pointer; }
+.disk__list > summary:hover { color: var(--lx-text); }
+.disk__list > .store { margin-top: 8px; }
+.move .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.move--banner { margin: 0 0 12px; }
+.move__job { display: flex; flex-direction: column; gap: 8px; }
+.move__bar { height: 6px; border-radius: 3px; overflow: hidden; background: var(--lx-surface-2); }
+.move__bar > span { display: block; height: 100%; background: var(--lx-accent); transition: width .25s var(--lx-ease); }
+.move__warn { color: var(--lx-warning); }
+.move__targets > li { padding: 0; }
+.move__target { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.move__target:hover:not(:disabled) { background: var(--lx-surface-2); }
+.move__target.is-on { background: var(--lx-accent-soft); box-shadow: inset 3px 0 0 var(--lx-accent); }
+.move__target:disabled { cursor: default; }
+.move__note { flex-shrink: 0; max-width: 50%; font-size: 12px; color: var(--lx-text-2); text-align: right; font-variant-numeric: tabular-nums; }
+.fiche__block .move { margin: 12px 0 0; padding: 12px; }
+.fiche__block .move .move__target { flex-wrap: wrap; }
+.fiche__block .move .move__note { max-width: none; text-align: left; }
+@media (prefers-reduced-motion: reduce) { .move__bar > span { transition: none; } }
+@media (forced-colors: active) { .move__bar > span { background: Highlight; } .move__target.is-on { outline: 2px solid Highlight; } }
 
 /* Vue avancée « Désinstaller… » : ce que le jeu laisse sur le PC. */
 .foot { margin: 4px 0 12px; padding: 16px; border: 1px solid var(--lx-border); border-radius: var(--lx-radius-l); background: var(--lx-surface); display: flex; flex-direction: column; gap: 8px; min-width: 0; }

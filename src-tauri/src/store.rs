@@ -55,6 +55,9 @@ pub struct UserData {
     /// Liste de souhaits (`wishlist.rs`) : jeux de la boutique Steam suivis, dans l'ordre d'ajout.
     #[serde(deserialize_with = "crate::wishlist::read_list")]
     pub wishlist: Vec<crate::wishlist::Wish>,
+    /// Jeux « Autres » déplacés par Ludex (`game_move.rs`) : id tiré du nouveau dossier → id
+    /// d'origine, que le jeu garde (temps, collections, sauvegardes… restent attachés).
+    pub moved_ids: BTreeMap<String, String>,
 }
 
 /// Statuts relus en ignorant une valeur inconnue (fichier d'une version future) : sinon le
@@ -253,7 +256,8 @@ impl UserData {
                 && self.status.is_empty()
                 && self.notes.is_empty()
                 && self.collections.is_empty()
-                && self.wishlist.is_empty())
+                && self.wishlist.is_empty()
+                && self.moved_ids.is_empty())
     }
 
     pub fn set_favorite(&mut self, id: &str, value: bool) {
@@ -443,6 +447,8 @@ impl UserData {
 
     /// Jeux manuels et corrections de l'utilisateur, appliqués à une bibliothèque scannée.
     pub fn customize(&self, games: &mut Vec<Game>) {
+        // D'abord l'id d'origine des jeux déplacés : les corrections suivantes sont rangées par id.
+        crate::game_move::apply_moved(games, &self.moved_ids);
         manual::customize(games, &Custom { manual: &self.manual, exes: &self.exes, titles: &self.titles });
     }
 

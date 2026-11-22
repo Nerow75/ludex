@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { PLATFORM_LABEL, storageReport, type DiskUsage, type Game, type StorageReport, type UninstallCandidate } from "../lib/api";
 import { formatDate, formatSize, relativeTime } from "../lib/format";
 import { t } from "../lib/i18n";
@@ -7,11 +7,65 @@ import { Cover } from "./Cover";
 import { LauncherIcon } from "./LauncherIcon";
 import { EmptyState } from "./States";
 import { FootprintPanel } from "./FootprintPanel";
+import { MoveJobView, MovePanel, useMoveJob } from "./MovePanel";
+import { moveActive } from "../lib/gameMove";
 
 /** Part d'un total, en % borné (largeur d'un segment de barre). */
 const share = (part: number, total: number) => (total > 0 ? Math.min(100, Math.max(0, (part / total) * 100)) : 0);
 
-function DiskRow({ disk }: { disk: DiskUsage }) {
+/**
+ * « Jeux de ce disque » sous la barre d'un disque, repliée : le plus gros d'abord, « Déplacer… »
+ * ouvre le panneau de déplacement sous la ligne.
+ */
+function DiskGames({ disk, byId, openGame }: { disk: DiskUsage; byId: Map<string, Game>; openGame: (game: Game) => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const list = disk.ids
+    .flatMap((id) => (byId.has(id) ? [byId.get(id) as Game] : []))
+    .sort((a, b) => (b.sizeOnDisk ?? 0) - (a.sizeOnDisk ?? 0) || a.title.localeCompare(b.title));
+  if (list.length === 0) return null;
+  const m = t.fiche.move;
+  return (
+    <details className="disk__list">
+      <summary data-nav>{m.diskGames(list.length)}</summary>
+      <ol className="hist store">
+        {list.map((g) => (
+          <Fragment key={g.id}>
+            <li className="hist__item store__item">
+              <button type="button" className="hist__row store__row" data-nav onClick={() => openGame(g)}>
+                <Cover game={g} className="hist__cover" />
+                <span className="hist__title">{g.title}</span>
+                <span className="hist__meta">
+                  <LauncherIcon platform={g.platform} size={12} />
+                  {PLATFORM_LABEL[g.platform]}
+                  {g.hidden ? ` · ${m.hidden}` : ""}
+                </span>
+                <span className="hist__when" aria-hidden />
+                <span className="store__size">{g.sizeOnDisk ? formatSize(g.sizeOnDisk) : m.unknownSize}</span>
+              </button>
+              <button
+                type="button"
+                className="btn-ghost store__action"
+                data-nav
+                aria-expanded={open === g.id}
+                title={m.storageHint}
+                onClick={() => setOpen((o) => (o === g.id ? null : g.id))}
+              >
+                {open === g.id ? m.close : m.storageAction}
+              </button>
+            </li>
+            {open === g.id && (
+              <li className="store__panel">
+                <MovePanel id={g.id} title={g.title} />
+              </li>
+            )}
+          </Fragment>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+function DiskRow({ disk, children }: { disk: DiskUsage; children?: ReactNode }) {
   const used = Math.max(0, disk.total - disk.free);
   const games = Math.min(disk.gamesBytes, used);
   const freePct = Math.round(share(disk.free, disk.total));
@@ -43,6 +97,7 @@ function DiskRow({ disk }: { disk: DiskUsage }) {
         {disk.unknown > 0 && <span>{st.unknownSize(disk.unknown)}</span>}
       </p>
       {disk.low && <p className="disk__warn">{st.almostFull(freePct)}</p>}
+      {children}
     </li>
   );
 }
@@ -93,14 +148,18 @@ export function StorageView({ games, openGame }: SectionContext) {
 
   // Vue avancée ouverte : la ligne reste à sa place même quand le jeu quitte la liste (désinstallé),
   // pour en montrer les restes.
-  const [open, setOpen] = useState<{ c: UninstallCandidate; g: Game; index: number } | null>(null);
+  const [open, setOpen] = useState<{ c: UninstallCandidate; g: Game; index: number; kind: "uninstall" | "move" } | null>(null);
   const rows = useMemo(() => {
     if (!open || list.some(([c]) => c.id === open.c.id)) return list;
     const out = [...list];
     out.splice(Math.min(open.index, out.length), 0, [open.c, open.g] as const);
     return out;
   }, [list, open]);
-  const toggle = (c: UninstallCandidate, g: Game, index: number) => setOpen((o) => (o?.c.id === c.id ? null : { c, g, index }));
+  const toggle = (c: UninstallCandidate, g: Game, index: number, kind: "uninstall" | "move") =>
+    setOpen((o) => (o?.c.id === c.id && o.kind === kind ? null : { c, g, index, kind }));
+  // Déplacement en cours ou fini : bandeau en haut, sauf si son panneau est déjà ouvert plus bas.
+  const [job, setJob] = useMoveJob();
+  const banner = job && (moveActive(job) || job.phase !== "cancelled") && !(open?.kind === "move" && open.c.id === job.id) ? job : null;
   const st = t.library.storage;
 
   if (!report) {
@@ -116,8 +175,17 @@ export function StorageView({ games, openGame }: SectionContext) {
         {report.measuring && <span className="storage__busy">{st.measuring}</span>}
       </div>
       {error && <p className="notice notice--error">{error}</p>}
+      {banner && (
+        <div className="foot move move--banner">
+          <MoveJobView job={banner} onChange={setJob} />
+        </div>
+      )}
       <ul className="disks">
-        {disks.map((d) => <DiskRow key={d.letter} disk={d} />)}
+        {disks.map((d) => (
+          <DiskRow key={d.letter} disk={d}>
+            <DiskGames disk={d} byId={byId} openGame={openGame} />
+          </DiskRow>
+        ))}
       </ul>
 
       <div className="bar">
@@ -131,7 +199,7 @@ export function StorageView({ games, openGame }: SectionContext) {
           <ol className="hist store">
             {rows.map(([c, g], index) => (
               <Fragment key={c.id}>
-              <li className="hist__item store__item">
+              <li className={`hist__item store__item${byId.has(c.id) ? " store__item--two" : ""}`}>
                 <button
                   type="button"
                   className="hist__row store__row"
@@ -151,20 +219,38 @@ export function StorageView({ games, openGame }: SectionContext) {
                   <span className="hist__when">{c.lastPlayed || c.launcherDates ? relativeTime(c.lastPlayed) : st.neverFromLudex}</span>
                   <span className="store__size">{formatSize(c.bytes)}</span>
                 </button>
+                <span className="store__acts">
+                {byId.has(c.id) && (
+                  <button
+                    type="button"
+                    className="btn-ghost store__action"
+                    data-nav
+                    aria-expanded={open?.c.id === c.id && open.kind === "move"}
+                    onClick={() => toggle(c, g, index, "move")}
+                    title={t.fiche.move.storageHint}
+                  >
+                    {open?.c.id === c.id && open.kind === "move" ? st.close : t.fiche.move.storageAction}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-ghost store__action"
                   data-nav
-                  aria-expanded={open?.c.id === c.id}
-                  onClick={() => toggle(c, g, index)}
+                  aria-expanded={open?.c.id === c.id && open.kind === "uninstall"}
+                  onClick={() => toggle(c, g, index, "uninstall")}
                   title={st.uninstallHint}
                 >
-                  {open?.c.id === c.id ? st.close : st.uninstall}
+                  {open?.c.id === c.id && open.kind === "uninstall" ? st.close : st.uninstall}
                 </button>
+                </span>
               </li>
               {open?.c.id === c.id && (
                 <li className="store__panel">
-                  <FootprintPanel id={c.id} title={c.title} present={byId.has(c.id)} />
+                  {open.kind === "move" ? (
+                    <MovePanel id={c.id} title={c.title} />
+                  ) : (
+                    <FootprintPanel id={c.id} title={c.title} present={byId.has(c.id)} />
+                  )}
                 </li>
               )}
               </Fragment>

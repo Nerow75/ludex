@@ -12,6 +12,7 @@ mod epic_online;
 mod steam_owned;
 mod footprint;
 mod gog_achievements;
+mod game_move;
 mod gog_online;
 mod history;
 mod hltb;
@@ -2193,6 +2194,9 @@ fn hide_quick(app: AppHandle) {
 /// notification. Renvoie l'heure du lancement (secondes Unix).
 fn launch<R: Runtime>(app: &AppHandle<R>, state: &AppState, id: &str) -> Result<u64, String> {
     let game = find_game(state, id)?;
+    if app.try_state::<game_move::Mover>().is_some_and(|m| m.busy_with(id)) {
+        return Err(tr!("{} est en cours de déplacement : attends la fin.", "{} is being moved: wait for it to finish.", game.title));
+    }
     // Lancement reconstruit ici depuis l'état, options de l'utilisateur comprises.
     let launch = launch_args::launch_for(&game)?;
 
@@ -2894,6 +2898,10 @@ pub fn run() {
             app.manage(epic_online::Epic::new(&app.state::<AppState>().data_dir));
             app.manage(steam_owned::SteamOwned::new(&app.state::<AppState>().data_dir));
             gog_achievements::init(&app.state::<AppState>().data_dir);
+            // Déplacement de jeux : dossiers de travail restés d'un lancement précédent supprimés.
+            let mover = game_move::Mover::new(&app.state::<AppState>().data_dir);
+            mover.clean_leftovers();
+            app.manage(mover);
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             update::spawn_check(app.handle().clone());
@@ -3020,6 +3028,14 @@ pub fn run() {
             showcase,
             storage,
             uninstall_game,
+            game_move::move_options,
+            game_move::move_pick_folder,
+            game_move::move_game,
+            game_move::move_game_finish,
+            game_move::move_game_cancel,
+            game_move::move_game_dismiss,
+            game_move::move_game_status,
+            game_move::open_steam_storage,
             game_footprint,
             open_footprint_item,
             run_uninstaller,
