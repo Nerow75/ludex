@@ -73,6 +73,17 @@ Configuration requise : Windows 10 ou 11, 64 bits, avec WebView2 (présent sur W
 
 Ludex vérifie les nouvelles versions 8 secondes après son ouverture, puis toutes les 12 heures. Quand une version est disponible, un message propose « Installer et relancer » : l'installeur est téléchargé depuis les releases GitHub, sa signature est vérifiée, puis Ludex redémarre. Rien n'est installé sans ton clic.
 
+### Signature du code
+
+Signature gratuite du code fournie par [SignPath.io](https://about.signpath.io), certificat de [SignPath Foundation](https://signpath.org).
+
+Rôles :
+
+- Auteurs et relecteurs : [Nerow75](https://github.com/Nerow75)
+- Approbateurs : [Nerow75](https://github.com/Nerow75)
+
+Seuls les installeurs construits par le workflow de release de ce dépôt (`.github/workflows/release.yml`), à partir du code publié ici, sont signés. Ce que Ludex envoie sur le réseau, et quand, est décrit dans la [politique de confidentialité](PRIVACY.md).
+
 ## Raccourcis
 
 ### Clavier

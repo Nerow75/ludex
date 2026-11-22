@@ -73,6 +73,17 @@ Requirements: 64-bit Windows 10 or 11, with WebView2 (built into Windows 11, dow
 
 Ludex checks for new versions 8 seconds after it opens, then every 12 hours. When one is available, a message offers "Install and restart": the installer is downloaded from the GitHub releases, its signature is checked, then Ludex restarts. Nothing is installed until you click.
 
+### Code signing
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Roles:
+
+- Committers and reviewers: [Nerow75](https://github.com/Nerow75)
+- Approvers: [Nerow75](https://github.com/Nerow75)
+
+Only installers built by this repository's release workflow (`.github/workflows/release.yml`) from the source code published here are signed. What Ludex sends over the network, and when, is described in the [privacy policy](PRIVACY.en.md).
+
 ## Shortcuts
 
 ### Keyboard
