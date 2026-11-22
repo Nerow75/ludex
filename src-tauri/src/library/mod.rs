@@ -406,6 +406,8 @@ pub fn game_folders() -> Vec<PathBuf> {
     local::library_dirs()
 }
 
+pub use local::set_installing;
+
 pub use achievements::Achievement;
 
 /// Lecture à la demande du détail des succès Steam de ce PC (jamais pendant le scan).

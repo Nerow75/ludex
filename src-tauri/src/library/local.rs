@@ -65,15 +65,37 @@ static CANDIDATES: std::sync::Mutex<Option<(std::time::Instant, Vec<PathBuf>)>> 
 /// Dossiers candidats. EA, Battle.net et « Autres » les demandent tour à tour pendant un même
 /// scan : la liste est gardée quelques secondes pour ne parcourir les disques qu'une fois.
 pub fn candidates() -> Vec<PathBuf> {
-    let mut cache = CANDIDATES.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((at, list)) = cache.as_ref()
-        && at.elapsed() < std::time::Duration::from_secs(10)
-    {
-        return list.clone();
+    let list = {
+        let mut cache = CANDIDATES.lock().unwrap_or_else(|e| e.into_inner());
+        match cache.as_ref() {
+            Some((at, list)) if at.elapsed() < std::time::Duration::from_secs(10) => list.clone(),
+            _ => {
+                let list = find_candidates();
+                *cache = Some((std::time::Instant::now(), list.clone()));
+                list
+            }
+        }
+    };
+    // Dossier d'un jeu GOG en cours d'installation : jamais pris pour un jeu « Autres » à moitié
+    // écrit (la surveillance voit le dossier apparaître pendant l'installation).
+    let installing = INSTALLING.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    match installing {
+        Some(dir) => list.into_iter().filter(|d| !same_dir(d, &dir)).collect(),
+        None => list,
     }
-    let list = find_candidates();
-    *cache = Some((std::time::Instant::now(), list.clone()));
-    list
+}
+
+/// Dossier d'installation en cours (installeur GOG lancé par Ludex).
+static INSTALLING: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// Pose ou retire le dossier en cours d'installation.
+pub fn set_installing(dir: Option<&Path>) {
+    *INSTALLING.lock().unwrap_or_else(|e| e.into_inner()) = dir.map(Path::to_path_buf);
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    let norm = |p: &Path| p.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase();
+    norm(a) == norm(b)
 }
 
 /// Oublie la liste des dossiers candidats : un nouveau scan relit les disques (jeu tout juste installé).

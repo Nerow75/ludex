@@ -98,6 +98,28 @@ export default {
     unknownReason: "unknown reason",
   },
 
+  accounts: {
+    title: "Accounts",
+    gogName: "GOG",
+    gogHelp: "Optional. Lists your GOG games that aren't installed on this PC (\"Not installed\" section) and installs them with the official installer. You sign in on GOG's own page: Ludex never sees your password, only keeps GOG's tokens encrypted for your Windows account, and never shows them in the Diagnostic or the export.",
+    connect: "Sign in to GOG",
+    reconnect: "Sign in again",
+    disconnect: "Sign out",
+    disconnectHint: "Deletes the tokens and the game list. Games already installed stay.",
+    showWindow: "Show the GOG window",
+    off: "Not signed in",
+    loginOpen: "Signing in, in the GOG window…",
+    connected: "Signed in",
+    connectedAs: (name: string) => `Signed in as ${name}`,
+    expired: "Sign in again: GOG refused the saved sign-in",
+    signedIn: "GOG account signed in",
+    signedOut: "GOG account signed out",
+    diagName: "GOG account",
+    diagDetail: "optional, never an identifier in this report",
+    diagConnected: "Signed in",
+    diagOff: "Not signed in",
+  },
+
   sources: {
     title: "Launchers",
     note: "A launcher that's turned off is still read, but its games no longer show up in Ludex. Games you added manually stay.",

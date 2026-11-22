@@ -344,7 +344,7 @@ fn price(cents: u32, currency: &str) -> String {
 
 /// « 1 118 Go » : gigaoctets entiers, milliers séparés par une espace insécable (« 1,118 GB » en
 /// anglais).
-fn gigabytes(bytes: u64) -> String {
+pub(crate) fn gigabytes(bytes: u64) -> String {
     let n = (bytes as f64 / 1e9).round() as u64;
     let digits = n.to_string();
     let english = crate::i18n::english();

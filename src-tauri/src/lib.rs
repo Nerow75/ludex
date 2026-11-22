@@ -8,6 +8,7 @@ mod deeplink;
 mod diagnostic;
 mod discord;
 mod footprint;
+mod gog_online;
 mod history;
 mod hltb;
 mod images;
@@ -2873,6 +2874,8 @@ pub fn run() {
             // Avant toute écriture dans le dossier de données : premier lancement ou habitué ?
             let welcome = welcome::Welcome::detect(&app.state::<AppState>());
             app.manage(welcome);
+            // Compte GOG facultatif : jetons relus dans le coffre chiffré (aucune requête ici).
+            app.manage(gog_online::Gog::new(&app.state::<AppState>().data_dir));
             // Une fois l'état en place : le temps mesuré avant l'arrêt précédent peut y être enregistré.
             app.state::<AppState>().tracker.resume();
             update::spawn_check(app.handle().clone());
@@ -2914,6 +2917,10 @@ pub fn run() {
             // Fenêtre principale fermée pour de bon (« garder dans la zone de notification » coupé) :
             // la recherche rapide, cachée, ne doit pas garder Ludex ouvert.
             tauri::WindowEvent::Destroyed if window.label() == MAIN_WINDOW => window.app_handle().exit(0),
+            // Fenêtre de connexion à GOG : fermée pour de bon (jamais cachée dans la zone de
+            // notification), le front apprend qu'elle n'est plus ouverte.
+            tauri::WindowEvent::Destroyed if window.label() == gog_online::LOGIN_LABEL => gog_online::login_closed(window.app_handle()),
+            tauri::WindowEvent::CloseRequested { .. } if window.label() == gog_online::LOGIN_LABEL => {}
             // Retour sur Ludex : annonces en attente, et après un long moment, relecture des
             // launchers sans surveillance.
             tauri::WindowEvent::Focused(true) => {
@@ -2938,6 +2945,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_library,
+            gog_online::gog_account,
+            gog_online::gog_login,
+            gog_online::gog_logout,
+            gog_online::gog_library,
+            gog_online::gog_install,
+            gog_online::gog_install_pause,
+            gog_online::gog_install_resume,
+            gog_online::gog_install_cancel,
+            gog_online::gog_install_dismiss,
             launch_game,
             open_install_dir,
             set_favorite,

@@ -5,7 +5,7 @@ import { titleOrder, type Filter } from "./library";
 import { HistoryList } from "../components/HistoryList";
 import { HomeView } from "../components/HomeView";
 import { ProgressBoard } from "../components/ProgressBoard";
-import { BoardIcon, ChartIcon, ClockIcon, GridIcon, HeartIcon, HomeIcon, ImageIcon, JournalIcon, PieIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
+import { BoardIcon, ChartIcon, ClockIcon, DownloadIcon, GridIcon, HeartIcon, HomeIcon, ImageIcon, JournalIcon, PieIcon, SaveIcon, StackIcon, StarIcon, StorageIcon, TagIcon, TrophyIcon } from "../components/Icons";
 import { JournalView } from "../components/JournalView";
 import { SavesPage } from "../components/SavesPage";
 import { ScreenshotsPage } from "../components/ScreenshotsPage";
@@ -15,6 +15,7 @@ import { StatsView } from "../components/StatsView";
 import { TagsView } from "../components/TagsView";
 import { StorageView } from "../components/StorageView";
 import { WishlistView } from "../components/WishlistView";
+import { GogView } from "../components/GogView";
 
 /** Ce que l'écran d'une section reçoit de l'application. À compléter quand une section en a besoin. */
 export interface SectionContext {
@@ -39,6 +40,8 @@ export interface SectionContext {
   showWholeJournal: () => void;
   /** Toast de 5 s avec « Annuler » (le même que pour un favori ou un statut). */
   showUndo: (title: string, undo: () => void) => void;
+  /** Ouvre les Paramètres (compte GOG à connecter). */
+  openSettings: () => void;
 }
 
 /**
@@ -201,6 +204,14 @@ export const SECTIONS: readonly Section[] = [
     icon: HeartIcon,
     group: TOOLS_GROUP,
     render: (ctx) => <WishlistView {...ctx} />,
+  },
+  // Jeux GOG possédés pas installés sur ce PC (compte GOG facultatif, voir les Paramètres).
+  {
+    id: "gog",
+    get label() { return text().gog; },
+    icon: DownloadIcon,
+    group: TOOLS_GROUP,
+    render: (ctx) => <GogView {...ctx} />,
   },
 ];
 
