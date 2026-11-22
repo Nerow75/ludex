@@ -1740,6 +1740,10 @@ button.jgame__head:hover, button.jgame__head:focus-visible { background: var(--l
 .set__small.is-primary { border-color: transparent; background: var(--lx-accent); color: var(--lx-on-accent); }
 .set__small.is-primary:hover { background: color-mix(in srgb, var(--lx-accent) 85%, var(--lx-text)); }
 .set__note { font-size: 13px; color: var(--lx-text-3); margin: 4px 4px 8px; }
+.set__sub { font-size: 13px; font-weight: 500; color: var(--lx-text-2); margin: 12px 16px 4px; }
+.set__services { list-style: none; margin: 0 0 8px; padding: 0 16px; display: grid; gap: 8px; }
+.set__services li { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--lx-text); }
+.set__services small { font-size: 12px; color: var(--lx-text-3); }
 .set__msg { font-size: 13px; color: var(--lx-text-2); margin: 4px; }
 .set__msg.is-error { color: var(--lx-danger); }
 .set .seg { flex: none; background: var(--lx-bg); }

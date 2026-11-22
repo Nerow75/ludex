@@ -163,6 +163,25 @@ export default {
     upToDate: "Ludex is up to date.",
     install: "Install and restart",
     check: "Check for updates",
+    repo: "Source code and news",
+    repoHelp: "github.com/Nerow75/ludex",
+    openRepo: "Open the repository",
+    servicesTitle: "Online services contacted",
+    services: {
+      updates: { name: "Ludex updates (github.com)", sent: "Nothing: reads the latest published version, then downloads the installer." },
+      steam: {
+        name: "Steam public store and API",
+        sent: "Steam numbers of games (appids) and mods, titles of games that need artwork, text searched in the wishlist.",
+      },
+      store: { name: "Microsoft Store catalog", sent: "Titles of games that aren't on Steam, to find a cover." },
+      hltb: { name: "HowLongToBeat", sent: "Game titles, for the time to beat." },
+      saves: { name: "Ludusavi save database (GitHub)", sent: "Nothing: downloads the list of save locations, once a week at most." },
+      images: { name: "Steam and Microsoft Store images", sent: "The address of each image shown, nothing else." },
+    },
+    servicesNote:
+      "No account, no telemetry: no user name, path or identifier of this PC is sent. As with any connection, each service sees your IP address.",
+    notAffiliated:
+      "Ludex isn't affiliated with any of the launchers or services mentioned. Their names and logos belong to their respective owners.",
   },
 
   diagSection: {

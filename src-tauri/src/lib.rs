@@ -3029,6 +3029,7 @@ pub fn run() {
             settings::set_keep_in_tray,
             settings::set_source_enabled,
             settings::show_all_hidden,
+            settings::open_repository,
             diagnostic::diagnostic,
             logfile::open_log,
             window_controls::window_enter_couch,
