@@ -132,7 +132,9 @@ Architecture et conventions : voir [CLAUDE.md](CLAUDE.md) (en français). Pile :
 
 ## Licence
 
-À venir.
+Copyright © 2026 NRW.
+
+Ludex est un logiciel libre distribué sous la licence publique générale GNU (GPL), version 3 ou (à ton choix) toute version ultérieure. Texte complet dans [LICENSE](LICENSE).
 
 ## Mentions
 

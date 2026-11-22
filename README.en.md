@@ -132,7 +132,9 @@ Architecture and conventions: see [CLAUDE.md](CLAUDE.md) (in French). Stack: Tau
 
 ## License
 
-Coming soon.
+Copyright © 2026 NRW.
+
+Ludex is free software released under the GNU General Public License (GPL), version 3 or (at your option) any later version. Full text in [LICENSE](LICENSE).
 
 ## Notices
 
